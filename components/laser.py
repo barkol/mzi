@@ -12,7 +12,7 @@ class Laser(Component):
         super().__init__(x, y, "laser")
         self.enabled = True
         self.radius = 15
-        self.debug = True  # Enable debug by default
+        self.debug = False  # Disable debug by default
     
     def draw(self, screen):
         """Draw laser source."""
@@ -61,9 +61,9 @@ class Laser(Component):
                 'direction': Vector2(1, 0),
                 'amplitude': 1.0,
                 'phase': 0,  # Initial phase at laser
+                'accumulated_phase': 0,  # Start with zero accumulated phase
                 'path_length': 0,
                 'total_path_length': 0,  # No distance traveled yet
-                'accumulated_phase': 0,  # Total phase including path
                 'source_type': 'laser'
             }
             

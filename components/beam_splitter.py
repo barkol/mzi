@@ -14,7 +14,7 @@ class BeamSplitter(Component):
         self.incoming_beams = []  # Store all beams arriving this frame
         self.last_opd = None
         self.last_phase_diff = None
-        self.debug = True
+        self.debug = False  # Debug off by default
         self.processed_this_frame = False
         self.realistic = True  # Always use realistic phase shifts (π/2 on reflection)
         
@@ -123,7 +123,7 @@ class BeamSplitter(Component):
         
         for beam in self.incoming_beams:
             direction = beam['direction']
-            # Use the full phase including path length accumulation
+            # Use the accumulated phase which includes all path and component phase shifts
             total_phase = beam.get('accumulated_phase', beam['phase'])
             amplitude = beam['amplitude'] * cmath.exp(1j * total_phase)
             path_lengths.append(beam.get('total_path_length', 0))
@@ -134,8 +134,8 @@ class BeamSplitter(Component):
                 print(f"  Incoming beam: dir=({direction.x:.3f}, {direction.y:.3f}), |E|={beam['amplitude']:.3f}")
                 print(f"    Path length: {beam.get('total_path_length', 0):.1f}px = {beam.get('total_path_length', 0)/WAVELENGTH:.2f}λ")
                 print(f"    Initial phase: {beam.get('phase', 0)*180/math.pi:.1f}°")
+                print(f"    Accumulated phase: {total_phase*180/math.pi:.1f}°")
                 print(f"    Path phase contribution: {path_phase*180/math.pi:.1f}°")
-                print(f"    Total phase: {total_phase*180/math.pi:.1f}°")
             
             # Determine which port this beam enters
             # In screen coordinates: +Y is DOWN, -Y is UP
@@ -326,6 +326,7 @@ class BeamSplitter(Component):
                     'direction': port_directions[port],
                     'amplitude': abs(E),
                     'phase': output_phase,  # This is the phase after interference
+                    'accumulated_phase': output_phase,  # Set accumulated phase
                     'path_length': 0,
                     'total_path_length': avg_path_length,  # Preserve the average path length
                     'source_type': self.incoming_beams[0].get('source_type', 'laser') if self.incoming_beams else 'laser'

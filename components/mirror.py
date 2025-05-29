@@ -11,7 +11,7 @@ class Mirror(Component):
     def __init__(self, x, y, mirror_type='/'):
         super().__init__(x, y, "mirror")
         self.mirror_type = mirror_type  # '/' or '\'
-        self.debug = True  # Enable debugging
+        self.debug = False  # Disable debugging by default
     
     def draw(self, screen):
         """Draw mirror."""
@@ -92,16 +92,22 @@ class Mirror(Component):
         if self.debug:
             print(f"\nMirror {self.mirror_type} at ({self.position.x}, {self.position.y}):")
             print(f"  Input: dir=({direction.x:.3f},{direction.y:.3f}), phase={beam['phase']*180/math.pi:.1f}°")
+            if 'accumulated_phase' in beam:
+                print(f"  Input accumulated phase: {beam['accumulated_phase']*180/math.pi:.1f}°")
             print(f"  Output: dir=({new_direction.x:.3f},{new_direction.y:.3f}), phase={(beam['phase']+phase_shift)*180/math.pi:.1f}°")
             print(f"  Phase shift: {phase_shift*180/math.pi:.0f}° (reflection)")
             if not IDEAL_COMPONENTS and MIRROR_LOSS > 0:
                 print(f"  Loss: {MIRROR_LOSS*100:.1f}% (amplitude factor: {amplitude_factor:.3f})")
         
+        # Calculate the new phase (including mirror phase shift)
+        new_phase = beam['phase'] + phase_shift
+        
         return [{
             'position': self.position + new_direction * 30,  # Increased from 25 to avoid immediate collision
             'direction': new_direction,
             'amplitude': beam['amplitude'] * amplitude_factor,
-            'phase': beam['phase'] + phase_shift,  # Base phase + mirror phase shift
+            'phase': new_phase,  # Base phase + mirror phase shift
+            'accumulated_phase': new_phase,  # Propagate accumulated phase
             'path_length': 0,
             'total_path_length': beam.get('total_path_length', 0),  # Preserve total path
             'source_type': beam['source_type']

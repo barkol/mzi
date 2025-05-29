@@ -46,28 +46,24 @@ class BeamTracer:
                 path, hit_component, path_length = self._trace_single_beam(beam, components)
                 
                 if path and len(path) >= 2:
-                    # Record the traced path
+                    # Update beam's phase based on distance traveled
+                    # Phase change = k * path_length where k = 2π/λ
+                    phase_change = self.k * path_length
+                    
+                    # Update the beam's accumulated phase
+                    beam['accumulated_phase'] = beam.get('accumulated_phase', beam['phase']) + phase_change
+                    beam['total_path_length'] = beam.get('total_path_length', 0) + path_length
+                    
+                    # Record the traced path with the beam's amplitude BEFORE hitting the component
                     traced_this_depth.append({
                         'path': path,
                         'amplitude': beam['amplitude'],
-                        'phase': beam['phase'],
+                        'phase': beam.get('accumulated_phase', beam['phase']),
                         'source_type': beam.get('source_type', 'laser')
                     })
                     
                     # If hit a component, record it for processing
                     if hit_component:
-                        # Update beam's phase based on distance traveled
-                        # Phase change = k * path_length where k = 2π/λ
-                        phase_change = self.k * path_length
-                        beam['phase'] += phase_change
-                        beam['total_path_length'] = beam.get('total_path_length', 0) + path_length
-                        
-                        if hit_component.component_type == "beamsplitter":
-                            # For beam splitters, include the accumulated phase in the beam data
-                            beam['accumulated_phase'] = beam['phase']  # Total phase including path
-                            if self.debug:
-                                print(f"  Beam reaching BS: path={beam['total_path_length']:.1f}px, phase change={phase_change*180/math.pi:.1f}°, total phase={beam['phase']*180/math.pi:.1f}°")
-                        
                         if hit_component not in component_hits:
                             component_hits[hit_component] = []
                         component_hits[hit_component].append(beam)
@@ -83,27 +79,58 @@ class BeamTracer:
             
             # Process all components to generate new beams
             next_beams = []
+            output_paths = []  # Store output beam paths for visualization
             
             # Process ALL beam splitters (not just those hit this depth)
-            # This ensures beam splitters can finalize even with single beams
             for component in components:
                 if component.component_type == "beamsplitter" and len(component.incoming_beams) > 0:
+                    # Get the position for output beam paths
+                    bs_pos = component.position
+                    
                     # Finalize processing with amplitude accumulation
                     output_beams = component.finalize_frame()
+                    
+                    # Create paths for output beams
+                    for out_beam in output_beams:
+                        # Create a short path segment for the output beam
+                        output_path = [bs_pos, out_beam['position']]
+                        output_paths.append({
+                            'path': output_path,
+                            'amplitude': out_beam['amplitude'],
+                            'phase': out_beam['phase'],
+                            'source_type': out_beam.get('source_type', 'laser')
+                        })
+                    
                     next_beams.extend(output_beams)
             
             # Process other components (mirrors only - detectors accumulate)
             for component, hitting_beams in component_hits.items():
                 if component.component_type not in ["beamsplitter", "detector"]:
                     for beam in hitting_beams:
-                        path_length = beam.get('total_path_length', 0)
-                        output_beams = component.process_beam(beam)
+                        # Pass the beam with its accumulated phase
+                        beam_to_process = beam.copy()
+                        beam_to_process['phase'] = beam.get('accumulated_phase', beam['phase'])
                         
-                        # Propagate total path length to output beams
+                        output_beams = component.process_beam(beam_to_process)
+                        
+                        # Propagate accumulated phase and path length to output beams
                         for out_beam in output_beams:
-                            out_beam['total_path_length'] = path_length
+                            out_beam['accumulated_phase'] = out_beam['phase']
+                            out_beam['total_path_length'] = beam.get('total_path_length', 0)
+                            
+                            # Create a short path for the output beam
+                            output_path = [component.position, out_beam['position']]
+                            output_paths.append({
+                                'path': output_path,
+                                'amplitude': out_beam['amplitude'],
+                                'phase': out_beam['phase'],
+                                'source_type': out_beam.get('source_type', 'laser')
+                            })
                         
                         next_beams.extend(output_beams)
+            
+            # Add output paths to traced beams (these show the correct amplitudes)
+            all_traced_beams.extend(output_paths)
             
             # Continue with next depth
             current_beams = next_beams

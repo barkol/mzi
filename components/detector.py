@@ -15,7 +15,7 @@ class Detector(Component):
         self.total_path_length = 0
         self.incoming_amplitudes = []  # Store complex amplitudes
         self.processed_this_frame = False
-        self.debug = False  # Enable debug output
+        self.debug = False  # Debug off by default
     
     def reset_frame(self):
         """Reset for new frame processing."""
@@ -25,7 +25,7 @@ class Detector(Component):
     def add_beam(self, beam):
         """Add a beam's complex amplitude for accumulation."""
         if not self.processed_this_frame:
-            # Calculate complex amplitude including phase
+            # Calculate complex amplitude including accumulated phase
             total_phase = beam.get('accumulated_phase', beam['phase'])
             complex_amplitude = beam['amplitude'] * cmath.exp(1j * total_phase)
             
@@ -36,7 +36,7 @@ class Detector(Component):
             
             if self.debug:
                 print(f"  Detector at {self.position} received beam:")
-                print(f"    |E| = {beam['amplitude']:.3f}, phase = {total_phase*180/math.pi:.1f}°")
+                print(f"    |E| = {beam['amplitude']:.3f}, accumulated phase = {total_phase*180/math.pi:.1f}°")
                 print(f"    Complex amplitude: {complex_amplitude:.3f}")
     
     def process_beam(self, beam):
