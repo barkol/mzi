@@ -24,14 +24,14 @@ class BeamTracer:
         all_traced_beams = []
         current_beams = self.active_beams.copy()
         
+        # Reset all components that need frame-based accumulation
+        for comp in components:
+            if hasattr(comp, 'reset_frame'):
+                comp.reset_frame()
+        
         for depth in range(max_depth):
             if not current_beams:
                 break
-            
-            # Reset beam splitters for this depth
-            for comp in components:
-                if comp.component_type == "beamsplitter":
-                    comp.reset_frame()
                 
             # Trace all beams at current depth and collect component hits
             traced_this_depth = []
@@ -75,9 +75,9 @@ class BeamTracer:
             # Add this depth's traced beams to results
             all_traced_beams.extend(traced_this_depth)
             
-            # First, add all beams to beam splitters that were hit
+            # First, add all beams to components that accumulate (beam splitters and detectors)
             for component, hitting_beams in component_hits.items():
-                if component.component_type == "beamsplitter":
+                if component.component_type in ["beamsplitter", "detector"]:
                     for beam in hitting_beams:
                         component.add_beam(beam)
             
@@ -92,9 +92,9 @@ class BeamTracer:
                     output_beams = component.finalize_frame()
                     next_beams.extend(output_beams)
             
-            # Process other components (mirrors, detectors)
+            # Process other components (mirrors only - detectors accumulate)
             for component, hitting_beams in component_hits.items():
-                if component.component_type != "beamsplitter":
+                if component.component_type not in ["beamsplitter", "detector"]:
                     for beam in hitting_beams:
                         path_length = beam.get('total_path_length', 0)
                         output_beams = component.process_beam(beam)
@@ -107,6 +107,11 @@ class BeamTracer:
             
             # Continue with next depth
             current_beams = next_beams
+        
+        # Finalize all components that accumulate beams (detectors)
+        for comp in components:
+            if hasattr(comp, 'finalize_frame'):
+                comp.finalize_frame()
         
         return all_traced_beams
     

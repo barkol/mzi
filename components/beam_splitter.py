@@ -112,7 +112,7 @@ class BeamSplitter(Component):
         if self.debug:
             print(f"\nBeam splitter at {self.position} - finalizing frame with {len(self.incoming_beams)} beam(s)")
         
-        # Accumulate input amplitudes at each port
+        # STEP 1: Accumulate input amplitudes at each port
         E_in = {'A': complex(0, 0), 'B': complex(0, 0), 'C': complex(0, 0), 'D': complex(0, 0)}
         
         # Store which ports received beams for visualization
@@ -196,47 +196,70 @@ class BeamSplitter(Component):
                 print(f"    Phase 1: {phase1*180/math.pi:.1f}°, Phase 2: {phase2*180/math.pi:.1f}°")
                 print(f"    Total phase difference: {self.last_phase_diff*180/math.pi:.1f}°")
         
-        # Apply beam splitter transformation
+        # SAFETY CHECK: Store a copy of input amplitudes before transformation for verification
+        if self.debug:
+            E_in_copy = {k: v for k, v in E_in.items()}
+        
+        # STEP 2: Apply beam splitter transformation
         # For a 50/50 beam splitter oriented like \ :
         # - Transmitted beams maintain direction (no phase shift)
-        # - Reflected beams change direction (π/2 phase shift in realistic mode)
+        # - Reflected beams change direction (π/2 phase shift)
         
-        # Calculate output amplitudes - initialize to complex zero
+        # IMPORTANT: Calculate output amplitudes in a SEPARATE dictionary
+        # to avoid any confusion between input and output modes
         E_out = {'A': complex(0, 0), 'B': complex(0, 0), 'C': complex(0, 0), 'D': complex(0, 0)}
         
-        # Implementing the user's exact specification with proper interference
-        # Key insight: we need to track which beams interfere at each output port
+        # Apply the beam splitter transformation matrix
+        # Each INPUT port contributes to exactly TWO OUTPUT ports
         
-        # Port A (left) → transmitted RIGHT (C), reflected DOWN (B)
+        # From input port A (left, traveling right):
         if E_in['A'] != 0:
-            E_out['C'] += E_in['A'] / math.sqrt(2)  # Transmitted right (no phase shift)
-            E_out['B'] += 1j * E_in['A'] / math.sqrt(2)  # Reflected down (π/2 phase shift ALWAYS)
+            # Transmitted to port C (continues right, no phase shift)
+            E_out['C'] += E_in['A'] / math.sqrt(2)
+            # Reflected to port B (turns down, π/2 phase shift)
+            E_out['B'] += 1j * E_in['A'] / math.sqrt(2)
         
-        # Port B (bottom) → transmitted UP (D), reflected LEFT (A)
+        # From input port B (bottom, traveling up):
         if E_in['B'] != 0:
-            E_out['D'] += E_in['B'] / math.sqrt(2)  # Transmitted up (no phase shift)
-            E_out['A'] += 1j * E_in['B'] / math.sqrt(2)  # Reflected left (π/2 phase shift ALWAYS)
+            # Transmitted to port D (continues up, no phase shift)
+            E_out['D'] += E_in['B'] / math.sqrt(2)
+            # Reflected to port A (turns left, π/2 phase shift)
+            E_out['A'] += 1j * E_in['B'] / math.sqrt(2)
         
-        # Port C (right) → transmitted LEFT (A), reflected UP (D)
+        # From input port C (right, traveling left):
         if E_in['C'] != 0:
-            E_out['A'] += E_in['C'] / math.sqrt(2)  # Transmitted left (no phase shift)
-            E_out['D'] += 1j * E_in['C'] / math.sqrt(2)  # Reflected up (π/2 phase shift ALWAYS)
+            # Transmitted to port A (continues left, no phase shift)
+            E_out['A'] += E_in['C'] / math.sqrt(2)
+            # Reflected to port D (turns up, π/2 phase shift)
+            E_out['D'] += 1j * E_in['C'] / math.sqrt(2)
         
-        # Port D (top) → transmitted DOWN (B), reflected RIGHT (C)
+        # From input port D (top, traveling down):
         if E_in['D'] != 0:
-            E_out['B'] += E_in['D'] / math.sqrt(2)  # Transmitted down (no phase shift)
-            E_out['C'] += 1j * E_in['D'] / math.sqrt(2)  # Reflected right (π/2 phase shift ALWAYS)
+            # Transmitted to port B (continues down, no phase shift)
+            E_out['B'] += E_in['D'] / math.sqrt(2)
+            # Reflected to port C (turns right, π/2 phase shift)
+            E_out['C'] += 1j * E_in['D'] / math.sqrt(2)
         
         if self.debug:
             print(f"\n  Beam splitter transformation applied (with π/2 phase shifts on reflection):")
+            print(f"  INPUT amplitudes:")
+            for port in ['A', 'B', 'C', 'D']:
+                if abs(E_in[port]) > 0.001:
+                    print(f"    E_in[{port}] = {E_in[port]:.3f}")
+            
+            print(f"\n  Transformation matrix contributions:")
             if E_in['A'] != 0:
-                print(f"    A→C,B: |E_A|={abs(E_in['A']):.3f} → C(right, transmitted), B(down, reflected +90°)")
+                print(f"    A→C: E_in[A]/√2 = {E_in['A']/math.sqrt(2):.3f} (transmitted)")
+                print(f"    A→B: i·E_in[A]/√2 = {1j*E_in['A']/math.sqrt(2):.3f} (reflected)")
             if E_in['B'] != 0:
-                print(f"    B→D,A: |E_B|={abs(E_in['B']):.3f} → D(up, transmitted), A(left, reflected +90°)")
+                print(f"    B→D: E_in[B]/√2 = {E_in['B']/math.sqrt(2):.3f} (transmitted)")
+                print(f"    B→A: i·E_in[B]/√2 = {1j*E_in['B']/math.sqrt(2):.3f} (reflected)")
             if E_in['C'] != 0:
-                print(f"    C→A,D: |E_C|={abs(E_in['C']):.3f} → A(left, transmitted), D(up, reflected +90°)")
+                print(f"    C→A: E_in[C]/√2 = {E_in['C']/math.sqrt(2):.3f} (transmitted)")
+                print(f"    C→D: i·E_in[C]/√2 = {1j*E_in['C']/math.sqrt(2):.3f} (reflected)")
             if E_in['D'] != 0:
-                print(f"    D→B,C: |E_D|={abs(E_in['D']):.3f} → B(down, transmitted), C(right, reflected +90°)")
+                print(f"    D→B: E_in[D]/√2 = {E_in['D']/math.sqrt(2):.3f} (transmitted)")
+                print(f"    D→C: i·E_in[D]/√2 = {1j*E_in['D']/math.sqrt(2):.3f} (reflected)")
         
         # Apply losses if configured
         if not IDEAL_COMPONENTS and BEAM_SPLITTER_LOSS > 0:
@@ -244,10 +267,18 @@ class BeamSplitter(Component):
             for port in E_out:
                 E_out[port] *= loss_factor
         
+        # SAFETY CHECK: Verify input amplitudes weren't modified during transformation
+        if self.debug:
+            for port in ['A', 'B', 'C', 'D']:
+                if E_in[port] != E_in_copy[port]:
+                    print(f"ERROR: Input amplitude E_in[{port}] was modified!")
+                    print(f"  Before: {E_in_copy[port]}")
+                    print(f"  After: {E_in[port]}")
+        
         # Debug: Check energy conservation
         if self.debug:
             # Show the complex amplitudes at each output port
-            print(f"\n  Output port complex amplitudes:")
+            print(f"\n  OUTPUT port complex amplitudes:")
             for port, E in E_out.items():
                 if abs(E) > 0.001:
                     dir_name = {'A': 'LEFT', 'B': 'DOWN', 'C': 'RIGHT', 'D': 'UP'}[port]
@@ -269,7 +300,7 @@ class BeamSplitter(Component):
                 print(f"    OPD = {self.last_opd:.1f}px = {self.last_opd/WAVELENGTH:.2f}λ")
                 print(f"    Phase difference = {self.last_phase_diff*180/math.pi:.1f}°")
         
-        # Generate output beams
+        # STEP 3: Generate output beams based on E_out
         output_beams = []
         avg_path_length = sum(path_lengths) / len(path_lengths) if path_lengths else 0
         
@@ -283,7 +314,7 @@ class BeamSplitter(Component):
         
         # Debug: show what beams we're generating
         if self.debug:
-            print(f"\n  Generating output beams:")
+            print(f"\n  Generating output beams from E_out:")
         
         for port, E in E_out.items():
             if abs(E) > 0.001:  # Only emit beams with significant amplitude
