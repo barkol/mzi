@@ -1,0 +1,138 @@
+"""Grid system for component placement."""
+import pygame
+from config.settings import *
+from utils.colors import pulse_alpha
+
+class Grid:
+    """Grid system for the game canvas."""
+    
+    def __init__(self):
+        self.hover_pos = None
+        self.canvas_rect = pygame.Rect(
+            CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
+            CANVAS_WIDTH, CANVAS_HEIGHT
+        )
+    
+    def set_hover(self, pos):
+        """Set hover position for drag preview."""
+        if pos and self.canvas_rect.collidepoint(pos):
+            # Snap to grid
+            x = round((pos[0] - CANVAS_OFFSET_X) / GRID_SIZE) * GRID_SIZE + CANVAS_OFFSET_X
+            y = round((pos[1] - CANVAS_OFFSET_Y) / GRID_SIZE) * GRID_SIZE + CANVAS_OFFSET_Y
+            self.hover_pos = (x, y)
+        else:
+            self.hover_pos = None
+    
+    def draw(self, screen, components, laser_pos=None):
+        """Draw grid with hover effects."""
+        # Draw grid lines
+        self._draw_grid_lines(screen)
+        
+        # Draw hover highlight
+        if self.hover_pos:
+            self._draw_hover_highlight(screen, components, laser_pos)
+    
+    def _draw_grid_lines(self, screen):
+        """Draw the background grid."""
+        # Vertical lines
+        for x in range(CANVAS_OFFSET_X, CANVAS_OFFSET_X + CANVAS_WIDTH + 1, GRID_SIZE):
+            is_major = ((x - CANVAS_OFFSET_X) / GRID_SIZE) % 4 == 0
+            color = GRID_MAJOR_COLOR if is_major else GRID_COLOR
+            pygame.draw.line(screen, color, 
+                           (x, CANVAS_OFFSET_Y), 
+                           (x, CANVAS_OFFSET_Y + CANVAS_HEIGHT))
+        
+        # Horizontal lines
+        for y in range(CANVAS_OFFSET_Y, CANVAS_OFFSET_Y + CANVAS_HEIGHT + 1, GRID_SIZE):
+            is_major = ((y - CANVAS_OFFSET_Y) / GRID_SIZE) % 4 == 0
+            color = GRID_MAJOR_COLOR if is_major else GRID_COLOR
+            pygame.draw.line(screen, color,
+                           (CANVAS_OFFSET_X, y),
+                           (CANVAS_OFFSET_X + CANVAS_WIDTH, y))
+        
+        # Draw intersection dots
+        for x in range(CANVAS_OFFSET_X, CANVAS_OFFSET_X + CANVAS_WIDTH + 1, GRID_SIZE):
+            for y in range(CANVAS_OFFSET_Y, CANVAS_OFFSET_Y + CANVAS_HEIGHT + 1, GRID_SIZE):
+                is_major = (((x - CANVAS_OFFSET_X) / GRID_SIZE) % 4 == 0 and 
+                           ((y - CANVAS_OFFSET_Y) / GRID_SIZE) % 4 == 0)
+                radius = 3 if is_major else 2
+                pygame.draw.circle(screen, GRID_MAJOR_COLOR if is_major else GRID_COLOR,
+                                 (x, y), radius)
+    
+    def _draw_hover_highlight(self, screen, components, laser_pos):
+        """Draw hover highlight for component placement."""
+        x, y = self.hover_pos
+        
+        # Check if position is occupied
+        occupied = self._is_position_occupied(x, y, components, laser_pos)
+        
+        # Pulsing effect
+        alpha = pulse_alpha(80)
+        color = HOVER_INVALID_COLOR if occupied else HOVER_VALID_COLOR
+        
+        # Draw highlight square
+        s = pygame.Surface((GRID_SIZE, GRID_SIZE), pygame.SRCALPHA)
+        pygame.draw.rect(s, (*color[:3], alpha), pygame.Rect(0, 0, GRID_SIZE, GRID_SIZE))
+        screen.blit(s, (x - GRID_SIZE // 2, y - GRID_SIZE // 2))
+        
+        # Draw border
+        rect = pygame.Rect(x - GRID_SIZE // 2, y - GRID_SIZE // 2, GRID_SIZE, GRID_SIZE)
+        pygame.draw.rect(screen, color[:3], rect, 2)
+        
+        # Draw crosshair
+        pygame.draw.line(screen, color[:3], (x - 10, y), (x + 10, y), 1)
+        pygame.draw.line(screen, color[:3], (x, y - 10), (x, y + 10), 1)
+        
+        # Draw status text
+        if occupied:
+            self._draw_occupied_text(screen, x, y)
+        else:
+            self._draw_coords_text(screen, x, y)
+    
+    def _is_position_occupied(self, x, y, components, laser_pos):
+        """Check if grid position is occupied."""
+        # Check laser position
+        if laser_pos:
+            dist = ((x - laser_pos[0])**2 + (y - laser_pos[1])**2)**0.5
+            if dist < GRID_SIZE:
+                return True
+        
+        # Check components
+        for comp in components:
+            dist = comp.position.distance_to(pygame.math.Vector2(x, y))
+            if dist < GRID_SIZE:
+                return True
+        
+        return False
+    
+    def _draw_occupied_text(self, screen, x, y):
+        """Draw occupied warning."""
+        font = pygame.font.Font(None, 14)
+        text = font.render("OCCUPIED", True, RED)
+        text_rect = text.get_rect(topleft=(x + 15, y - 25))
+        
+        # Background
+        padding = 5
+        bg_rect = text_rect.inflate(padding * 2, padding * 2)
+        pygame.draw.rect(screen, (*BLACK, 200), bg_rect)
+        pygame.draw.rect(screen, RED, bg_rect, 1)
+        
+        screen.blit(text, text_rect)
+        
+        # Draw X mark
+        pygame.draw.line(screen, RED, (x - 15, y - 15), (x + 15, y + 15), 3)
+        pygame.draw.line(screen, RED, (x + 15, y - 15), (x - 15, y + 15), 3)
+    
+    def _draw_coords_text(self, screen, x, y):
+        """Draw coordinate display."""
+        font = pygame.font.Font(None, 14)
+        coords_text = f"{x - CANVAS_OFFSET_X}, {y - CANVAS_OFFSET_Y}"
+        text = font.render(coords_text, True, CYAN)
+        text_rect = text.get_rect(topleft=(x + 15, y - 25))
+        
+        # Background
+        padding = 5
+        bg_rect = text_rect.inflate(padding * 2, padding * 2)
+        pygame.draw.rect(screen, (*BLACK, 200), bg_rect)
+        
+        screen.blit(text, text_rect)
