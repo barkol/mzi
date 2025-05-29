@@ -30,11 +30,11 @@ class Mirror(Component):
         s = pygame.Surface((60, 60), pygame.SRCALPHA)
         s_center = (30, 30)
         if self.mirror_type == '/':
-            pygame.draw.line(s, (MAGENTA[0], MAGENTA[1], MAGENTA[2], 100), 
+            pygame.draw.line(s, (MAGENTA[0], MAGENTA[1], MAGENTA[2], 100),
                            (s_center[0] - 20, s_center[1] + 20),
                            (s_center[0] + 20, s_center[1] - 20), 2)
         else:
-            pygame.draw.line(s, (MAGENTA[0], MAGENTA[1], MAGENTA[2], 100), 
+            pygame.draw.line(s, (MAGENTA[0], MAGENTA[1], MAGENTA[2], 100),
                            (s_center[0] - 20, s_center[1] - 20),
                            (s_center[0] + 20, s_center[1] + 20), 2)
         screen.blit(s, (self.position.x - 30, self.position.y - 30))
@@ -61,6 +61,12 @@ class Mirror(Component):
         """Reflect beam according to mirror orientation."""
         direction = beam['direction']
         
+        # Ensure direction is normalized
+        mag = math.sqrt(direction.x**2 + direction.y**2)
+        if abs(mag - 1.0) > 0.001:
+            print(f"WARNING: Mirror received non-normalized direction vector: ({direction.x}, {direction.y}), magnitude={mag}")
+            direction = Vector2(direction.x / mag, direction.y / mag)
+        
         # Calculate new direction based on mirror type
         if self.mirror_type == '/':
             # / mirror: (dx,dy) -> (-dy,-dx)
@@ -69,27 +75,34 @@ class Mirror(Component):
             # \ mirror: (dx,dy) -> (dy,dx)
             new_direction = Vector2(direction.y, direction.x)
         
+        # Verify output is normalized
+        out_mag = math.sqrt(new_direction.x**2 + new_direction.y**2)
+        if abs(out_mag - 1.0) > 0.001:
+            print(f"WARNING: Mirror producing non-normalized output: ({new_direction.x}, {new_direction.y}), magnitude={out_mag}")
+        
         # Calculate amplitude after reflection
         if IDEAL_COMPONENTS:
             amplitude_factor = 1.0  # No loss
         else:
             amplitude_factor = 1.0 - MIRROR_LOSS  # Apply configured loss
         
-        # In this simplified model, mirrors don't add phase shift
-        # (In reality, metallic mirrors add π, dielectric mirrors vary)
-        phase_shift = 0
+        # Mirrors add π (180°) phase shift on reflection
+        phase_shift = math.pi  # 180 degrees
         
         if self.debug:
-            print(f"Mirror {self.mirror_type} at {self.position}:")
-            print(f"  Input: dir=({direction.x:.0f},{direction.y:.0f}), phase={beam['phase']*180/math.pi:.1f}°")
-            print(f"  Output: dir=({new_direction.x:.0f},{new_direction.y:.0f}), phase={(beam['phase']+phase_shift)*180/math.pi:.1f}°")
+            print(f"\nMirror {self.mirror_type} at ({self.position.x}, {self.position.y}):")
+            print(f"  Input: dir=({direction.x:.3f},{direction.y:.3f}), phase={beam['phase']*180/math.pi:.1f}°")
+            print(f"  Output: dir=({new_direction.x:.3f},{new_direction.y:.3f}), phase={(beam['phase']+phase_shift)*180/math.pi:.1f}°")
+            print(f"  Phase shift: {phase_shift*180/math.pi:.0f}° (reflection)")
+            if not IDEAL_COMPONENTS and MIRROR_LOSS > 0:
+                print(f"  Loss: {MIRROR_LOSS*100:.1f}% (amplitude factor: {amplitude_factor:.3f})")
         
         return [{
-            'position': self.position + new_direction * 25,
+            'position': self.position + new_direction * 30,  # Increased from 25 to avoid immediate collision
             'direction': new_direction,
             'amplitude': beam['amplitude'] * amplitude_factor,
-            'phase': beam['phase'] + phase_shift,
+            'phase': beam['phase'] + phase_shift,  # Base phase + mirror phase shift
             'path_length': 0,
-            'total_path_length': beam.get('total_path_length', 0),
+            'total_path_length': beam.get('total_path_length', 0),  # Preserve total path
             'source_type': beam['source_type']
         }]

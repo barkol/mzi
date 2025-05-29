@@ -48,19 +48,226 @@ class Game:
             if event.key == pygame.K_o:
                 self.show_opd_info = not self.show_opd_info
                 print(f"OPD display: {'ON' if self.show_opd_info else 'OFF'}")
-            elif event.key == pygame.K_d:
-                # Toggle debug mode for all components
-                debug_state = False
+            elif event.key == pygame.K_v:
+                # Visual test: place detectors around beam splitter
+                print("\n=== VISUAL DIRECTION TEST ===")
                 for comp in self.components:
-                    if hasattr(comp, 'debug'):
-                        debug_state = not comp.debug
+                    if comp.component_type == 'beamsplitter':
+                        bs_pos = comp.position
+                        print(f"Placing detectors around beam splitter at {bs_pos}")
+                        
+                        # Place detectors at all 4 positions
+                        detector_positions = [
+                            (bs_pos.x - 80, bs_pos.y, "LEFT (A)"),
+                            (bs_pos.x, bs_pos.y + 80, "DOWN (B)"),
+                            (bs_pos.x + 80, bs_pos.y, "RIGHT (C)"),
+                            (bs_pos.x, bs_pos.y - 80, "UP (D)")
+                        ]
+                        
+                        for x, y, label in detector_positions:
+                            if not self._is_position_occupied(x, y):
+                                det = Detector(x, y)
+                                self.components.append(det)
+                                print(f"  Placed detector at {label}")
+                        
+                        print("Now test with laser from different directions to verify routing")
                         break
-                
+            elif event.key == pygame.K_i:
+                # Test specific interference case: A + D inputs
+                print("\n=== INTERFERENCE TEST: A + D inputs ===")
                 for comp in self.components:
-                    if hasattr(comp, 'debug'):
-                        comp.debug = debug_state
-                
-                print(f"Debug mode: {'ON' if debug_state else 'OFF'}")
+                    if comp.component_type == 'beamsplitter':
+                        comp.reset_frame()
+                        
+                        # Beam from A (left)
+                        beam_A = {
+                            'position': comp.position + Vector2(-50, 0),
+                            'direction': Vector2(1, 0),
+                            'amplitude': 1.0,
+                            'phase': 0,
+                            'path_length': 0,
+                            'total_path_length': 100,
+                            'accumulated_phase': 0,
+                            'source_type': 'laser'
+                        }
+                        
+                        # Beam from D (top)
+                        beam_D = {
+                            'position': comp.position + Vector2(0, -50),
+                            'direction': Vector2(0, 1),
+                            'amplitude': 1.0,
+                            'phase': 0,
+                            'path_length': 0,
+                            'total_path_length': 100,
+                            'accumulated_phase': 0,
+                            'source_type': 'laser'
+                        }
+                        
+                        comp.add_beam(beam_A)
+                        comp.add_beam(beam_D)
+                        outputs = comp.finalize_frame()
+                        
+                        print(f"\nInputs:")
+                        print(f"  A (left): amplitude = 1.0, phase = 0°")
+                        print(f"  D (top): amplitude = 1.0, phase = 0°")
+                        
+                        print(f"\nExpected outputs:")
+                        print(f"  C = A/√2 + iD/√2 = 0.707 + 0.707i")
+                        print(f"  B = iA/√2 + D/√2 = 0.707i + 0.707")
+                        
+                        print(f"\nActual outputs:")
+                        for out in outputs:
+                            port = 'Unknown'
+                            if out['direction'].x > 0.5: port = 'C (right)'
+                            elif out['direction'].x < -0.5: port = 'A (left)'
+                            elif out['direction'].y > 0.5: port = 'B (down)'
+                            elif out['direction'].y < -0.5: port = 'D (up)'
+                            
+                            print(f"  {port}: amplitude = {out['amplitude']:.3f}, phase = {out['phase']*180/math.pi:.1f}°")
+                        
+                        # Calculate what the amplitudes should be
+                        E_C_expected = complex(1/math.sqrt(2), 1/math.sqrt(2))  # A/√2 + iD/√2
+                        E_B_expected = complex(1/math.sqrt(2), 1/math.sqrt(2))  # D/√2 + iA/√2
+                        
+                        print(f"\nVerification:")
+                        print(f"  |E_C| should be {abs(E_C_expected):.3f} at phase {cmath.phase(E_C_expected)*180/math.pi:.1f}°")
+                        print(f"  |E_B| should be {abs(E_B_expected):.3f} at phase {cmath.phase(E_B_expected)*180/math.pi:.1f}°")
+                        break
+            elif event.key == pygame.K_t:
+                # Test beam splitter with beams from all 4 directions
+                print("\n=== BEAM SPLITTER TEST MODE ===")
+                for comp in self.components:
+                    if comp.component_type == 'beamsplitter':
+                        print(f"\nTesting beam splitter at {comp.position}")
+                        comp.reset_frame()
+                        
+                        # Test all 4 input directions (corrected for screen coordinates)
+                        test_beams = [
+                            {'name': 'A (from left, traveling RIGHT)', 'dir': Vector2(1, 0)},
+                            {'name': 'B (from bottom, traveling UP)', 'dir': Vector2(0, -1)},
+                            {'name': 'C (from right, traveling LEFT)', 'dir': Vector2(-1, 0)},
+                            {'name': 'D (from top, traveling DOWN)', 'dir': Vector2(0, 1)}
+                        ]
+                        
+                        for test in test_beams:
+                            print(f"\n  Test {test['name']}:")
+                            comp.reset_frame()
+                            test_beam = {
+                                'position': comp.position - test['dir'] * 50,
+                                'direction': test['dir'],
+                                'amplitude': 1.0,
+                                'phase': 0,
+                                'path_length': 0,
+                                'total_path_length': 0,
+                                'source_type': 'laser'
+                            }
+                            comp.add_beam(test_beam)
+                            outputs = comp.finalize_frame()
+                            
+                            # Calculate total output power
+                            total_out_power = sum(out['amplitude']**2 for out in outputs)
+                            print(f"    Input power: 1.000")
+                            print(f"    Outputs: {len(outputs)} beams")
+                            for out in outputs:
+                                dir_name = ''
+                                if out['direction'].x > 0.5: dir_name = 'RIGHT'
+                                elif out['direction'].x < -0.5: dir_name = 'LEFT'
+                                elif out['direction'].y > 0.5: dir_name = 'DOWN'
+                                elif out['direction'].y < -0.5: dir_name = 'UP'
+                                print(f"      → {dir_name}: amp={out['amplitude']:.3f}, power={out['amplitude']**2:.3f}")
+                            print(f"    Total output power: {total_out_power:.3f}")
+                            print(f"    Energy conserved: {'YES' if abs(total_out_power - 1.0) < 0.001 else 'NO'}")
+                        # First test simple two-beam case from same port
+                        print(f"\n  Test SIMPLE CASE (two identical beams from port A):")
+                        comp.reset_frame()
+                        # Two identical beams from left
+                        beam1 = {
+                            'position': comp.position + Vector2(-50, 0),
+                            'direction': Vector2(1, 0),
+                            'amplitude': 0.5,
+                            'phase': 0,
+                            'path_length': 0,
+                            'total_path_length': 100,
+                            'source_type': 'laser'
+                        }
+                        beam2 = {
+                            'position': comp.position + Vector2(-50, 0),
+                            'direction': Vector2(1, 0),
+                            'amplitude': 0.5,
+                            'phase': 0,
+                            'path_length': 0,
+                            'total_path_length': 100,
+                            'source_type': 'laser'
+                        }
+                        comp.add_beam(beam1)
+                        comp.add_beam(beam2)
+                        outputs = comp.finalize_frame()
+                        
+                        input_power = beam1['amplitude']**2 + beam2['amplitude']**2
+                        output_power = sum(out['amplitude']**2 for out in outputs)
+                        
+                        print(f"    Two identical beams: each amp=0.5, total input power = {input_power:.3f}")
+                        print(f"    Expected: combined amplitude = 1.0 at port A")
+                        print(f"    Actual outputs:")
+                        for out in outputs:
+                            dir_name = ''
+                            if out['direction'].x > 0.5: dir_name = 'RIGHT'
+                            elif out['direction'].x < -0.5: dir_name = 'LEFT'
+                            elif out['direction'].y > 0.5: dir_name = 'DOWN'
+                            elif out['direction'].y < -0.5: dir_name = 'UP'
+                            print(f"      → {dir_name}: amp={out['amplitude']:.3f}, power={out['amplitude']**2:.3f}")
+                        print(f"    Total output power: {output_power:.3f}")
+                        
+                        # Test interference with two beams from different ports
+                        print(f"\n  Test INTERFERENCE (two beams from A and B):")
+                        
+                        # Test with different phase differences
+                        phase_tests = [0, math.pi/4, math.pi/2, math.pi]
+                        
+                        for phase_diff in phase_tests:
+                            comp.reset_frame()
+                            # Beam from left (port A)
+                            beam1 = {
+                                'position': comp.position + Vector2(-50, 0),
+                                'direction': Vector2(1, 0),
+                                'amplitude': 1/math.sqrt(2),
+                                'phase': 0,
+                                'path_length': 0,
+                                'total_path_length': 100,
+                                'source_type': 'laser'
+                            }
+                            # Beam from bottom (port B)
+                            beam2 = {
+                                'position': comp.position + Vector2(0, 50),
+                                'direction': Vector2(0, -1),
+                                'amplitude': 1/math.sqrt(2),
+                                'phase': phase_diff,
+                                'path_length': 0,
+                                'total_path_length': 100,
+                                'source_type': 'laser'
+                            }
+                            comp.add_beam(beam1)
+                            comp.add_beam(beam2)
+                            outputs = comp.finalize_frame()
+                            
+                            # Calculate powers
+                            input_power = beam1['amplitude']**2 + beam2['amplitude']**2
+                            output_power = sum(out['amplitude']**2 for out in outputs)
+                            
+                            print(f"\n    Phase difference: {phase_diff*180/math.pi:.0f}°")
+                            print(f"    Input: 2 beams, total power = {input_power:.6f}")
+                            print(f"    Outputs: {len(outputs)} beams")
+                            for out in outputs:
+                                dir_name = ''
+                                if out['direction'].x > 0.5: dir_name = 'RIGHT'
+                                elif out['direction'].x < -0.5: dir_name = 'LEFT'
+                                elif out['direction'].y > 0.5: dir_name = 'DOWN'
+                                elif out['direction'].y < -0.5: dir_name = 'UP'
+                                print(f"      → {dir_name}: amp={out['amplitude']:.3f}, power={out['amplitude']**2:.3f}")
+                            print(f"    Total output power: {output_power:.6f}")
+                            print(f"    Energy conserved: {'YES ✓' if abs(output_power - input_power) < 0.001 else 'NO! ✗'}")
+                        
+                        print("No beam splitter found to test")
         
         # Update mouse position
         if event.type == pygame.MOUSEMOTION:
@@ -148,6 +355,7 @@ class Game:
                 self.laser = Laser(x, y)
                 print("Laser placed")
         elif comp_type == 'beamsplitter':
+            # Beam splitters always include π/2 phase shift on reflection
             comp = BeamSplitter(x, y)
             self.components.append(comp)
         elif comp_type == 'mirror/':
@@ -241,8 +449,8 @@ class Game:
             if comp.component_type == 'detector':
                 comp.intensity *= DETECTOR_DECAY_RATE  # Use configurable decay rate
             elif comp.component_type == 'beamsplitter':
-                comp.pending_beams = []  # Clear pending beams
-                # Don't clear last_opd here - keep it for display
+                # Don't reset here - let the physics engine handle it
+                pass
     
     def draw(self):
         """Draw the game."""
@@ -253,7 +461,7 @@ class Game:
         canvas_rect = pygame.Rect(CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT)
         s = pygame.Surface((CANVAS_WIDTH, CANVAS_HEIGHT), pygame.SRCALPHA)
         s.fill((BLACK[0], BLACK[1], BLACK[2], 240))
-        self.screen.blit(s, canvas_rect.topleft)  # FIXED: Changed 'screen' to 'self.screen'
+        self.screen.blit(s, canvas_rect.topleft)
         pygame.draw.rect(self.screen, PURPLE, canvas_rect, 2, border_radius=15)
         
         # Draw grid
@@ -286,7 +494,7 @@ class Game:
         # Draw title
         self._draw_title()
         
-        # Draw debug info if two detectors exist
+        # Draw debug info
         self._draw_debug_info()
     
     def _draw_drag_preview(self):
@@ -342,9 +550,16 @@ class Game:
         # Add laser beam
         laser_beam = self.laser.emit_beam()
         if laser_beam:
-            # Apply phase shift from slider
-            laser_beam['phase'] += math.radians(self.controls.phase)
+            # Apply phase shift from slider to the initial phase
+            phase_from_slider = math.radians(self.controls.phase)
+            laser_beam['phase'] += phase_from_slider
+            laser_beam['accumulated_phase'] = laser_beam['phase']  # Initialize accumulated phase
             self.beam_tracer.add_beam(laser_beam)
+            
+            # Debug: Draw beam start position
+            if hasattr(self.laser, 'debug') and self.laser.debug:
+                pygame.draw.circle(self.screen, (255, 255, 0),
+                                 laser_beam['position'].tuple(), 3)
         
         # Trace beams
         traced_beams = self.beam_tracer.trace_beams(self.components)
@@ -405,11 +620,19 @@ class Game:
         self.screen.blit(subtitle, subtitle_rect)
         
         # Show if using ideal components
+        info_y = 20
         if IDEAL_COMPONENTS:
             ideal_font = pygame.font.Font(None, 18)
             ideal_text = ideal_font.render("IDEAL COMPONENTS (No Losses)", True, GREEN)
-            ideal_rect = ideal_text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - 20, y=20)
+            ideal_rect = ideal_text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - 20, y=info_y)
             self.screen.blit(ideal_text, ideal_rect)
+            info_y += 25
+        
+        # Show physics model info
+        physics_font = pygame.font.Font(None, 16)
+        physics_text = physics_font.render("Physics: BS +90° reflection, Mirror +180° reflection", True, CYAN)
+        physics_rect = physics_text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - 20, y=info_y)
+        self.screen.blit(physics_text, physics_rect)
         
         # Show wavelength info
         info_font = pygame.font.Font(None, 16)
@@ -418,7 +641,7 @@ class Game:
         self.screen.blit(wave_text, wave_rect)
         
         # Show control hints
-        toggle_text = info_font.render("Press 'O' for OPD info, 'D' for debug mode", True, WHITE)
+        toggle_text = info_font.render("D: debug | O: OPD info | T: test BS | P: phase info | V: visual test", True, WHITE)
         toggle_rect = toggle_text.get_rect(left=CANVAS_OFFSET_X + 20, y=45)
         self.screen.blit(toggle_text, toggle_rect)
     
@@ -427,11 +650,11 @@ class Game:
         if not self.show_opd_info:
             return
             
-        # Find beam splitter with recent interference
+        # First check for beam splitter with recent interference
         interfering_bs = None
         for comp in self.components:
-            if (comp.component_type == 'beamsplitter' and 
-                hasattr(comp, 'last_opd') and 
+            if (comp.component_type == 'beamsplitter' and
+                hasattr(comp, 'last_opd') and
                 comp.last_opd is not None):
                 interfering_bs = comp
                 break
@@ -461,8 +684,9 @@ class Game:
             # Text
             title_text = font.render("Interferometer Status (at beam splitter):", True, CYAN)
             opd_text = font.render(f"Optical Path Difference: {abs(opd):.1f} px = {abs(opd)/WAVELENGTH:.2f}λ", True, WHITE)
-            phase_opd_text = font.render(f"Phase from OPD: {phase_from_opd*180/math.pi:.1f}°", True, WHITE)
-            phase_text = font.render(f"Total Phase Difference: {phase_diff*180/math.pi:.1f}°", True, GREEN)
+            phase_from_opd = abs(opd) * 2 * math.pi / WAVELENGTH
+            phase_opd_text = font.render(f"Phase from path difference: {phase_from_opd*180/math.pi:.1f}°", True, WHITE)
+            phase_text = font.render(f"Total phase difference (including components): {phase_diff*180/math.pi:.1f}°", True, GREEN)
             
             self.screen.blit(title_text, (bg_rect.x + 10, bg_rect.y + 5))
             self.screen.blit(opd_text, (bg_rect.x + 10, bg_rect.y + 25))
@@ -475,50 +699,48 @@ class Game:
                 detector_text = font.render(f"Detector Intensities: {detectors[0].intensity:.2f} + {detectors[1].intensity:.2f} = {total_intensity:.2f}", True, CYAN)
                 self.screen.blit(detector_text, (bg_rect.x + 10, bg_rect.y + 85))
         else:
-            # Show hint if no interference yet
-            font = pygame.font.Font(None, 16)
-            hint_text = f"Tip: Create asymmetric paths for non-zero OPD (λ={WAVELENGTH}px ≠ grid={GRID_SIZE}px)"
-            hint = font.render(hint_text, True, WHITE)
-            hint_rect = hint.get_rect(center=(CANVAS_OFFSET_X + CANVAS_WIDTH // 2, 
-                                             CANVAS_OFFSET_Y + CANVAS_HEIGHT - 20))
+            # Fallback: Show detector-based OPD if available
+            active_detectors = [c for c in self.components
+                              if c.component_type == 'detector' and c.intensity > 0.01]
             
-            # Background for hint
-            bg_rect = hint_rect.inflate(20, 10)
-            s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            s.fill((0, 0, 0, 150))
-            self.screen.blit(s, bg_rect.topleft)
-            
-            self.screen.blit(hint, hint_rect)
-    
-    def _draw_debug_info(self):
-        """Draw optical path difference info if interferometer is complete."""
-        # Find detectors with non-zero intensity
-        active_detectors = [c for c in self.components 
-                          if c.component_type == 'detector' and c.intensity > 0.01]
-        
-        if len(active_detectors) >= 2:
-            # Calculate optical path difference
-            path1 = active_detectors[0].total_path_length
-            path2 = active_detectors[1].total_path_length
-            opd = abs(path1 - path2)
-            
-            # Calculate phase difference from OPD
-            phase_from_opd = (opd * 2 * math.pi / WAVELENGTH) % (2 * math.pi)
-            
-            # Draw info box
-            font = pygame.font.Font(None, 18)
-            info_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT - 60
-            
-            # Background
-            bg_rect = pygame.Rect(CANVAS_OFFSET_X + 10, info_y, 280, 50)
-            s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            s.fill((0, 0, 0, 200))
-            pygame.draw.rect(s, CYAN, s.get_rect(), 1)
-            self.screen.blit(s, bg_rect.topleft)
-            
-            # Text
-            opd_text = font.render(f"Optical Path Difference: {opd:.1f} px", True, CYAN)
-            phase_text = font.render(f"Phase from OPD: {phase_from_opd*180/math.pi:.1f}° ({opd/WAVELENGTH:.2f}λ)", True, WHITE)
-            
-            self.screen.blit(opd_text, (bg_rect.x + 10, bg_rect.y + 5))
-            self.screen.blit(phase_text, (bg_rect.x + 10, bg_rect.y + 25))
+            if len(active_detectors) >= 2:
+                # Calculate optical path difference from detectors
+                path1 = active_detectors[0].total_path_length
+                path2 = active_detectors[1].total_path_length
+                opd = abs(path1 - path2)
+                
+                # Calculate phase difference from OPD
+                phase_from_opd = (opd * 2 * math.pi / WAVELENGTH) % (2 * math.pi)
+                
+                # Draw info box
+                font = pygame.font.Font(None, 18)
+                info_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT - 60
+                
+                # Background
+                bg_rect = pygame.Rect(CANVAS_OFFSET_X + 10, info_y, 280, 50)
+                s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+                s.fill((0, 0, 0, 200))
+                pygame.draw.rect(s, CYAN, s.get_rect(), 1)
+                self.screen.blit(s, bg_rect.topleft)
+                
+                # Text
+                opd_text = font.render(f"Optical Path Difference: {opd:.1f} px", True, CYAN)
+                phase_text = font.render(f"Phase from OPD: {phase_from_opd*180/math.pi:.1f}° ({opd/WAVELENGTH:.2f}λ)", True, WHITE)
+                
+                self.screen.blit(opd_text, (bg_rect.x + 10, bg_rect.y + 5))
+                self.screen.blit(phase_text, (bg_rect.x + 10, bg_rect.y + 25))
+            else:
+                # Show hint if no interference yet
+                font = pygame.font.Font(None, 16)
+                hint_text = f"Tip: Create asymmetric paths for non-zero OPD (λ={WAVELENGTH}px ≠ grid={GRID_SIZE}px)"
+                hint = font.render(hint_text, True, WHITE)
+                hint_rect = hint.get_rect(center=(CANVAS_OFFSET_X + CANVAS_WIDTH // 2,
+                                                 CANVAS_OFFSET_Y + CANVAS_HEIGHT - 20))
+                
+                # Background for hint
+                bg_rect = hint_rect.inflate(20, 10)
+                s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+                s.fill((0, 0, 0, 150))
+                self.screen.blit(s, bg_rect.topleft)
+                
+                self.screen.blit(hint, hint_rect)

@@ -9,6 +9,7 @@ class BeamTracer:
     def __init__(self):
         self.active_beams = []
         self.k = 2 * math.pi / WAVELENGTH  # Wave number
+        self.debug = False  # Debug flag for detailed output
     
     def reset(self):
         """Reset beam tracer for new frame."""
@@ -26,10 +27,15 @@ class BeamTracer:
         for depth in range(max_depth):
             if not current_beams:
                 break
+            
+            # Reset beam splitters for this depth
+            for comp in components:
+                if comp.component_type == "beamsplitter":
+                    comp.reset_frame()
                 
             # Trace all beams at current depth and collect component hits
             traced_this_depth = []
-            component_hits = {}  # component -> list of (beam, path) tuples
+            component_hits = {}  # component -> list of beams
             
             for beam in current_beams:
                 # Skip very weak beams
@@ -51,8 +57,16 @@ class BeamTracer:
                     # If hit a component, record it for processing
                     if hit_component:
                         # Update beam's phase based on distance traveled
-                        beam['phase'] += self.k * path_length
+                        # Phase change = k * path_length where k = 2π/λ
+                        phase_change = self.k * path_length
+                        beam['phase'] += phase_change
                         beam['total_path_length'] = beam.get('total_path_length', 0) + path_length
+                        
+                        if hit_component.component_type == "beamsplitter":
+                            # For beam splitters, include the accumulated phase in the beam data
+                            beam['accumulated_phase'] = beam['phase']  # Total phase including path
+                            if self.debug:
+                                print(f"  Beam reaching BS: path={beam['total_path_length']:.1f}px, phase change={phase_change*180/math.pi:.1f}°, total phase={beam['phase']*180/math.pi:.1f}°")
                         
                         if hit_component not in component_hits:
                             component_hits[hit_component] = []
@@ -61,30 +75,28 @@ class BeamTracer:
             # Add this depth's traced beams to results
             all_traced_beams.extend(traced_this_depth)
             
-            # Process component hits to generate new beams
+            # First, add all beams to beam splitters that were hit
+            for component, hitting_beams in component_hits.items():
+                if component.component_type == "beamsplitter":
+                    for beam in hitting_beams:
+                        component.add_beam(beam)
+            
+            # Process all components to generate new beams
             next_beams = []
             
-            for component, hitting_beams in component_hits.items():
-                if component.component_type == "beamsplitter" and len(hitting_beams) == 2:
-                    # Two beams hitting beam splitter - interference!
-                    # Store path lengths before processing
-                    path1 = hitting_beams[0].get('total_path_length', 0)
-                    path2 = hitting_beams[1].get('total_path_length', 0)
-                    avg_path_length = (path1 + path2) / 2
-                    
-                    component.pending_beams = hitting_beams
-                    output_beams = component.process_beam(hitting_beams[0])
-                    
-                    # Propagate total path length to output beams
-                    for out_beam in output_beams:
-                        out_beam['total_path_length'] = avg_path_length
-                    
+            # Process ALL beam splitters (not just those hit this depth)
+            # This ensures beam splitters can finalize even with single beams
+            for component in components:
+                if component.component_type == "beamsplitter" and len(component.incoming_beams) > 0:
+                    # Finalize processing with amplitude accumulation
+                    output_beams = component.finalize_frame()
                     next_beams.extend(output_beams)
-                else:
-                    # Single beam or other component type
+            
+            # Process other components (mirrors, detectors)
+            for component, hitting_beams in component_hits.items():
+                if component.component_type != "beamsplitter":
                     for beam in hitting_beams:
                         path_length = beam.get('total_path_length', 0)
-                        component.pending_beams = []
                         output_beams = component.process_beam(beam)
                         
                         # Propagate total path length to output beams
@@ -116,14 +128,14 @@ class BeamTracer:
             
             # Check grid bounds (stop at canvas edges)
             from config.settings import CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT
-            if (next_pos.x < CANVAS_OFFSET_X or 
-                next_pos.x > CANVAS_OFFSET_X + CANVAS_WIDTH or 
-                next_pos.y < CANVAS_OFFSET_Y or 
+            if (next_pos.x < CANVAS_OFFSET_X or
+                next_pos.x > CANVAS_OFFSET_X + CANVAS_WIDTH or
+                next_pos.y < CANVAS_OFFSET_Y or
                 next_pos.y > CANVAS_OFFSET_Y + CANVAS_HEIGHT):
                 # Calculate exact intersection with grid boundary
                 edge_pos = self._calculate_edge_intersection(current_pos, next_pos,
                     CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
-                    CANVAS_OFFSET_X + CANVAS_WIDTH, 
+                    CANVAS_OFFSET_X + CANVAS_WIDTH,
                     CANVAS_OFFSET_Y + CANVAS_HEIGHT)
                 if edge_pos:
                     path.append(edge_pos)
@@ -151,8 +163,8 @@ class BeamTracer:
             total_path_length += step_size
             current_pos = next_pos
             
-            # Add intermediate points for smooth rendering
-            if distance % 20 == 0:
+            # Add intermediate points for smooth rendering every 10 pixels
+            if int(distance) % 10 == 0:
                 path.append(Vector2(current_pos.x, current_pos.y))
         
         # Reached max distance

@@ -46,6 +46,11 @@ DETECTOR_DECAY_RATE = 0.95  # How fast detector readings decay (visual effect on
 # When True, all components have 100% efficiency
 IDEAL_COMPONENTS = False  # Change to True for perfect components
 
+# Beam splitter model
+# Set to True for realistic beam splitter with π/2 phase shift on reflection
+# Set to False for simplified model with no phase shifts
+REALISTIC_BEAM_SPLITTER = False  # Change to True for realistic phase behavior
+
 # If you want custom losses, set IDEAL_COMPONENTS = False and adjust the values above
 # Examples:
 # MIRROR_LOSS = 0.0  # Perfect mirrors

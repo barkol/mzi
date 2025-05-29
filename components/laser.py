@@ -12,6 +12,7 @@ class Laser(Component):
         super().__init__(x, y, "laser")
         self.enabled = True
         self.radius = 15
+        self.debug = True  # Enable debug by default
     
     def draw(self, screen):
         """Draw laser source."""
@@ -54,13 +55,24 @@ class Laser(Component):
     def emit_beam(self):
         """Emit a beam in the positive x direction."""
         if self.enabled:
-            return {
-                'position': Vector2(self.position.x + self.radius, self.position.y),
+            beam_start_pos = Vector2(self.position.x + self.radius + 5, self.position.y)
+            beam = {
+                'position': beam_start_pos,
                 'direction': Vector2(1, 0),
                 'amplitude': 1.0,
-                'phase': 0,
+                'phase': 0,  # Initial phase at laser
                 'path_length': 0,
-                'total_path_length': 0,  # Track cumulative distance
+                'total_path_length': 0,  # No distance traveled yet
+                'accumulated_phase': 0,  # Total phase including path
                 'source_type': 'laser'
             }
+            
+            if self.debug:
+                print(f"\nLaser at {self.position} emitting beam:")
+                print(f"  Start position: {beam_start_pos}")
+                print(f"  Direction: (1, 0)")
+                print(f"  Amplitude: 1.0")
+                print(f"  Initial phase: 0°")
+            
+            return beam
         return None
