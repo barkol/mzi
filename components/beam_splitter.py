@@ -23,7 +23,7 @@ class BeamSplitter(Component):
         
         # Fill
         s = pygame.Surface((40, 40), pygame.SRCALPHA)
-        pygame.draw.rect(s, (*CYAN, 40), pygame.Rect(0, 0, 40, 40))
+        pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], 40), pygame.Rect(0, 0, 40, 40))
         screen.blit(s, rect.topleft)
         
         # Border
@@ -36,12 +36,13 @@ class BeamSplitter(Component):
         
         # Direction indicators
         if hasattr(self, 'show_indicators') and self.show_indicators:
-            # Draw small arrows showing beam paths
-            pygame.draw.lines(screen, (*CYAN, 100), False, [
+            # Draw small arrows showing beam paths (without alpha)
+            points = [
                 (self.position.x - 25, self.position.y),
                 (self.position.x - 5, self.position.y),
                 (self.position.x - 5, self.position.y - 20)
-            ], 1)
+            ]
+            pygame.draw.lines(screen, CYAN, False, points, 1)
     
     def process_beam(self, beam):
         """Process incoming beam with quantum behavior."""

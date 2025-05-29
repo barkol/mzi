@@ -18,10 +18,9 @@ class Laser(Component):
         # Glow effect
         for i in range(5, 0, -1):
             alpha = 50 // i
-            color = (*RED, alpha)
             s = pygame.Surface((self.radius * 4, self.radius * 4), pygame.SRCALPHA)
-            pygame.draw.circle(s, color, (self.radius * 2, self.radius * 2), self.radius + i * 3)
-            screen.blit(s, (self.position.x - self.radius * 2, self.position.y - self.radius * 2))
+            pygame.draw.circle(s, (RED[0], RED[1], RED[2], alpha), (self.radius * 2, self.radius * 2), self.radius + i * 3)
+            screen.blit(s, (int(self.position.x - self.radius * 2), int(self.position.y - self.radius * 2)))
         
         # Main laser circle
         pygame.draw.circle(screen, RED, self.position.tuple(), self.radius)
@@ -29,7 +28,7 @@ class Laser(Component):
         # Label
         font = pygame.font.Font(None, 14)
         text = font.render("LASER", True, WHITE)
-        text_rect = text.get_rect(center=(self.position.x, self.position.y + 30))
+        text_rect = text.get_rect(center=(int(self.position.x), int(self.position.y + 30)))
         screen.blit(text, text_rect)
     
     def emit_beam(self):

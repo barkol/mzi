@@ -54,7 +54,7 @@ class EffectsManager:
         radius = int(20 + progress * 30)
         
         s = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-        pygame.draw.circle(s, (*CYAN, alpha), (radius, radius), radius, 2)
+        pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (radius, radius), radius, 2)
         screen.blit(s, (effect['x'] - radius, effect['y'] - radius))
     
     def _draw_success_message(self, screen, effect):
@@ -73,9 +73,16 @@ class EffectsManager:
         font_title = pygame.font.Font(None, 48)
         font_text = pygame.font.Font(None, 24)
         
-        title = font_title.render("🎉 Interferometer Complete!", True, (*CYAN, alpha))
+        title_surface = pygame.Surface((800, 100), pygame.SRCALPHA)
+        text_surface = pygame.Surface((800, 50), pygame.SRCALPHA)
+        
+        title = font_title.render("🎉 Interferometer Complete!", True, CYAN)
         text = font_text.render("Adjust the phase shift to see interference patterns", 
-                               True, (*WHITE, alpha))
+                               True, WHITE)
+        
+        # Apply alpha to surfaces
+        title_surface.set_alpha(alpha)
+        text_surface.set_alpha(alpha)
         
         # Position
         title_rect = title.get_rect(center=(screen.get_width() // 2, 
@@ -86,10 +93,12 @@ class EffectsManager:
         # Background
         bg_rect = title_rect.union(text_rect).inflate(60, 40)
         s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-        pygame.draw.rect(s, (*BLACK, alpha // 2), s.get_rect(), border_radius=20)
-        pygame.draw.rect(s, (*CYAN, alpha // 3), s.get_rect(), 2, border_radius=20)
+        pygame.draw.rect(s, (BLACK[0], BLACK[1], BLACK[2], alpha // 2), s.get_rect(), border_radius=20)
+        pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], alpha // 3), s.get_rect(), 2, border_radius=20)
         screen.blit(s, bg_rect.topleft)
         
         # Draw text
-        screen.blit(title, title_rect)
-        screen.blit(text, text_rect)
+        title_surface.blit(title, (0, 0))
+        text_surface.blit(text, (0, 0))
+        screen.blit(title_surface, title_rect)
+        screen.blit(text_surface, text_rect)

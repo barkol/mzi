@@ -2,6 +2,7 @@
 import pygame
 from config.settings import *
 from utils.colors import pulse_alpha
+from utils.vector import Vector2
 
 class Grid:
     """Grid system for the game canvas."""
@@ -72,7 +73,7 @@ class Grid:
         
         # Draw highlight square
         s = pygame.Surface((GRID_SIZE, GRID_SIZE), pygame.SRCALPHA)
-        pygame.draw.rect(s, (*color[:3], alpha), pygame.Rect(0, 0, GRID_SIZE, GRID_SIZE))
+        pygame.draw.rect(s, (color[0], color[1], color[2], alpha), pygame.Rect(0, 0, GRID_SIZE, GRID_SIZE))
         screen.blit(s, (x - GRID_SIZE // 2, y - GRID_SIZE // 2))
         
         # Draw border
@@ -99,7 +100,7 @@ class Grid:
         
         # Check components
         for comp in components:
-            dist = comp.position.distance_to(pygame.math.Vector2(x, y))
+            dist = comp.position.distance_to(Vector2(x, y))
             if dist < GRID_SIZE:
                 return True
         
@@ -114,7 +115,9 @@ class Grid:
         # Background
         padding = 5
         bg_rect = text_rect.inflate(padding * 2, padding * 2)
-        pygame.draw.rect(screen, (*BLACK, 200), bg_rect)
+        s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+        s.fill((BLACK[0], BLACK[1], BLACK[2], 200))
+        screen.blit(s, bg_rect.topleft)
         pygame.draw.rect(screen, RED, bg_rect, 1)
         
         screen.blit(text, text_rect)
@@ -133,6 +136,8 @@ class Grid:
         # Background
         padding = 5
         bg_rect = text_rect.inflate(padding * 2, padding * 2)
-        pygame.draw.rect(screen, (*BLACK, 200), bg_rect)
+        s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+        s.fill((BLACK[0], BLACK[1], BLACK[2], 200))
+        screen.blit(s, bg_rect.topleft)
         
         screen.blit(text, text_rect)

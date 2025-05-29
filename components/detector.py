@@ -16,7 +16,7 @@ class Detector(Component):
         """Draw detector with intensity visualization."""
         # Base circle
         s = pygame.Surface((self.radius * 4, self.radius * 4), pygame.SRCALPHA)
-        pygame.draw.circle(s, (*GREEN, 40), (self.radius * 2, self.radius * 2), self.radius)
+        pygame.draw.circle(s, (GREEN[0], GREEN[1], GREEN[2], 40), (self.radius * 2, self.radius * 2), self.radius)
         screen.blit(s, (self.position.x - self.radius * 2, self.position.y - self.radius * 2))
         
         # Border
@@ -31,12 +31,14 @@ class Detector(Component):
             glow_radius = int(35 + self.intensity * 15)
             alpha = int(self.intensity * 128)
             s = pygame.Surface((glow_radius * 2, glow_radius * 2), pygame.SRCALPHA)
-            pygame.draw.circle(s, (*GREEN, alpha), (glow_radius, glow_radius), glow_radius)
+            pygame.draw.circle(s, (GREEN[0], GREEN[1], GREEN[2], alpha), (glow_radius, glow_radius), glow_radius)
             screen.blit(s, (self.position.x - glow_radius, self.position.y - glow_radius))
             
             # Intensity ring
-            pygame.draw.circle(screen, (*GREEN, int(255 * self.intensity)), 
-                             self.position.tuple(), glow_radius, 5)
+            ring_color = (GREEN[0], GREEN[1], GREEN[2], int(255 * self.intensity))
+            s2 = pygame.Surface((glow_radius * 2 + 10, glow_radius * 2 + 10), pygame.SRCALPHA)
+            pygame.draw.circle(s2, ring_color, (glow_radius + 5, glow_radius + 5), glow_radius, 5)
+            screen.blit(s2, (self.position.x - glow_radius - 5, self.position.y - glow_radius - 5))
             
             # Display percentage
             font = pygame.font.Font(None, 16)

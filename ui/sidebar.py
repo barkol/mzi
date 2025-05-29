@@ -15,18 +15,29 @@ class Sidebar:
         ]
         self.selected = None
         self.hover_index = -1
+        self.dragging = False
+        self.drag_offset = (0, 0)
     
     def handle_event(self, event):
         """Handle mouse events."""
         if event.type == pygame.MOUSEMOTION:
-            self.hover_index = self._get_component_at_pos(event.pos)
-        elif event.type == pygame.MOUSEBUTTONDOWN:
+            if not self.dragging:
+                self.hover_index = self._get_component_at_pos(event.pos)
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             index = self._get_component_at_pos(event.pos)
             if index >= 0:
                 self.selected = self.components[index]['type']
+                self.dragging = True
+                # Calculate offset from component center
+                comp_rect = self._get_component_rect(index)
+                self.drag_offset = (event.pos[0] - comp_rect.centerx, 
+                                  event.pos[1] - comp_rect.centery)
                 return True
-        elif event.type == pygame.MOUSEBUTTONUP:
+        elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            was_dragging = self.dragging
+            self.dragging = False
             self.selected = None
+            return was_dragging
         
         return False
     
@@ -43,11 +54,20 @@ class Sidebar:
         
         return -1
     
+    def _get_component_rect(self, index):
+        """Get rectangle for component at index."""
+        y_offset = 150
+        return pygame.Rect(20, y_offset + index * 100, self.rect.width - 40, 80)
+    
+    def get_drag_info(self):
+        """Get current drag information."""
+        return self.selected, self.dragging
+    
     def draw(self, screen):
         """Draw sidebar."""
         # Background
         s = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
-        pygame.draw.rect(s, (*DARK_PURPLE, 180), self.rect)
+        s.fill((DARK_PURPLE[0], DARK_PURPLE[1], DARK_PURPLE[2], 180))
         screen.blit(s, self.rect.topleft)
         
         # Border
@@ -71,20 +91,23 @@ class Sidebar:
             card_rect = pygame.Rect(20, y_offset + i * 100, self.rect.width - 40, 80)
             
             # Hover/selected effect
-            if i == self.hover_index or comp['type'] == self.selected:
+            if i == self.hover_index or (comp['type'] == self.selected and not self.dragging):
                 color = CYAN if comp['type'] == self.selected else PURPLE
                 pygame.draw.rect(screen, color, card_rect, 2)
                 
                 # Glow effect
                 s = pygame.Surface((card_rect.width + 10, card_rect.height + 10), pygame.SRCALPHA)
-                pygame.draw.rect(s, (*color, 30), s.get_rect(), border_radius=5)
+                pygame.draw.rect(s, (color[0], color[1], color[2], 30), s.get_rect(), border_radius=5)
                 screen.blit(s, (card_rect.x - 5, card_rect.y - 5))
             else:
-                pygame.draw.rect(screen, (*PURPLE, 100), card_rect, 1)
+                # Draw a faint border
+                s = pygame.Surface((card_rect.width, card_rect.height), pygame.SRCALPHA)
+                pygame.draw.rect(s, (PURPLE[0], PURPLE[1], PURPLE[2], 100), s.get_rect(), 1)
+                screen.blit(s, card_rect.topleft)
             
             # Fill
             s = pygame.Surface((card_rect.width, card_rect.height), pygame.SRCALPHA)
-            pygame.draw.rect(s, (*PURPLE, 40), s.get_rect())
+            pygame.draw.rect(s, (PURPLE[0], PURPLE[1], PURPLE[2], 40), s.get_rect())
             screen.blit(s, card_rect.topleft)
             
             # Component icon (simplified)

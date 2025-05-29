@@ -55,10 +55,14 @@ class ControlPanel:
         """Draw control panel."""
         # Background
         s = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
-        pygame.draw.rect(s, (*DARK_PURPLE, 180), s.get_rect(), border_radius=10)
+        pygame.draw.rect(s, (DARK_PURPLE[0], DARK_PURPLE[1], DARK_PURPLE[2], 180), s.get_rect(), border_radius=10)
         screen.blit(s, self.rect.topleft)
         
-        pygame.draw.rect(screen, (*PURPLE, 100), self.rect, 2, border_radius=10)
+        # Border
+        border_color = (PURPLE[0], PURPLE[1], PURPLE[2], 100)
+        s2 = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
+        pygame.draw.rect(s2, border_color, s2.get_rect(), 2, border_radius=10)
+        screen.blit(s2, self.rect.topleft)
         
         # Buttons
         font = pygame.font.Font(None, 18)
@@ -70,7 +74,7 @@ class ControlPanel:
             s = pygame.Surface((button['rect'].width, button['rect'].height), pygame.SRCALPHA)
             for i in range(button['rect'].height // 2):
                 alpha = 100 - i * 2
-                pygame.draw.rect(s, (*PURPLE, alpha), 
+                pygame.draw.rect(s, (PURPLE[0], PURPLE[1], PURPLE[2], alpha), 
                                pygame.Rect(0, i, button['rect'].width, 1))
             screen.blit(s, button['rect'].topleft)
             
@@ -94,7 +98,9 @@ class ControlPanel:
         screen.blit(label, (self.slider_rect.x - 80, self.slider_rect.y))
         
         # Track
-        pygame.draw.rect(screen, (*PURPLE, 100), self.slider_rect, border_radius=10)
+        s = pygame.Surface((self.slider_rect.width, self.slider_rect.height), pygame.SRCALPHA)
+        pygame.draw.rect(s, (PURPLE[0], PURPLE[1], PURPLE[2], 100), s.get_rect(), border_radius=10)
+        screen.blit(s, self.slider_rect.topleft)
         
         # Fill
         fill_width = int((self.phase / 360) * self.slider_rect.width)
@@ -121,7 +127,9 @@ class ControlPanel:
         
         # Background
         bg_rect = score_rect.inflate(20, 10)
-        pygame.draw.rect(screen, (*CYAN, 30), bg_rect, border_radius=15)
+        s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+        pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], 30), s.get_rect(), border_radius=15)
+        screen.blit(s, bg_rect.topleft)
         pygame.draw.rect(screen, CYAN, bg_rect, 1, border_radius=15)
         
         screen.blit(score_text, score_rect)

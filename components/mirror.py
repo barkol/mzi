@@ -24,24 +24,36 @@ class Mirror(Component):
         # Draw thick mirror line
         pygame.draw.line(screen, MAGENTA, start, end, 6)
         
-        # Draw reflection indicators
-        pygame.draw.line(screen, (*MAGENTA, 100), start, end, 2)
+        # Draw reflection indicators (dimmed)
+        s = pygame.Surface((60, 60), pygame.SRCALPHA)
+        s_center = (30, 30)
+        if self.mirror_type == '/':
+            pygame.draw.line(s, (MAGENTA[0], MAGENTA[1], MAGENTA[2], 100), 
+                           (s_center[0] - 20, s_center[1] + 20),
+                           (s_center[0] + 20, s_center[1] - 20), 2)
+        else:
+            pygame.draw.line(s, (MAGENTA[0], MAGENTA[1], MAGENTA[2], 100), 
+                           (s_center[0] - 20, s_center[1] - 20),
+                           (s_center[0] + 20, s_center[1] + 20), 2)
+        screen.blit(s, (self.position.x - 30, self.position.y - 30))
         
         # Add direction hint
         if self.mirror_type == '/':
             # Show left->down reflection
-            pygame.draw.lines(screen, (*MAGENTA, 80), False, [
+            points = [
                 (self.position.x - 20, self.position.y),
                 (self.position.x - 10, self.position.y),
                 (self.position.x - 10, self.position.y + 10)
-            ], 1)
+            ]
+            pygame.draw.lines(screen, MAGENTA, False, points, 1)
         else:  # '\'
             # Show left->up reflection
-            pygame.draw.lines(screen, (*MAGENTA, 80), False, [
+            points = [
                 (self.position.x - 20, self.position.y),
                 (self.position.x - 10, self.position.y),
                 (self.position.x - 10, self.position.y - 10)
-            ], 1)
+            ]
+            pygame.draw.lines(screen, MAGENTA, False, points, 1)
     
     def process_beam(self, beam):
         """Reflect beam according to mirror orientation."""

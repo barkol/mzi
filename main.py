@@ -19,6 +19,10 @@ def main():
     # Create game instance
     game = Game(screen)
     
+    # Store default cursor
+    default_cursor = pygame.mouse.get_cursor()
+    drag_cursor = pygame.SYSTEM_CURSOR_HAND
+    
     # Game loop
     running = True
     while running:
@@ -30,6 +34,12 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
             game.handle_event(event)
+        
+        # Update cursor based on drag state
+        if game.sidebar.dragging:
+            pygame.mouse.set_cursor(drag_cursor)
+        else:
+            pygame.mouse.set_cursor(default_cursor)
         
         # Update
         game.update(dt)
