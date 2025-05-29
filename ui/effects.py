@@ -2,7 +2,7 @@
 import pygame
 import math
 import time
-from config.settings import CYAN
+from config.settings import CYAN, WHITE, BLACK  # Added BLACK import
 
 class EffectsManager:
     """Manages visual effects like placement animations."""
@@ -69,20 +69,16 @@ class EffectsManager:
         else:
             alpha = 255
         
+        # Clamp alpha to valid range
+        alpha = max(0, min(255, alpha))
+        
         # Create message surface
         font_title = pygame.font.Font(None, 48)
         font_text = pygame.font.Font(None, 24)
         
-        title_surface = pygame.Surface((800, 100), pygame.SRCALPHA)
-        text_surface = pygame.Surface((800, 50), pygame.SRCALPHA)
-        
         title = font_title.render("🎉 Interferometer Complete!", True, CYAN)
         text = font_text.render("Adjust the phase shift to see interference patterns", 
                                True, WHITE)
-        
-        # Apply alpha to surfaces
-        title_surface.set_alpha(alpha)
-        text_surface.set_alpha(alpha)
         
         # Position
         title_rect = title.get_rect(center=(screen.get_width() // 2, 
@@ -93,12 +89,23 @@ class EffectsManager:
         # Background
         bg_rect = title_rect.union(text_rect).inflate(60, 40)
         s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-        pygame.draw.rect(s, (BLACK[0], BLACK[1], BLACK[2], alpha // 2), s.get_rect(), border_radius=20)
-        pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], alpha // 3), s.get_rect(), 2, border_radius=20)
+        
+        # Draw background with proper alpha handling
+        bg_alpha = max(0, min(255, alpha // 2))
+        border_alpha = max(0, min(255, alpha // 3))
+        
+        pygame.draw.rect(s, (BLACK[0], BLACK[1], BLACK[2], bg_alpha), s.get_rect(), border_radius=20)
+        pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], border_alpha), s.get_rect(), 2, border_radius=20)
         screen.blit(s, bg_rect.topleft)
         
-        # Draw text
+        # Draw text with alpha blending
+        title_surface = pygame.Surface(title.get_size(), pygame.SRCALPHA)
         title_surface.blit(title, (0, 0))
+        title_surface.set_alpha(alpha)
+        
+        text_surface = pygame.Surface(text.get_size(), pygame.SRCALPHA)
         text_surface.blit(text, (0, 0))
+        text_surface.set_alpha(alpha)
+        
         screen.blit(title_surface, title_rect)
         screen.blit(text_surface, text_rect)

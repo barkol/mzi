@@ -7,7 +7,7 @@ WINDOW_HEIGHT = 800
 FPS = 60
 
 # Grid settings
-GRID_SIZE = 40
+GRID_SIZE = 40  # Grid spacing in pixels
 CANVAS_WIDTH = 800
 CANVAS_HEIGHT = 600
 CANVAS_OFFSET_X = 300
@@ -34,8 +34,23 @@ COMPONENT_RADIUS = 25
 BEAM_WIDTH = 3
 
 # Physics settings
-WAVELENGTH = 40
+WAVELENGTH = 30  # Wavelength in pixels (λ = 30px) - not a multiple of grid size
 SPEED_OF_LIGHT = 300  # pixels per second (arbitrary units)
+
+# Component losses (0.0 = no loss, 1.0 = complete loss)
+MIRROR_LOSS = 0.05  # 5% loss at each mirror (95% transmission)
+BEAM_SPLITTER_LOSS = 0.0  # No loss at beam splitters
+DETECTOR_DECAY_RATE = 0.95  # How fast detector readings decay (visual effect only)
+
+# Set to True for ideal components (no losses)
+# When True, all components have 100% efficiency
+IDEAL_COMPONENTS = False  # Change to True for perfect components
+
+# If you want custom losses, set IDEAL_COMPONENTS = False and adjust the values above
+# Examples:
+# MIRROR_LOSS = 0.0  # Perfect mirrors
+# MIRROR_LOSS = 0.02  # 2% loss (98% reflectivity) - high quality mirrors
+# MIRROR_LOSS = 0.10  # 10% loss (90% reflectivity) - standard mirrors
 
 # Scoring
 PLACEMENT_SCORE = 10

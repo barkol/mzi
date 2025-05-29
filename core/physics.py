@@ -8,13 +8,11 @@ class BeamTracer:
     
     def __init__(self):
         self.active_beams = []
-        self.beam_splitter_cache = {}
         self.k = 2 * math.pi / WAVELENGTH  # Wave number
     
     def reset(self):
         """Reset beam tracer for new frame."""
         self.active_beams = []
-        self.beam_splitter_cache.clear()
     
     def add_beam(self, beam):
         """Add a beam to trace."""
@@ -22,108 +20,188 @@ class BeamTracer:
     
     def trace_beams(self, components, max_depth=10):
         """Trace all beams through components."""
-        traced_beams = []
-        beams_to_process = self.active_beams.copy()
-        processed = set()
+        all_traced_beams = []
+        current_beams = self.active_beams.copy()
         
-        depth = 0
-        while beams_to_process and depth < max_depth:
-            new_beams = []
+        for depth in range(max_depth):
+            if not current_beams:
+                break
+                
+            # Trace all beams at current depth and collect component hits
+            traced_this_depth = []
+            component_hits = {}  # component -> list of (beam, path) tuples
             
-            for beam in beams_to_process:
-                # Create unique beam key
-                beam_key = (
-                    round(beam['position'].x),
-                    round(beam['position'].y),
-                    round(beam['direction'].x, 2),
-                    round(beam['direction'].y, 2),
-                    depth
-                )
-                
-                if beam_key in processed:
+            for beam in current_beams:
+                # Skip very weak beams
+                if beam['amplitude'] < 0.01:
                     continue
+                    
+                # Trace beam to next component or boundary
+                path, hit_component, path_length = self._trace_single_beam(beam, components)
                 
-                processed.add(beam_key)
-                
-                # Trace beam path
-                path, hit_component = self._trace_single_beam(beam, components)
-                
-                if path:
-                    traced_beams.append({
+                if path and len(path) >= 2:
+                    # Record the traced path
+                    traced_this_depth.append({
                         'path': path,
                         'amplitude': beam['amplitude'],
                         'phase': beam['phase'],
                         'source_type': beam.get('source_type', 'laser')
                     })
-                
-                # Process component interaction
-                if hit_component:
-                    output_beams = self._process_component_hit(
-                        beam, hit_component, path[-1] if path else beam['position']
-                    )
-                    new_beams.extend(output_beams)
+                    
+                    # If hit a component, record it for processing
+                    if hit_component:
+                        # Update beam's phase based on distance traveled
+                        beam['phase'] += self.k * path_length
+                        beam['total_path_length'] = beam.get('total_path_length', 0) + path_length
+                        
+                        if hit_component not in component_hits:
+                            component_hits[hit_component] = []
+                        component_hits[hit_component].append(beam)
             
-            beams_to_process = new_beams
-            depth += 1
+            # Add this depth's traced beams to results
+            all_traced_beams.extend(traced_this_depth)
+            
+            # Process component hits to generate new beams
+            next_beams = []
+            
+            for component, hitting_beams in component_hits.items():
+                if component.component_type == "beamsplitter" and len(hitting_beams) == 2:
+                    # Two beams hitting beam splitter - interference!
+                    # Store path lengths before processing
+                    path1 = hitting_beams[0].get('total_path_length', 0)
+                    path2 = hitting_beams[1].get('total_path_length', 0)
+                    avg_path_length = (path1 + path2) / 2
+                    
+                    component.pending_beams = hitting_beams
+                    output_beams = component.process_beam(hitting_beams[0])
+                    
+                    # Propagate total path length to output beams
+                    for out_beam in output_beams:
+                        out_beam['total_path_length'] = avg_path_length
+                    
+                    next_beams.extend(output_beams)
+                else:
+                    # Single beam or other component type
+                    for beam in hitting_beams:
+                        path_length = beam.get('total_path_length', 0)
+                        component.pending_beams = []
+                        output_beams = component.process_beam(beam)
+                        
+                        # Propagate total path length to output beams
+                        for out_beam in output_beams:
+                            out_beam['total_path_length'] = path_length
+                        
+                        next_beams.extend(output_beams)
+            
+            # Continue with next depth
+            current_beams = next_beams
         
-        return traced_beams
+        return all_traced_beams
     
     def _trace_single_beam(self, beam, components):
         """Trace a single beam until it hits a component or leaves bounds."""
         path = [beam['position']]
-        current_pos = beam['position']
+        current_pos = Vector2(beam['position'].x, beam['position'].y)
         direction = beam['direction']
         
         step_size = 2
         max_distance = 1000
         distance = 0
+        total_path_length = 0
         
         while distance < max_distance:
-            # Move beam
+            # Move beam forward
             next_pos = current_pos + direction * step_size
             distance += step_size
             
-            # Check bounds
-            if (next_pos.x < 0 or next_pos.x > 1400 or 
-                next_pos.y < 0 or next_pos.y > 800):
-                path.append(next_pos)
-                return path, None
+            # Check grid bounds (stop at canvas edges)
+            from config.settings import CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT
+            if (next_pos.x < CANVAS_OFFSET_X or 
+                next_pos.x > CANVAS_OFFSET_X + CANVAS_WIDTH or 
+                next_pos.y < CANVAS_OFFSET_Y or 
+                next_pos.y > CANVAS_OFFSET_Y + CANVAS_HEIGHT):
+                # Calculate exact intersection with grid boundary
+                edge_pos = self._calculate_edge_intersection(current_pos, next_pos,
+                    CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
+                    CANVAS_OFFSET_X + CANVAS_WIDTH, 
+                    CANVAS_OFFSET_Y + CANVAS_HEIGHT)
+                if edge_pos:
+                    path.append(edge_pos)
+                    total_path_length += current_pos.distance_to(edge_pos)
+                return path, None, total_path_length
             
-            # Check component collision
+            # Check for component collision
+            hit_component = None
+            min_distance = float('inf')
+            
             for comp in components:
-                if comp.contains_point(next_pos.x, next_pos.y):
-                    path.append(comp.position)
-                    
-                    # Update phase based on path length
-                    beam['phase'] += self.k * current_pos.distance_to(comp.position)
-                    
-                    return path, comp
+                # Check if beam will hit this component
+                dist_to_comp = comp.position.distance_to(next_pos)
+                if dist_to_comp < comp.radius and dist_to_comp < min_distance:
+                    hit_component = comp
+                    min_distance = dist_to_comp
             
+            if hit_component:
+                # Beam hit a component - stop at its center
+                path.append(hit_component.position)
+                total_path_length += current_pos.distance_to(hit_component.position)
+                return path, hit_component, total_path_length
+            
+            # No collision, continue tracing
+            total_path_length += step_size
             current_pos = next_pos
             
-            # Add intermediate points for smooth drawing
+            # Add intermediate points for smooth rendering
             if distance % 20 == 0:
-                path.append(current_pos)
+                path.append(Vector2(current_pos.x, current_pos.y))
         
+        # Reached max distance
         path.append(current_pos)
-        return path, None
+        return path, None, total_path_length
     
-    def _process_component_hit(self, beam, component, hit_position):
-        """Process beam hitting a component."""
-        # Handle beam splitters specially for interference
-        if component.component_type == "beamsplitter":
-            bs_key = (component.position.x, component.position.y)
-            
-            if bs_key not in self.beam_splitter_cache:
-                self.beam_splitter_cache[bs_key] = []
-            
-            self.beam_splitter_cache[bs_key].append(beam)
-            
-            # Process immediately if we have 2 beams
-            if len(self.beam_splitter_cache[bs_key]) >= 2:
-                beams = self.beam_splitter_cache[bs_key][:2]
-                self.beam_splitter_cache[bs_key] = []
-                component.pending_beams = beams
+    def _calculate_edge_intersection(self, start, end, x_min, y_min, x_max, y_max):
+        """Calculate intersection point with grid boundary."""
+        # Check each edge
+        edges = [
+            # Left edge
+            (Vector2(x_min, y_min), Vector2(x_min, y_max)),
+            # Right edge
+            (Vector2(x_max, y_min), Vector2(x_max, y_max)),
+            # Top edge
+            (Vector2(x_min, y_min), Vector2(x_max, y_min)),
+            # Bottom edge
+            (Vector2(x_min, y_max), Vector2(x_max, y_max))
+        ]
         
-        # Process beam through component
-        return component.process_beam(beam)
+        closest_intersection = None
+        min_distance = float('inf')
+        
+        for edge_start, edge_end in edges:
+            intersection = self._line_intersection(start, end, edge_start, edge_end)
+            if intersection:
+                dist = start.distance_to(intersection)
+                if dist < min_distance:
+                    min_distance = dist
+                    closest_intersection = intersection
+        
+        return closest_intersection
+    
+    def _line_intersection(self, p1, p2, p3, p4):
+        """Calculate intersection point of two line segments."""
+        x1, y1 = p1.x, p1.y
+        x2, y2 = p2.x, p2.y
+        x3, y3 = p3.x, p3.y
+        x4, y4 = p4.x, p4.y
+        
+        denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+        if abs(denom) < 0.001:
+            return None
+        
+        t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom
+        
+        if 0 <= t <= 1:
+            x = x1 + t * (x2 - x1)
+            y = y1 + t * (y2 - y1)
+            return Vector2(x, y)
+        
+        return None

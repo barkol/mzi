@@ -1,5 +1,6 @@
 """Sidebar UI for component selection."""
 import pygame
+import math
 from config.settings import *
 
 class Sidebar:
@@ -8,6 +9,7 @@ class Sidebar:
     def __init__(self):
         self.rect = pygame.Rect(0, 0, CANVAS_OFFSET_X - 50, WINDOW_HEIGHT)
         self.components = [
+            {'type': 'laser', 'name': 'Laser Source', 'desc': 'Move the laser'},
             {'type': 'beamsplitter', 'name': 'Beam Splitter', 'desc': '50/50 split'},
             {'type': 'mirror/', 'name': 'Mirror /', 'desc': 'Diagonal reflection'},
             {'type': 'mirror\\', 'name': 'Mirror \\', 'desc': 'Diagonal reflection'},
@@ -17,6 +19,7 @@ class Sidebar:
         self.hover_index = -1
         self.dragging = False
         self.drag_offset = (0, 0)
+        self.last_dragged = None  # Track what was dragged
     
     def handle_event(self, event):
         """Handle mouse events."""
@@ -27,6 +30,7 @@ class Sidebar:
             index = self._get_component_at_pos(event.pos)
             if index >= 0:
                 self.selected = self.components[index]['type']
+                self.last_dragged = self.selected  # Remember what we're dragging
                 self.dragging = True
                 # Calculate offset from component center
                 comp_rect = self._get_component_rect(index)
@@ -36,19 +40,24 @@ class Sidebar:
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
             was_dragging = self.dragging
             self.dragging = False
-            self.selected = None
+            # Don't clear selected immediately - let game handle it first
             return was_dragging
         
         return False
+    
+    def clear_selection(self):
+        """Clear the current selection."""
+        self.selected = None
+        self.last_dragged = None
     
     def _get_component_at_pos(self, pos):
         """Get component index at mouse position."""
         if not self.rect.collidepoint(pos):
             return -1
         
-        y_offset = 150
+        y_offset = 120
         for i, comp in enumerate(self.components):
-            comp_rect = pygame.Rect(20, y_offset + i * 100, self.rect.width - 40, 80)
+            comp_rect = pygame.Rect(20, y_offset + i * 90, self.rect.width - 40, 70)
             if comp_rect.collidepoint(pos):
                 return i
         
@@ -56,8 +65,8 @@ class Sidebar:
     
     def _get_component_rect(self, index):
         """Get rectangle for component at index."""
-        y_offset = 150
-        return pygame.Rect(20, y_offset + index * 100, self.rect.width - 40, 80)
+        y_offset = 120
+        return pygame.Rect(20, y_offset + index * 90, self.rect.width - 40, 70)
     
     def get_drag_info(self):
         """Get current drag information."""
@@ -82,13 +91,13 @@ class Sidebar:
         screen.blit(title, title_rect)
         
         # Component cards
-        y_offset = 150
+        y_offset = 120
         font_name = pygame.font.Font(None, 20)
         font_desc = pygame.font.Font(None, 16)
         
         for i, comp in enumerate(self.components):
             # Card rectangle
-            card_rect = pygame.Rect(20, y_offset + i * 100, self.rect.width - 40, 80)
+            card_rect = pygame.Rect(20, y_offset + i * 90, self.rect.width - 40, 70)
             
             # Hover/selected effect
             if i == self.hover_index or (comp['type'] == self.selected and not self.dragging):
@@ -111,19 +120,30 @@ class Sidebar:
             screen.blit(s, card_rect.topleft)
             
             # Component icon (simplified)
-            icon_center = (card_rect.x + 40, card_rect.centery)
+            icon_center = (card_rect.x + 35, card_rect.centery)
             self._draw_component_icon(screen, comp['type'], icon_center)
             
             # Text
             name = font_name.render(comp['name'], True, WHITE)
             desc = font_desc.render(comp['desc'], True, (*WHITE, 180))
             
-            screen.blit(name, (card_rect.x + 70, card_rect.y + 20))
-            screen.blit(desc, (card_rect.x + 70, card_rect.y + 45))
+            screen.blit(name, (card_rect.x + 65, card_rect.y + 15))
+            screen.blit(desc, (card_rect.x + 65, card_rect.y + 40))
     
     def _draw_component_icon(self, screen, comp_type, center):
         """Draw simplified component icon."""
-        if comp_type == 'beamsplitter':
+        if comp_type == 'laser':
+            # Laser icon - circle with rays
+            pygame.draw.circle(screen, RED, center, 12)
+            # Rays
+            for angle in range(0, 360, 45):
+                rad = math.radians(angle)
+                start_x = center[0] + 12 * math.cos(rad)
+                start_y = center[1] + 12 * math.sin(rad)
+                end_x = center[0] + 18 * math.cos(rad)
+                end_y = center[1] + 18 * math.sin(rad)
+                pygame.draw.line(screen, RED, (start_x, start_y), (end_x, end_y), 2)
+        elif comp_type == 'beamsplitter':
             rect = pygame.Rect(center[0] - 15, center[1] - 15, 30, 30)
             pygame.draw.rect(screen, CYAN, rect, 2)
             pygame.draw.line(screen, CYAN, rect.topleft, rect.bottomright, 2)

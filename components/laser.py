@@ -25,11 +25,31 @@ class Laser(Component):
         # Main laser circle
         pygame.draw.circle(screen, RED, self.position.tuple(), self.radius)
         
+        # Inner bright spot
+        pygame.draw.circle(screen, WHITE, self.position.tuple(), 5)
+        
+        # Direction indicator (shows beam will go right)
+        if self.enabled:
+            # Arrow pointing right
+            arrow_start = (self.position.x + self.radius + 5, self.position.y)
+            arrow_end = (self.position.x + self.radius + 15, self.position.y)
+            pygame.draw.line(screen, RED, arrow_start, arrow_end, 2)
+            # Arrowhead
+            pygame.draw.lines(screen, RED, False, [
+                (arrow_end[0] - 5, arrow_end[1] - 5),
+                arrow_end,
+                (arrow_end[0] - 5, arrow_end[1] + 5)
+            ], 2)
+        
         # Label
         font = pygame.font.Font(None, 14)
         text = font.render("LASER", True, WHITE)
         text_rect = text.get_rect(center=(int(self.position.x), int(self.position.y + 30)))
         screen.blit(text, text_rect)
+    
+    def contains_point(self, x, y):
+        """Check if point is within laser component."""
+        return self.position.distance_to(Vector2(x, y)) <= self.radius + 5
     
     def emit_beam(self):
         """Emit a beam in the positive x direction."""
@@ -40,6 +60,7 @@ class Laser(Component):
                 'amplitude': 1.0,
                 'phase': 0,
                 'path_length': 0,
+                'total_path_length': 0,  # Track cumulative distance
                 'source_type': 'laser'
             }
         return None

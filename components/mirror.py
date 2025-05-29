@@ -1,8 +1,9 @@
 """Mirror components."""
 import pygame
+import math
 from components.base import Component
 from utils.vector import Vector2
-from config.settings import MAGENTA
+from config.settings import MAGENTA, MIRROR_LOSS, IDEAL_COMPONENTS
 
 class Mirror(Component):
     """45-degree mirror for beam reflection."""
@@ -10,6 +11,7 @@ class Mirror(Component):
     def __init__(self, x, y, mirror_type='/'):
         super().__init__(x, y, "mirror")
         self.mirror_type = mirror_type  # '/' or '\'
+        self.debug = True  # Enable debugging
     
     def draw(self, screen):
         """Draw mirror."""
@@ -59,6 +61,7 @@ class Mirror(Component):
         """Reflect beam according to mirror orientation."""
         direction = beam['direction']
         
+        # Calculate new direction based on mirror type
         if self.mirror_type == '/':
             # / mirror: (dx,dy) -> (-dy,-dx)
             new_direction = Vector2(-direction.y, -direction.x)
@@ -66,11 +69,27 @@ class Mirror(Component):
             # \ mirror: (dx,dy) -> (dy,dx)
             new_direction = Vector2(direction.y, direction.x)
         
+        # Calculate amplitude after reflection
+        if IDEAL_COMPONENTS:
+            amplitude_factor = 1.0  # No loss
+        else:
+            amplitude_factor = 1.0 - MIRROR_LOSS  # Apply configured loss
+        
+        # In this simplified model, mirrors don't add phase shift
+        # (In reality, metallic mirrors add π, dielectric mirrors vary)
+        phase_shift = 0
+        
+        if self.debug:
+            print(f"Mirror {self.mirror_type} at {self.position}:")
+            print(f"  Input: dir=({direction.x:.0f},{direction.y:.0f}), phase={beam['phase']*180/math.pi:.1f}°")
+            print(f"  Output: dir=({new_direction.x:.0f},{new_direction.y:.0f}), phase={(beam['phase']+phase_shift)*180/math.pi:.1f}°")
+        
         return [{
             'position': self.position + new_direction * 25,
             'direction': new_direction,
-            'amplitude': beam['amplitude'] * 0.95,  # Small loss
-            'phase': beam['phase'],
+            'amplitude': beam['amplitude'] * amplitude_factor,
+            'phase': beam['phase'] + phase_shift,
             'path_length': 0,
+            'total_path_length': beam.get('total_path_length', 0),
             'source_type': beam['source_type']
         }]
