@@ -40,6 +40,10 @@ class Detector(Component):
                 print(f"  Detector at {self.position} received beam:")
                 print(f"    |E| = {beam['amplitude']:.3f}, accumulated phase = {total_phase*180/math.pi:.1f}°")
                 print(f"    Complex amplitude: {complex_amplitude:.3f}")
+        else:
+            # Detector already processed - reject beam to prevent double counting
+            if self.debug:
+                print(f"  Detector at {self.position}: rejecting beam (already processed)")
     
     def process_beam(self, beam):
         """Process beam - for detectors, we accumulate in add_beam instead."""

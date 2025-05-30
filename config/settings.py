@@ -2,7 +2,7 @@
 import pygame
 
 # Window settings
-WINDOW_WIDTH = 1440  # 16:9 ratio
+WINDOW_WIDTH = 1600  # Increased for right panel
 WINDOW_HEIGHT = 810  # 16:9 ratio
 FPS = 60
 
@@ -10,7 +10,7 @@ FPS = 60
 GRID_SIZE = 40  # Grid spacing in pixels
 CANVAS_WIDTH = 800
 CANVAS_HEIGHT = 600
-CANVAS_OFFSET_X = 320  # Centered: (1440 - 800) / 2 = 320
+CANVAS_OFFSET_X = 320  # Centered: (1600 - 800) / 2 = 400 - 80 for sidebar
 CANVAS_OFFSET_Y = 100
 
 # Colors (RGB)

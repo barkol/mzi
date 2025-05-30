@@ -2,16 +2,13 @@
 import pygame
 import math
 import cmath
-from core.interferometer_presets import InterferometerPresets
 from core.test_utilities import TestUtilities
-from config.settings import PLACEMENT_SCORE
 
 class KeyboardHandler:
     """Handles keyboard shortcuts and debug commands."""
     
     def __init__(self, game):
         self.game = game
-        self.presets = InterferometerPresets()
         self.tests = TestUtilities()
     
     def handle_key(self, event):
@@ -41,27 +38,15 @@ class KeyboardHandler:
             self.game.beam_renderer.set_debug(new_debug_state)
             self.game.component_manager.set_debug_mode(new_debug_state)
             print(f"\nDebug mode: {'ON' if new_debug_state else 'OFF'} for all components")
+            self.game.right_panel.add_debug_message(f"Debug mode: {'ON' if new_debug_state else 'OFF'}")
+            if new_debug_state:
+                self.game.right_panel.add_debug_message("Switch to Debug view with Shift+H")
             return True
             
-        # Preset interferometer setups
-        elif event.key == pygame.K_c:
-            # Complete Mach-Zehnder interferometer
-            self.presets.create_mach_zehnder(self.game.component_manager.components, self.game.laser)
-            return True
-            
-        elif event.key == pygame.K_a:
-            # Asymmetric Mach-Zehnder
-            self.presets.create_asymmetric_mz(self.game.component_manager.components, self.game.laser)
-            return True
-            
-        elif event.key == pygame.K_d and pygame.key.get_mods() & pygame.KMOD_SHIFT:
-            # Beam splitter interference demo (Shift+D)
-            self.presets.create_beam_splitter_demo(self.game.component_manager.components, self.game.laser)
-            return True
-            
+        # New session
         elif event.key == pygame.K_n and pygame.key.get_mods() & pygame.KMOD_SHIFT:
             # Shift+N - New session (reset score and completed challenges)
-            self.game.score = PLACEMENT_SCORE
+            self.game.score = 0
             self.game.controls.score = self.game.score
             self.game.completed_challenges.clear()
             self.game.component_manager.clear_all(self.game.laser)
@@ -69,19 +54,21 @@ class KeyboardHandler:
             print("Score reset to initial value")
             print("All challenges can be completed again for points")
             self.game.controls.set_status("New session started!")
+            
+            # Load default challenge (Basic Mach-Zehnder)
+            challenges = self.game.challenge_manager.get_challenge_list()
+            if challenges:
+                for name, title in challenges:
+                    if name == "basic_mz":
+                        self.game.challenge_manager.set_current_challenge(name)
+                        self.game.controls.set_challenge(title)
+                        self.game.right_panel.add_debug_message(f"Loaded challenge: {title}")
+                        break
+            
+            self.game.right_panel.add_debug_message("New session started - challenges reset")
             return True
             
         # Test functions
-        elif event.key == pygame.K_v:
-            # Visual direction test
-            self.presets.add_visual_test_detectors(self.game.component_manager.components)
-            return True
-            
-        elif event.key == pygame.K_i:
-            # Detector interference test
-            self.tests.test_detector_interference(self.game.component_manager.components)
-            return True
-            
         elif event.key == pygame.K_t:
             # Beam splitter test
             self.tests.test_beam_splitter(self.game.component_manager.components)
@@ -98,8 +85,15 @@ class KeyboardHandler:
             return True
             
         elif event.key == pygame.K_h:
-            # Show help
-            self._show_help()
+            # Toggle help/debug panel or show help
+            if pygame.key.get_mods() & pygame.KMOD_SHIFT:
+                # Shift+H toggles the right panel between help and debug
+                self.game.right_panel.toggle_help()
+                mode = "Help" if self.game.right_panel.show_help else "Debug"
+                self.game.right_panel.add_debug_message(f"Right panel switched to {mode} mode")
+            else:
+                # Regular H shows help
+                self._show_help()
             return True
             
         return False
@@ -145,12 +139,8 @@ class KeyboardHandler:
         print("  L = Toggle leaderboard display")
         print("  G = Toggle debug mode for all components")
         print("  O = Toggle OPD display")
-        print("  C = Create Mach-Zehnder interferometer")
-        print("  A = Create asymmetric MZ interferometer")
-        print("  Shift+D = Beam splitter interference demo")
         print("  Shift+N = New session (reset score and challenges)")
-        print("  V = Visual direction test (add detectors)")
-        print("  I = Detector interference test")
+        print("  Shift+H = Toggle help/debug panel")
         print("  T = Beam splitter direction test")
         print("  M = Multiple input port test")
         print("  R = Mirror reflection test")

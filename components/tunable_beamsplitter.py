@@ -141,6 +141,7 @@ class TunableBeamSplitter(Component):
     
     def add_beam(self, beam):
         """Add a beam to be processed - accumulates across all iterations."""
+        # Only accept beams if this component hasn't been processed yet
         if not self.processed_this_frame:
             self.current_iteration_beams.append(beam)
             
@@ -160,11 +161,15 @@ class TunableBeamSplitter(Component):
             if port_idx is not None:
                 self.all_beams_by_port[port_idx].append(beam)
                 
+                if self.debug:
+                    phase_deg = beam.get('accumulated_phase', beam['phase']) * 180 / math.pi
+                    port_name = ['A', 'B', 'C', 'D'][port_idx] if port_idx is not None else '?'
+                    print(f"  {self.component_type} at {self.position}: beam added to port {port_name}, "
+                          f"dir ({beam['direction'].x:.1f}, {beam['direction'].y:.1f}), phase={phase_deg:.1f}°")
+        else:
+            # Component already processed - reject beam to prevent double counting
             if self.debug:
-                phase_deg = beam.get('accumulated_phase', beam['phase']) * 180 / math.pi
-                port_name = ['A', 'B', 'C', 'D'][port_idx] if port_idx is not None else '?'
-                print(f"  {self.component_type} at {self.position}: beam added to port {port_name}, "
-                      f"dir ({beam['direction'].x:.1f}, {beam['direction'].y:.1f}), phase={phase_deg:.1f}°")
+                print(f"  {self.component_type} at {self.position}: rejecting beam (already processed)")
     
     def process_beam(self, beam):
         """Process single beam (for compatibility)."""

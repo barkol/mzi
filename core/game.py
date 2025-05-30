@@ -14,6 +14,7 @@ from ui.sidebar import Sidebar
 from ui.controls import ControlPanel
 from ui.effects import EffectsManager
 from ui.leaderboard_display import LeaderboardDisplay
+from ui.right_panel import RightPanel
 from utils.vector import Vector2
 from utils.assets_loader import AssetsLoader
 from config.settings import *
@@ -47,6 +48,10 @@ class Game:
         self.grid = Grid()
         self.sidebar = Sidebar()
         self.controls = ControlPanel()
+        self.right_panel = RightPanel()
+        
+        # Set up sidebar callback for component limits
+        self.sidebar.set_can_add_callback(self._can_add_component)
         
         # Physics
         self.beam_tracer = BeamTracer()
@@ -79,12 +84,26 @@ class Game:
         if not os.path.exists("config/blocked_fields_template.txt"):
             self.challenge_manager.create_blocked_fields_template()
         
+        # Load default challenge (Basic Mach-Zehnder)
+        challenges = self.challenge_manager.get_challenge_list()
+        if challenges:
+            for name, title in challenges:
+                if name == "basic_mz":
+                    self.challenge_manager.set_current_challenge(name)
+                    self.controls.set_challenge(title)
+                    self.right_panel.add_debug_message(f"Loaded challenge: {title}")
+                    break
+        
         # Show scoring formula
         self.controls.set_status("Score = Detector Power × 1000 + Gold Bonus")
     
     def handle_event(self, event):
         """Handle game events."""
-        # Handle leaderboard events first
+        # Handle right panel events first
+        if self.right_panel.handle_event(event):
+            return
+            
+        # Handle leaderboard events
         if self.leaderboard_display.handle_event(event):
             return
         
@@ -110,8 +129,11 @@ class Game:
                 x = round((event.pos[0] - CANVAS_OFFSET_X) / GRID_SIZE) * GRID_SIZE + CANVAS_OFFSET_X
                 y = round((event.pos[1] - CANVAS_OFFSET_Y) / GRID_SIZE) * GRID_SIZE + CANVAS_OFFSET_Y
                 
-                # Check if position is blocked
-                if self.challenge_manager.is_position_blocked(x, y):
+                # Check component limits
+                if self.sidebar.selected != 'laser' and not self._can_add_component():
+                    self.controls.set_status("Component limit reached for this challenge!")
+                    self.right_panel.add_debug_message("Cannot add component - limit reached")
+                elif self.challenge_manager.is_position_blocked(x, y):
                     self.controls.set_status("Cannot place component here - position blocked!")
                     print(f"Position ({x}, {y}) is blocked")
                 elif not self.component_manager.is_position_occupied(x, y, self.laser,
@@ -120,6 +142,7 @@ class Game:
                         self.sidebar.selected, x, y, self.laser)
                     # Score is now based on detector power, not placement
                     print(f"Placed {self.sidebar.selected} at ({x}, {y})")  # Debug
+                    self.right_panel.add_debug_message(f"Placed {self.sidebar.selected} at grid ({(x-CANVAS_OFFSET_X)//GRID_SIZE}, {(y-CANVAS_OFFSET_Y)//GRID_SIZE})")
             
             # Clear grid hover after drop
             self.grid.set_hover(None)
@@ -140,13 +163,28 @@ class Game:
         # Handle canvas clicks (for removing components)
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self._is_in_canvas(event.pos) and not self.sidebar.selected:
-                self.component_manager.remove_component_at(event.pos)
+                if self.component_manager.remove_component_at(event.pos):
+                    self.right_panel.add_debug_message("Component removed")
                 # No score update - score based on detector power
     
     def _is_in_canvas(self, pos):
         """Check if position is within game canvas."""
         return (CANVAS_OFFSET_X <= pos[0] <= CANVAS_OFFSET_X + CANVAS_WIDTH and
                 CANVAS_OFFSET_Y <= pos[1] <= CANVAS_OFFSET_Y + CANVAS_HEIGHT)
+    
+    def _can_add_component(self):
+        """Check if we can add another component based on challenge limits."""
+        if not self.challenge_manager.current_challenge:
+            return True  # No limits in free play
+        
+        challenge = self.challenge_manager.challenges.get(self.challenge_manager.current_challenge)
+        if not challenge:
+            return True
+        
+        max_components = challenge.get('max_components', float('inf'))
+        current_count = len(self.component_manager.components)
+        
+        return current_count < max_components
     
     def _handle_control_action(self, action):
         """Handle control panel actions."""
@@ -160,9 +198,11 @@ class Game:
                 # Shift+Clear All resets completed challenges
                 self.completed_challenges.clear()
                 self.controls.set_status("Setup cleared and challenges reset!")
+                self.right_panel.add_debug_message("Session reset - challenges can be completed again")
                 print("Completed challenges reset - you can earn points again")
             else:
                 self.controls.set_status("Score = Detector Power × 1000 + Gold Bonus")
+                self.right_panel.add_debug_message("Setup cleared")
         elif action == 'Check Setup':
             # Check against current challenge (pass beam_tracer for gold field calculation)
             success, message, points = self.challenge_manager.check_setup(
@@ -245,6 +285,9 @@ class Game:
         # Draw banner as the bottom-most layer (MOVED HERE)
         self.debug_display.draw_banner()
         
+        # Draw game info above canvas
+        self._draw_game_info_top()
+        
         # Draw game canvas background (SEMITRANSPARENT)
         canvas_rect = pygame.Rect(CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT)
         s = pygame.Surface((CANVAS_WIDTH, CANVAS_HEIGHT), pygame.SRCALPHA)
@@ -279,6 +322,7 @@ class Game:
         # Draw UI
         self.sidebar.draw(self.screen)
         self.controls.draw(self.screen)
+        self.right_panel.draw(self.screen)
         
         # Draw dragged component preview
         if self.sidebar.dragging and self.sidebar.selected:
@@ -297,11 +341,8 @@ class Game:
         # Draw challenge completion status
         self._draw_challenge_status()
         
-        # Draw detector power score
-        self._draw_detector_power_score()
-        
-        # Draw gold field bonus indicator
-        self._draw_gold_bonus_indicator()
+        # Draw component counter (bottom left)
+        self._draw_component_counter()
         
         # Draw leaderboard if visible
         self.leaderboard_display.draw(self.screen)
@@ -321,37 +362,22 @@ class Game:
             
             self.screen.blit(text, text_rect)
     
-    def _draw_challenge_status(self):
-        """Draw indicator if current challenge is already completed."""
-        if (self.challenge_manager.current_challenge and
-            self.challenge_manager.current_challenge in self.completed_challenges):
-            font = pygame.font.Font(None, 16)
-            text = font.render("[DONE] Challenge Completed", True, GREEN)
-            text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - 20,
-                                     y=CANVAS_OFFSET_Y + CANVAS_HEIGHT - 15)
-            
-            # Background
-            bg_rect = text_rect.inflate(10, 4)
-            s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            s.fill((0, 0, 0, 150))
-            self.screen.blit(s, bg_rect.topleft)
-            
-            self.screen.blit(text, text_rect)
-    
-    def _draw_detector_power_score(self):
-        """Draw current detector power score."""
+    def _draw_game_info_top(self):
+        """Draw detector power and gold bonus above the canvas."""
+        info_y = CANVAS_OFFSET_Y - 35
+        
         # Calculate total detector power
         detectors = [c for c in self.component_manager.components
                     if c.component_type == 'detector']
         total_power = sum(d.intensity for d in detectors)
         detector_score = int(total_power * 1000)
         
+        # Draw detector power info
         if detector_score > 0 or len(detectors) > 0:
             font = pygame.font.Font(None, 20)
             text = font.render(f"Detector Power: {total_power:.2f} = {detector_score} pts",
                              True, CYAN)
-            text_rect = text.get_rect(left=CANVAS_OFFSET_X + 20,
-                                     bottom=CANVAS_OFFSET_Y + CANVAS_HEIGHT - 40)
+            text_rect = text.get_rect(left=CANVAS_OFFSET_X + 20, centery=info_y)
             
             # Background
             bg_rect = text_rect.inflate(20, 8)
@@ -361,9 +387,8 @@ class Game:
             pygame.draw.rect(self.screen, CYAN, bg_rect, 1, border_radius=8)
             
             self.screen.blit(text, text_rect)
-    
-    def _draw_gold_bonus_indicator(self):
-        """Draw current gold field bonus indicator."""
+        
+        # Draw gold bonus info
         if hasattr(self.beam_tracer, 'gold_field_hits') and self.beam_tracer.gold_field_hits:
             # Calculate current gold bonus
             total_bonus = 0
@@ -377,8 +402,7 @@ class Game:
                 
                 font = pygame.font.Font(None, 20)
                 text = font.render(f"Gold Bonus: +{total_bonus}", True, GOLD)
-                text_rect = text.get_rect(left=CANVAS_OFFSET_X + 20,
-                                         bottom=CANVAS_OFFSET_Y + CANVAS_HEIGHT - 15)
+                text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - 20, centery=info_y)
                 
                 # Background with gold glow
                 bg_rect = text_rect.inflate(20, 8)
@@ -397,6 +421,74 @@ class Game:
                 pygame.draw.rect(self.screen, GOLD, bg_rect, 2, border_radius=10)
                 
                 self.screen.blit(text, text_rect)
+    
+    def _draw_component_counter(self):
+        """Draw component counter in bottom left corner."""
+        current_count = len(self.component_manager.components)
+        
+        # Get challenge limits
+        min_components = 0
+        max_components = float('inf')
+        if self.challenge_manager.current_challenge:
+            challenge = self.challenge_manager.challenges.get(self.challenge_manager.current_challenge)
+            if challenge:
+                min_components = challenge.get('min_components', 0)
+                max_components = challenge.get('max_components', float('inf'))
+        
+        # Position
+        counter_x = 20
+        counter_y = WINDOW_HEIGHT - 60
+        
+        # Draw counter
+        font = pygame.font.Font(None, 24)
+        if max_components == float('inf'):
+            text = f"Components: {current_count}"
+        else:
+            text = f"Components: {current_count}/{max_components}"
+        
+        # Color based on status
+        if current_count < min_components:
+            color = (255, 100, 100)  # Red - too few
+        elif current_count >= max_components:
+            color = (255, 200, 0)  # Orange - at limit
+        else:
+            color = CYAN  # Good
+        
+        counter_text = font.render(text, True, color)
+        counter_rect = counter_text.get_rect(left=counter_x, centery=counter_y)
+        
+        # Background
+        bg_rect = counter_rect.inflate(20, 10)
+        s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+        pygame.draw.rect(s, (0, 0, 0, 180), s.get_rect(), border_radius=10)
+        self.screen.blit(s, bg_rect.topleft)
+        pygame.draw.rect(self.screen, color, bg_rect, 1, border_radius=10)
+        
+        self.screen.blit(counter_text, counter_rect)
+        
+        # Show min requirement if not met
+        if current_count < min_components:
+            hint_font = pygame.font.Font(None, 16)
+            hint_text = hint_font.render(f"Need at least {min_components}", True, (200, 200, 200))
+            hint_rect = hint_text.get_rect(left=counter_x + 10, top=counter_rect.bottom + 5)
+            self.screen.blit(hint_text, hint_rect)
+    
+    def _draw_challenge_status(self):
+        """Draw indicator if current challenge is already completed."""
+        if (self.challenge_manager.current_challenge and
+            self.challenge_manager.current_challenge in self.completed_challenges):
+            font = pygame.font.Font(None, 16)
+            text = font.render("[DONE] Challenge Completed", True, GREEN)
+            text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - 20,
+                                     y=CANVAS_OFFSET_Y + CANVAS_HEIGHT - 15)
+            
+            # Background
+            bg_rect = text_rect.inflate(10, 4)
+            s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+            s.fill((0, 0, 0, 150))
+            self.screen.blit(s, bg_rect.topleft)
+            
+            self.screen.blit(text, text_rect)
     
     def _draw_drag_preview(self):
         """Draw preview of component being dragged."""
