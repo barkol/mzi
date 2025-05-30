@@ -53,7 +53,7 @@ class Game:
         self.dragging = False
         self.drag_component = None
         self.mouse_pos = (0, 0)
-        self.score = PLACEMENT_SCORE  # Start with score for initial laser
+        self.score = 0  # Score based on detector power, starts at 0
         self.controls.score = self.score  # Update control panel
         self.show_opd_info = True  # Toggle for OPD display
         
@@ -61,12 +61,21 @@ class Game:
         self.session_high_score = 0
         self.completed_challenges = set()  # Track which challenges have been completed
         
-        # Load blocked fields
+        # Load gold fields first
+        self.challenge_manager.load_gold_fields()
+        
+        # Load blocked fields (these take precedence over gold if there's a conflict)
         self.challenge_manager.load_blocked_fields()
+        
+        # Validate configuration (helps level designers spot conflicts)
+        self.challenge_manager.validate_field_configurations()
         
         # Create template if it doesn't exist
         if not os.path.exists("config/blocked_fields_template.txt"):
             self.challenge_manager.create_blocked_fields_template()
+        
+        # Show scoring formula
+        self.controls.set_status("Score = Detector Power × 1000 + Gold Bonus")
     
     def handle_event(self, event):
         """Handle game events."""
@@ -102,9 +111,9 @@ class Game:
                     print(f"Position ({x}, {y}) is blocked")
                 elif not self.component_manager.is_position_occupied(x, y, self.laser,
                                                                   self.sidebar.selected == 'laser'):
-                    score_delta = self.component_manager.add_component(
+                    self.component_manager.add_component(
                         self.sidebar.selected, x, y, self.laser)
-                    self._update_score(score_delta)
+                    # Score is now based on detector power, not placement
                     print(f"Placed {self.sidebar.selected} at ({x}, {y})")  # Debug
             
             # Clear grid hover after drop
@@ -126,8 +135,8 @@ class Game:
         # Handle canvas clicks (for removing components)
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self._is_in_canvas(event.pos) and not self.sidebar.selected:
-                score_delta = self.component_manager.remove_component_at(event.pos)
-                self._update_score(score_delta)
+                self.component_manager.remove_component_at(event.pos)
+                # No score update - score based on detector power
     
     def _is_in_canvas(self, pos):
         """Check if position is within game canvas."""
@@ -137,8 +146,8 @@ class Game:
     def _handle_control_action(self, action):
         """Handle control panel actions."""
         if action == 'Clear All':
-            new_score = self.component_manager.clear_all(self.laser)
-            self.score = new_score
+            self.component_manager.clear_all(self.laser)
+            self.score = 0  # Reset score to 0
             self.controls.score = self.score
             # Optionally reset completed challenges when clearing all
             # This allows players to retry challenges in the same session
@@ -147,10 +156,12 @@ class Game:
                 self.completed_challenges.clear()
                 self.controls.set_status("Setup cleared and challenges reset!")
                 print("Completed challenges reset - you can earn points again")
+            else:
+                self.controls.set_status("Score = Detector Power × 1000 + Gold Bonus")
         elif action == 'Check Setup':
-            # Check against current challenge
+            # Check against current challenge (pass beam_tracer for gold field calculation)
             success, message, points = self.challenge_manager.check_setup(
-                self.component_manager.components, self.laser)
+                self.component_manager.components, self.laser, self.beam_tracer)
             if success:
                 # Check if this challenge was already completed
                 challenge_name = self.challenge_manager.current_challenge
@@ -210,7 +221,7 @@ class Game:
     
     def _update_score(self, points):
         """Update game score."""
-        self.score = max(0, self.score + points)
+        self.score = points  # Score is now absolute, not cumulative from placement
         self.controls.score = self.score
         
         # Update session high score
@@ -236,10 +247,11 @@ class Game:
         self.screen.blit(s, canvas_rect.topleft)
         pygame.draw.rect(self.screen, PURPLE, canvas_rect, 2, border_radius=15)
         
-        # Draw grid
+        # Draw grid (pass gold positions)
         laser_pos = self.laser.position.tuple() if self.laser else None
         self.grid.draw(self.screen, self.component_manager.components, laser_pos,
-                      self.challenge_manager.get_blocked_positions())
+                      self.challenge_manager.get_blocked_positions(),
+                      self.challenge_manager.get_gold_positions())  # NEW parameter
         
         # Draw laser
         if self.laser:
@@ -251,6 +263,9 @@ class Game:
         
         # Trace and draw beams
         if self.laser and self.laser.enabled:
+            # Set gold positions on beam tracer (NEW)
+            self.beam_tracer.set_gold_positions(self.challenge_manager.get_gold_positions())
+            
             self.beam_renderer.draw_beams(self.beam_tracer, self.laser,
                                         self.component_manager.components,
                                         0,  # No phase shift anymore
@@ -276,6 +291,12 @@ class Game:
         
         # Draw challenge completion status
         self._draw_challenge_status()
+        
+        # Draw detector power score
+        self._draw_detector_power_score()
+        
+        # Draw gold field bonus indicator
+        self._draw_gold_bonus_indicator()
         
         # Draw leaderboard if visible
         self.leaderboard_display.draw(self.screen)
@@ -312,6 +333,66 @@ class Game:
             
             self.screen.blit(text, text_rect)
     
+    def _draw_detector_power_score(self):
+        """Draw current detector power score."""
+        # Calculate total detector power
+        detectors = [c for c in self.component_manager.components
+                    if c.component_type == 'detector']
+        total_power = sum(d.intensity for d in detectors)
+        detector_score = int(total_power * 1000)
+        
+        if detector_score > 0 or len(detectors) > 0:
+            font = pygame.font.Font(None, 20)
+            text = font.render(f"Detector Power: {total_power:.2f} = {detector_score} pts",
+                             True, CYAN)
+            text_rect = text.get_rect(left=CANVAS_OFFSET_X + 20,
+                                     bottom=CANVAS_OFFSET_Y + CANVAS_HEIGHT - 40)
+            
+            # Background
+            bg_rect = text_rect.inflate(20, 8)
+            s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+            pygame.draw.rect(s, (0, 0, 0, 180), s.get_rect(), border_radius=8)
+            self.screen.blit(s, bg_rect.topleft)
+            pygame.draw.rect(self.screen, CYAN, bg_rect, 1, border_radius=8)
+            
+            self.screen.blit(text, text_rect)
+    
+    def _draw_gold_bonus_indicator(self):
+        """Draw current gold field bonus indicator."""
+        if hasattr(self.beam_tracer, 'gold_field_hits') and self.beam_tracer.gold_field_hits:
+            # Calculate current gold bonus
+            total_bonus = 0
+            for position, intensity in self.beam_tracer.gold_field_hits.items():
+                bonus = int(intensity * 100)
+                total_bonus += bonus
+            
+            if total_bonus > 0:
+                # Define gold color locally if not already imported
+                GOLD = (255, 215, 0)
+                
+                font = pygame.font.Font(None, 20)
+                text = font.render(f"Gold Bonus: +{total_bonus}", True, GOLD)
+                text_rect = text.get_rect(left=CANVAS_OFFSET_X + 20,
+                                         bottom=CANVAS_OFFSET_Y + CANVAS_HEIGHT - 15)
+                
+                # Background with gold glow
+                bg_rect = text_rect.inflate(20, 8)
+                
+                # Glow effect
+                glow_surf = pygame.Surface((bg_rect.width + 10, bg_rect.height + 10), pygame.SRCALPHA)
+                pygame.draw.rect(glow_surf, (GOLD[0], GOLD[1], GOLD[2], 40),
+                               glow_surf.get_rect(), border_radius=10)
+                self.screen.blit(glow_surf, (bg_rect.x - 5, bg_rect.y - 5))
+                
+                # Background
+                s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+                pygame.draw.rect(s, (GOLD[0]//4, GOLD[1]//4, GOLD[2]//4, 200),
+                               s.get_rect(), border_radius=10)
+                self.screen.blit(s, bg_rect.topleft)
+                pygame.draw.rect(self.screen, GOLD, bg_rect, 2, border_radius=10)
+                
+                self.screen.blit(text, text_rect)
+    
     def _draw_drag_preview(self):
         """Draw preview of component being dragged."""
         x, y = self.mouse_pos
@@ -321,12 +402,12 @@ class Game:
         alpha = 128
         
         if comp_type == 'laser':
-            # Draw laser preview (now GREEN to match detector)
+            # Draw laser preview (turquoise)
             s = pygame.Surface((60, 60), pygame.SRCALPHA)
-            pygame.draw.circle(s, (GREEN[0], GREEN[1], GREEN[2], alpha), (30, 30), 15)
+            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (30, 30), 15)
             # Glow effect
             for i in range(3, 0, -1):
-                pygame.draw.circle(s, (GREEN[0], GREEN[1], GREEN[2], alpha // (i + 1)), (30, 30), 15 + i * 3)
+                pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha // (i + 1)), (30, 30), 15 + i * 3)
             self.screen.blit(s, (x - 30, y - 30))
             
         elif comp_type == 'beamsplitter':
@@ -339,21 +420,21 @@ class Game:
             self.screen.blit(s, rect.topleft)
             
         elif comp_type == 'mirror/':
-            # Draw / mirror preview
+            # Draw / mirror preview (turquoise)
             s = pygame.Surface((50, 50), pygame.SRCALPHA)
-            pygame.draw.line(s, (MAGENTA[0], MAGENTA[1], MAGENTA[2], alpha), (5, 45), (45, 5), 6)
+            pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (5, 45), (45, 5), 6)
             self.screen.blit(s, (x - 25, y - 25))
             
         elif comp_type == 'mirror\\':
-            # Draw \ mirror preview
+            # Draw \ mirror preview (turquoise)
             s = pygame.Surface((50, 50), pygame.SRCALPHA)
-            pygame.draw.line(s, (MAGENTA[0], MAGENTA[1], MAGENTA[2], alpha), (5, 5), (45, 45), 6)
+            pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (5, 5), (45, 45), 6)
             self.screen.blit(s, (x - 25, y - 25))
             
         elif comp_type == 'detector':
-            # Draw detector preview
+            # Draw detector preview (turquoise)
             s = pygame.Surface((60, 60), pygame.SRCALPHA)
-            pygame.draw.circle(s, (GREEN[0], GREEN[1], GREEN[2], alpha // 2), (30, 30), 25)
-            pygame.draw.circle(s, (GREEN[0], GREEN[1], GREEN[2], alpha), (30, 30), 25, 3)
-            pygame.draw.circle(s, (GREEN[0], GREEN[1], GREEN[2], alpha), (30, 30), 10)
+            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha // 2), (30, 30), 25)
+            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (30, 30), 25, 3)
+            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (30, 30), 10)
             self.screen.blit(s, (x - 30, y - 30))

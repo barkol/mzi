@@ -1,0 +1,36 @@
+# Gold Fields Configuration
+# These fields award 100 points × beam intensity when beams pass through
+# Format: grid_x,grid_y
+# Grid coordinates start at 0,0 (top-left of canvas)
+# Canvas is 20x15 grid cells (800x600 pixels with 40px grid)
+# Lines starting with # are comments
+
+# Example: Strategic gold field placements
+
+# Upper path rewards
+7,5
+8,5
+9,5
+
+# Lower path rewards
+7,11
+8,11
+9,11
+
+# Central challenge areas
+10,7
+10,8
+10,9
+
+# High-value corner positions
+2,2
+17,2
+2,12
+17,12
+
+# Intersection bonuses
+12,7
+14,8
+
+# Note: Gold fields can overlap with component positions
+# The bonus is awarded based on beam paths, not component placement

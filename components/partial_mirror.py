@@ -3,9 +3,10 @@ import pygame
 import numpy as np
 import math
 from components.tunable_beamsplitter import TunableBeamSplitter
+from config.settings import CYAN
 
-# Use a purple-ish color for partial mirrors
-PARTIAL_MIRROR_COLOR = (200, 100, 255)
+# Use turquoise color for partial mirrors
+PARTIAL_MIRROR_COLOR = CYAN
 
 class PartialMirror(TunableBeamSplitter):
     """Partial mirror with adjustable reflectivity."""

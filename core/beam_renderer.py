@@ -1,7 +1,7 @@
 """Beam rendering and visualization module."""
 import pygame
 import math
-from config.settings import BEAM_WIDTH, GREEN, MAGENTA, WHITE, CYAN, RED
+from config.settings import BEAM_WIDTH, CYAN, WHITE, RED
 
 class BeamRenderer:
     """Handles beam path rendering and visualization."""
@@ -63,13 +63,19 @@ class BeamRenderer:
         # Check if beam was blocked
         was_blocked = beam_data.get('blocked', False)
         
-        # Color based on source type and blocked status
+        # Color based on blocked status and intensity
         if was_blocked:
             color = RED  # Red for blocked beams
-        elif beam_data['source_type'] == 'shifted':
-            color = MAGENTA
         else:
-            color = GREEN  # Changed from RED to GREEN
+            # All beams are shades of turquoise/cyan
+            # Vary the shade based on amplitude for visual distinction
+            amplitude = beam_data['amplitude']
+            if amplitude > 0.8:
+                color = CYAN  # Bright cyan for strong beams
+            elif amplitude > 0.5:
+                color = (0, 200, 200)  # Medium cyan
+            else:
+                color = (0, 150, 150)  # Darker cyan for weak beams
         
         # Adjust alpha based on amplitude squared (intensity)
         # Use amplitude squared for intensity representation

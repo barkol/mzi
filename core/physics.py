@@ -2,7 +2,7 @@
 import math
 import cmath
 from utils.vector import Vector2
-from config.settings import WAVELENGTH, IDEAL_COMPONENTS, GRID_SIZE
+from config.settings import WAVELENGTH, IDEAL_COMPONENTS, GRID_SIZE, CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT
 
 class BeamTracer:
     """Traces beam paths through optical components."""
@@ -12,14 +12,21 @@ class BeamTracer:
         self.k = 2 * math.pi / WAVELENGTH  # Wave number
         self.debug = False  # Debug flag for detailed output
         self.blocked_positions = []  # Positions that block beams
+        self.gold_positions = []  # Positions that award points
+        self.gold_field_hits = {}  # Track gold field hits: {position: total_intensity}
     
     def set_blocked_positions(self, blocked_positions):
         """Set positions that block beam propagation."""
         self.blocked_positions = blocked_positions
     
+    def set_gold_positions(self, gold_positions):
+        """Set positions that award points when beams pass through."""
+        self.gold_positions = gold_positions
+    
     def reset(self):
         """Reset beam tracer for new frame."""
         self.active_beams = []
+        self.gold_field_hits = {}  # Reset gold field tracking
     
     def add_beam(self, beam):
         """Add a beam to trace."""
@@ -269,10 +276,33 @@ class BeamTracer:
         distance = 0
         total_path_length = 0
         
+        # Track gold field hits for this beam
+        gold_hits_this_beam = set()  # Avoid double-counting same field
+        
         while distance < max_distance:
             # Move beam forward
             next_pos = current_pos + direction * step_size
             distance += step_size
+            
+            # Check if beam passes through a gold field
+            for gold_pos in self.gold_positions:
+                if gold_pos.distance_to(next_pos) < GRID_SIZE / 2:
+                    # Convert position to grid coordinates for consistent tracking
+                    grid_x = round((gold_pos.x - CANVAS_OFFSET_X) / GRID_SIZE)
+                    grid_y = round((gold_pos.y - CANVAS_OFFSET_Y) / GRID_SIZE)
+                    gold_key = (grid_x, grid_y)
+                    
+                    # Only count each gold field once per beam
+                    if gold_key not in gold_hits_this_beam:
+                        gold_hits_this_beam.add(gold_key)
+                        # Add beam intensity to this gold field
+                        intensity = beam['amplitude'] ** 2  # Intensity is amplitude squared
+                        if gold_key not in self.gold_field_hits:
+                            self.gold_field_hits[gold_key] = 0
+                        self.gold_field_hits[gold_key] += intensity
+                        
+                        if self.debug:
+                            print(f"  Beam hit gold field at grid ({grid_x}, {grid_y}) with intensity {intensity:.3f}")
             
             # Check if beam hits a blocked position
             for blocked_pos in self.blocked_positions:
@@ -288,7 +318,6 @@ class BeamTracer:
                     return path, None, total_path_length, True
             
             # Check grid bounds
-            from config.settings import CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT
             if (next_pos.x < CANVAS_OFFSET_X or
                 next_pos.x > CANVAS_OFFSET_X + CANVAS_WIDTH or
                 next_pos.y < CANVAS_OFFSET_Y or

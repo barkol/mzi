@@ -1,0 +1,76 @@
+# Gold Rush Challenge - Gold Fields Configuration
+# These fields award 100 points × beam intensity when beams pass through
+# Designed to work with the "Gold Rush Challenge"
+# Format: grid_x,grid_y
+
+# === Upper Path Gold Trail ===
+# Create a golden path for the upper beam route
+5,5
+6,5
+7,5
+8,5
+9,5
+10,5
+11,5
+12,5
+13,5
+14,5
+
+# === Lower Path Gold Trail ===
+# Create rewards for taking the lower route
+5,10
+6,10
+7,10
+8,10
+9,10
+10,10
+11,10
+12,10
+13,10
+14,10
+
+# === Vertical Gold Connectors ===
+# Reward vertical beam paths
+5,6
+5,7
+5,8
+5,9
+
+14,6
+14,7
+14,8
+14,9
+
+# === Central High-Value Zone ===
+# Maximum points for interference region
+9,7
+10,7
+11,7
+9,8
+10,8
+11,8
+
+# === Diagonal Bonus Areas ===
+# Reward creative diagonal routing
+7,7
+8,8
+12,8
+13,7
+
+# === Corner Treasures ===
+# High-value positions for complex routing
+2,2
+17,2
+2,12
+17,12
+
+# === Detector Bonuses ===
+# Gold fields near typical detector positions
+16,7
+16,8
+16,9
+
+# Note: A single beam passing through all gold fields
+# with full intensity would score 3600 points!
+# With interference and beam splitting, typical scores
+# range from 500-2000 bonus points.

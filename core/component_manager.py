@@ -4,7 +4,7 @@ from components.beam_splitter import BeamSplitter
 from components.mirror import Mirror
 from components.detector import Detector
 from utils.vector import Vector2
-from config.settings import GRID_SIZE, PLACEMENT_SCORE
+from config.settings import GRID_SIZE
 
 class ComponentManager:
     """Manages game components - adding, removing, and tracking."""
@@ -27,11 +27,11 @@ class ComponentManager:
                 # Clear OPD from all beam splitters when laser moves
                 self._clear_opd_data()
                 
-                return 0  # Don't add score for moving
+                return  # No scoring for placement
             else:
                 # This shouldn't happen in normal flow
                 print("Warning: No laser to move")
-                return 0
+                return
         elif comp_type == 'beamsplitter':
             # Beam splitters always include π/2 phase shift on reflection
             comp = BeamSplitter(x, y)
@@ -47,7 +47,7 @@ class ComponentManager:
             self.components.append(comp)
         else:
             print(f"Unknown component type: {comp_type}")  # Debug
-            return 0
+            return
         
         # Clear OPD when adding new components that might affect the path
         if comp_type in ['beamsplitter', 'mirror/', 'mirror\\']:
@@ -57,8 +57,6 @@ class ComponentManager:
         
         if comp_type != 'laser':
             print(f"Total components: {len(self.components)}")  # Debug
-            
-        return PLACEMENT_SCORE
     
     def remove_component_at(self, pos):
         """Remove component at position."""
@@ -74,8 +72,8 @@ class ComponentManager:
                 # Clear OPD from all beam splitters when setup changes
                 self._clear_opd_data()
                 
-                return -PLACEMENT_SCORE
-        return 0
+                return True  # Return success instead of score
+        return False  # No component removed
     
     def is_position_occupied(self, x, y, laser=None, dragging_laser=False):
         """Check if position is occupied."""
@@ -100,7 +98,7 @@ class ComponentManager:
         if laser:
             from config.settings import CANVAS_OFFSET_X, CANVAS_OFFSET_Y, GRID_SIZE
             laser.position = Vector2(CANVAS_OFFSET_X + GRID_SIZE, CANVAS_OFFSET_Y + 7 * GRID_SIZE)
-        return PLACEMENT_SCORE  # Reset to initial score
+        # No score returned - scoring is based on detector power
     
     def set_debug_mode(self, debug_state):
         """Set debug mode for all components."""

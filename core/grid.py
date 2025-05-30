@@ -1,8 +1,12 @@
 """Grid system for component placement."""
 import pygame
+import math
 from config.settings import *
 from utils.colors import pulse_alpha
 from utils.vector import Vector2
+
+# Define gold color
+GOLD = (255, 215, 0)
 
 class Grid:
     """Grid system for the game canvas."""
@@ -24,10 +28,14 @@ class Grid:
         else:
             self.hover_pos = None
     
-    def draw(self, screen, components, laser_pos=None, blocked_positions=None):
-        """Draw grid with hover effects and blocked positions."""
+    def draw(self, screen, components, laser_pos=None, blocked_positions=None, gold_positions=None):
+        """Draw grid with hover effects, blocked positions, and gold fields."""
         # Draw grid lines
         self._draw_grid_lines(screen)
+        
+        # Draw gold positions (draw before blocked so blocked are on top)
+        if gold_positions:
+            self._draw_gold_positions(screen, gold_positions)
         
         # Draw blocked positions
         if blocked_positions:
@@ -63,6 +71,71 @@ class Grid:
                 radius = 3 if is_major else 2
                 pygame.draw.circle(screen, GRID_MAJOR_COLOR if is_major else GRID_COLOR,
                                  (x, y), radius)
+    
+    def _draw_gold_positions(self, screen, gold_positions):
+        """Draw gold field positions on the grid."""
+        for pos in gold_positions:
+            x, y = int(pos.x), int(pos.y)
+            
+            # Draw main gold square
+            gold_rect = pygame.Rect(x - GRID_SIZE // 2, y - GRID_SIZE // 2, GRID_SIZE, GRID_SIZE)
+            
+            # Golden gradient background
+            for i in range(GRID_SIZE // 2):
+                alpha = 255 - i * 10
+                color = (GOLD[0], GOLD[1], GOLD[2], min(alpha, 180))
+                inner_rect = pygame.Rect(
+                    gold_rect.x + i,
+                    gold_rect.y + i,
+                    gold_rect.width - i * 2,
+                    gold_rect.height - i * 2
+                )
+                if inner_rect.width > 0 and inner_rect.height > 0:
+                    s = pygame.Surface((inner_rect.width, inner_rect.height), pygame.SRCALPHA)
+                    s.fill(color)
+                    screen.blit(s, inner_rect.topleft)
+            
+            # Draw golden border
+            pygame.draw.rect(screen, GOLD, gold_rect, 3)
+            
+            # Draw inner decorative pattern (star/diamond)
+            center_x, center_y = x, y
+            # Draw a small 4-pointed star
+            star_size = GRID_SIZE // 4
+            star_points = [
+                (center_x, center_y - star_size),  # Top
+                (center_x + star_size // 2, center_y - star_size // 2),
+                (center_x + star_size, center_y),  # Right
+                (center_x + star_size // 2, center_y + star_size // 2),
+                (center_x, center_y + star_size),  # Bottom
+                (center_x - star_size // 2, center_y + star_size // 2),
+                (center_x - star_size, center_y),  # Left
+                (center_x - star_size // 2, center_y - star_size // 2),
+            ]
+            pygame.draw.polygon(screen, GOLD, star_points)
+            
+            # Pulsing glow effect
+            pulse = pulse_alpha(150)
+            glow_surf = pygame.Surface((GRID_SIZE + 20, GRID_SIZE + 20), pygame.SRCALPHA)
+            for r in range(3):
+                glow_alpha = pulse // (r + 1)
+                pygame.draw.rect(glow_surf, (GOLD[0], GOLD[1], GOLD[2], glow_alpha),
+                               pygame.Rect(r * 3, r * 3,
+                                         GRID_SIZE + 20 - r * 6,
+                                         GRID_SIZE + 20 - r * 6),
+                               border_radius=5)
+            screen.blit(glow_surf, (x - GRID_SIZE // 2 - 10, y - GRID_SIZE // 2 - 10))
+            
+            # Draw "100" text to indicate point value
+            font = pygame.font.Font(None, 12)
+            text = font.render("100", True, (255, 255, 200))
+            text_rect = text.get_rect(center=(x, y + GRID_SIZE // 2 + 8))
+            # Background for text
+            bg_rect = text_rect.inflate(4, 2)
+            s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+            s.fill((0, 0, 0, 150))
+            screen.blit(s, bg_rect.topleft)
+            screen.blit(text, text_rect)
     
     def _draw_blocked_positions(self, screen, blocked_positions):
         """Draw blocked positions on the grid as beam obstacles."""
@@ -130,6 +203,8 @@ class Grid:
                 if blocked_pos.distance_to(test_pos) < GRID_SIZE / 2:
                     blocked = True
                     break
+        
+        # Note: Gold positions do NOT block component placement
         
         # Pulsing effect
         alpha = pulse_alpha(80)

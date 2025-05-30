@@ -2,7 +2,7 @@
 import pygame
 import numpy as np
 from components.tunable_beamsplitter import TunableBeamSplitter
-from config.settings import MAGENTA, MIRROR_LOSS
+from config.settings import CYAN, MIRROR_LOSS
 
 class Mirror(TunableBeamSplitter):
     """Perfect mirror - a tunable beam splitter with t=0, r=-1."""
@@ -55,18 +55,18 @@ class Mirror(TunableBeamSplitter):
             start = (self.position.x - 20, self.position.y - 20)
             end = (self.position.x + 20, self.position.y + 20)
         
-        # Draw thick mirror line
-        pygame.draw.line(screen, MAGENTA, start, end, 6)
+        # Draw thick mirror line - CYAN color like beam splitter
+        pygame.draw.line(screen, CYAN, start, end, 6)
         
         # Draw reflection indicators (dimmed)
         s = pygame.Surface((60, 60), pygame.SRCALPHA)
         s_center = (30, 30)
         if self.mirror_type == '/':
-            pygame.draw.line(s, (MAGENTA[0], MAGENTA[1], MAGENTA[2], 100),
+            pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], 100),
                            (s_center[0] - 20, s_center[1] + 20),
                            (s_center[0] + 20, s_center[1] - 20), 2)
         else:
-            pygame.draw.line(s, (MAGENTA[0], MAGENTA[1], MAGENTA[2], 100),
+            pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], 100),
                            (s_center[0] - 20, s_center[1] - 20),
                            (s_center[0] + 20, s_center[1] + 20), 2)
         screen.blit(s, (self.position.x - 30, self.position.y - 30))
@@ -80,14 +80,14 @@ class Mirror(TunableBeamSplitter):
                 (self.position.x - 10, self.position.y),
                 (self.position.x - 10, self.position.y - 10)
             ]
-            pygame.draw.lines(screen, MAGENTA, False, points, 1)
+            pygame.draw.lines(screen, CYAN, False, points, 1)
             # Show bottom→right reflection
             points2 = [
                 (self.position.x, self.position.y + 20),
                 (self.position.x, self.position.y + 10),
                 (self.position.x + 10, self.position.y + 10)
             ]
-            pygame.draw.lines(screen, MAGENTA, False, points2, 1)
+            pygame.draw.lines(screen, CYAN, False, points2, 1)
         else:  # '\'
             # '\' mirror reflects: left↔bottom, top↔right
             # Show left→bottom reflection
@@ -96,21 +96,21 @@ class Mirror(TunableBeamSplitter):
                 (self.position.x - 10, self.position.y),
                 (self.position.x - 10, self.position.y + 10)
             ]
-            pygame.draw.lines(screen, MAGENTA, False, points, 1)
+            pygame.draw.lines(screen, CYAN, False, points, 1)
             # Show top→right reflection
             points2 = [
                 (self.position.x, self.position.y - 20),
                 (self.position.x, self.position.y - 10),
                 (self.position.x + 10, self.position.y - 10)
             ]
-            pygame.draw.lines(screen, MAGENTA, False, points2, 1)
+            pygame.draw.lines(screen, CYAN, False, points2, 1)
         
         # Show debug info
         if self.debug:
             font = pygame.font.Font(None, 10)
             # Show mirror type and phase shift
             info_text = f"Mirror {self.mirror_type}: r={self.r:.0f} (π shift)"
-            info_surface = font.render(info_text, True, MAGENTA)
+            info_surface = font.render(info_text, True, CYAN)
             screen.blit(info_surface, (self.position.x - 30, self.position.y + 25))
             
             # Show active ports if available
@@ -122,7 +122,7 @@ class Mirror(TunableBeamSplitter):
                         for j in range(4):
                             if abs(self._last_v_out[j]) > 0.001:
                                 reflection_text = f"{port_names[i]}→{port_names[j]}"
-                                refl_surface = font.render(reflection_text, True, MAGENTA)
+                                refl_surface = font.render(reflection_text, True, CYAN)
                                 screen.blit(refl_surface, (self.position.x - 20, self.position.y + 35))
                                 break
                         break
@@ -132,7 +132,7 @@ class Mirror(TunableBeamSplitter):
                 total_beams = sum(len(beams) for beams in self.all_beams_by_port.values())
                 if total_beams > 0:
                     beam_text = f"Beams: {total_beams}"
-                    beam_surface = font.render(beam_text, True, MAGENTA)
+                    beam_surface = font.render(beam_text, True, CYAN)
                     screen.blit(beam_surface, (self.position.x - 20, self.position.y + 45))
                     
                     # Show which ports have beams
@@ -142,5 +142,5 @@ class Mirror(TunableBeamSplitter):
                             ports_with_beams.append(port_names[port_idx])
                     if ports_with_beams:
                         ports_text = f"Ports: {','.join(ports_with_beams)}"
-                        ports_surface = font.render(ports_text, True, MAGENTA)
+                        ports_surface = font.render(ports_text, True, CYAN)
                         screen.blit(ports_surface, (self.position.x - 20, self.position.y + 55))
