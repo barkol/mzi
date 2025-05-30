@@ -8,6 +8,11 @@ class DebugDisplay:
     
     def __init__(self, screen):
         self.screen = screen
+        self.assets_loader = None  # Will be set by the game
+    
+    def set_assets_loader(self, assets_loader):
+        """Set the assets loader instance."""
+        self.assets_loader = assets_loader
     
     def draw_opd_info(self, components, show_opd):
         """Draw optical path difference info if interferometer has interference."""
@@ -117,41 +122,28 @@ class DebugDisplay:
             
             self.screen.blit(hint, hint_rect)
     
-    def draw_title_info(self):
-        """Draw title and physics information."""
-        font = pygame.font.Font(None, 48)
-        title = font.render("PHOTON PATH", True, CYAN)
-        subtitle_font = pygame.font.Font(None, 24)
-        subtitle = subtitle_font.render("Build a Mach-Zehnder Interferometer", True, WHITE)
-        
-        title_rect = title.get_rect(centerx=CANVAS_OFFSET_X + CANVAS_WIDTH // 2, y=20)
-        subtitle_rect = subtitle.get_rect(centerx=CANVAS_OFFSET_X + CANVAS_WIDTH // 2, y=70)
-        
-        self.screen.blit(title, title_rect)
-        self.screen.blit(subtitle, subtitle_rect)
-        
+    def draw_banner(self):
+        """Draw the banner image as full window background."""
+        if self.assets_loader:
+            banner = self.assets_loader.get_banner()
+            # Draw at (0, 0) to fill entire window
+            self.screen.blit(banner, (0, 0))
+    
+    def draw_info_text(self):
+        """Draw small info text in bottom right."""
         # Show if using ideal components
-        info_y = 20
+        info_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT - 45
+        info_x = CANVAS_OFFSET_X + CANVAS_WIDTH - 20
+        
         if IDEAL_COMPONENTS:
-            ideal_font = pygame.font.Font(None, 18)
-            ideal_text = ideal_font.render("IDEAL COMPONENTS (No Losses)", True, GREEN)
-            ideal_rect = ideal_text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - 20, y=info_y)
+            ideal_font = pygame.font.Font(None, 14)
+            ideal_text = ideal_font.render("IDEAL COMPONENTS", True, GREEN)
+            ideal_rect = ideal_text.get_rect(right=info_x, y=info_y)
             self.screen.blit(ideal_text, ideal_rect)
-            info_y += 25
+            info_y += 20
         
         # Show physics model info
-        physics_font = pygame.font.Font(None, 16)
-        physics_text = physics_font.render("Physics: BS +90° reflection, Mirror +180° reflection", True, CYAN)
-        physics_rect = physics_text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - 20, y=info_y)
+        physics_font = pygame.font.Font(None, 12)
+        physics_text = physics_font.render("BS +90° | Mirror +180°", True, CYAN)
+        physics_rect = physics_text.get_rect(right=info_x, y=info_y)
         self.screen.blit(physics_text, physics_rect)
-        
-        # Show wavelength info
-        info_font = pygame.font.Font(None, 16)
-        wave_text = info_font.render(f"λ = {WAVELENGTH}px, Grid = {GRID_SIZE}px", True, WHITE)
-        wave_rect = wave_text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - 20, y=45)
-        self.screen.blit(wave_text, wave_rect)
-        
-        # Show control hints
-        toggle_text = info_font.render("C:MZ A:asym Shift+D:demo M:multi I:test V:vis H:help O:OPD T:BS R:mirror G:debug", True, WHITE)
-        toggle_rect = toggle_text.get_rect(left=CANVAS_OFFSET_X + 20, y=45)
-        self.screen.blit(toggle_text, toggle_rect)

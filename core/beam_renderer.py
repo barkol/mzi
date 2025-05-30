@@ -1,7 +1,7 @@
 """Beam rendering and visualization module."""
 import pygame
 import math
-from config.settings import BEAM_WIDTH, CYAN, WHITE, RED
+from config.settings import BEAM_WIDTH, CYAN, WHITE
 
 class BeamRenderer:
     """Handles beam path rendering and visualization."""
@@ -65,7 +65,7 @@ class BeamRenderer:
         
         # Color based on blocked status and intensity
         if was_blocked:
-            color = RED  # Red for blocked beams
+            color = CYAN  # Cyan for blocked beams
         else:
             # All beams are shades of turquoise/cyan
             # Vary the shade based on amplitude for visual distinction
@@ -125,12 +125,12 @@ class BeamRenderer:
             radius = impact_radius - r * 3
             if radius > 0:
                 surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-                pygame.draw.circle(surf, (RED[0], RED[1], RED[2], alpha // (r + 1)),
+                pygame.draw.circle(surf, (CYAN[0], CYAN[1], CYAN[2], alpha // (r + 1)),
                                  (radius, radius), radius)
                 self.screen.blit(surf, (pos[0] - radius, pos[1] - radius))
         
         # Inner bright spot
-        pygame.draw.circle(self.screen, (255, 200, 200), pos, 3)
+        pygame.draw.circle(self.screen, (200, 255, 255), pos, 3)
         
         # Draw small particles/sparks
         import random
@@ -139,7 +139,7 @@ class BeamRenderer:
             offset_x = random.randint(-15, 15)
             offset_y = random.randint(-15, 15)
             particle_pos = (pos[0] + offset_x, pos[1] + offset_y)
-            pygame.draw.circle(self.screen, (255, 100, 100), particle_pos, 1)
+            pygame.draw.circle(self.screen, (100, 255, 255), particle_pos, 1)
     
     def _draw_phase_info(self, beam_data, path):
         """Draw phase information at beam origin and end."""

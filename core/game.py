@@ -15,6 +15,7 @@ from ui.controls import ControlPanel
 from ui.effects import EffectsManager
 from ui.leaderboard_display import LeaderboardDisplay
 from utils.vector import Vector2
+from utils.assets_loader import AssetsLoader
 from config.settings import *
 
 class Game:
@@ -24,6 +25,9 @@ class Game:
         self.screen = screen
         self.clock = pygame.time.Clock()
         
+        # Load assets
+        self.assets_loader = AssetsLoader()
+        
         # Game components
         self.laser = Laser(CANVAS_OFFSET_X + GRID_SIZE, CANVAS_OFFSET_Y + 7 * GRID_SIZE)
         
@@ -32,6 +36,7 @@ class Game:
         self.component_manager = ComponentManager(self.effects)
         self.beam_renderer = BeamRenderer(screen)
         self.debug_display = DebugDisplay(screen)
+        self.debug_display.set_assets_loader(self.assets_loader)  # Pass assets loader
         self.challenge_manager = ChallengeManager()
         
         # Leaderboard system
@@ -215,9 +220,6 @@ class Game:
                 # Note: We don't reset completed_challenges here to prevent
                 # players from farming points by reloading the same challenge
                 print(f"Loaded challenge: {challenge_title}")
-        elif action == 'Leaderboard':
-            # Show leaderboard
-            self.leaderboard_display.show()
     
     def _update_score(self, points):
         """Update game score."""
@@ -240,10 +242,13 @@ class Game:
         # Clear screen
         self.screen.fill(BLACK)
         
-        # Draw game canvas background
+        # Draw banner as the bottom-most layer (MOVED HERE)
+        self.debug_display.draw_banner()
+        
+        # Draw game canvas background (SEMITRANSPARENT)
         canvas_rect = pygame.Rect(CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT)
         s = pygame.Surface((CANVAS_WIDTH, CANVAS_HEIGHT), pygame.SRCALPHA)
-        s.fill((BLACK[0], BLACK[1], BLACK[2], 240))
+        s.fill((BLACK[0], BLACK[1], BLACK[2], 60))  # Very transparent - only 60/255 opacity
         self.screen.blit(s, canvas_rect.topleft)
         pygame.draw.rect(self.screen, PURPLE, canvas_rect, 2, border_radius=15)
         
@@ -282,8 +287,8 @@ class Game:
         # Draw effects
         self.effects.draw(self.screen)
         
-        # Draw title and debug info
-        self.debug_display.draw_title_info()
+        # Draw info text and debug info
+        self.debug_display.draw_info_text()
         self.debug_display.draw_opd_info(self.component_manager.components, self.show_opd_info)
         
         # Draw session high score
