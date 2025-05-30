@@ -91,12 +91,82 @@ class TestUtilities:
             print("No detector found! Place a detector first.")
     
     @staticmethod
+    def test_mirrors(components):
+        """Test mirror reflections for both orientations."""
+        print("\n=== MIRROR REFLECTION TEST ===")
+        
+        mirrors = [c for c in components if c.component_type == 'mirror']
+        if not mirrors:
+            print("No mirrors found! Place some mirrors first.")
+            return
+        
+        for mirror in mirrors:
+            print(f"\nTesting {mirror.mirror_type} mirror at {mirror.position}")
+            
+            # Test all 4 input directions
+            test_beams = [
+                {'name': 'left', 'dir': Vector2(1, 0), 'port': 'A'},
+                {'name': 'bottom', 'dir': Vector2(0, -1), 'port': 'B'},
+                {'name': 'right', 'dir': Vector2(-1, 0), 'port': 'C'},
+                {'name': 'top', 'dir': Vector2(0, 1), 'port': 'D'}
+            ]
+            
+            for test in test_beams:
+                mirror.reset_frame()
+                beam = {
+                    'position': mirror.position - test['dir'] * 50,
+                    'direction': test['dir'],
+                    'amplitude': 1.0,
+                    'phase': 0,
+                    'accumulated_phase': 0,
+                    'total_path_length': 0,
+                    'source_type': 'laser'
+                }
+                mirror.add_beam(beam)
+                outputs = mirror.finalize_frame()
+                
+                if outputs:
+                    out = outputs[0]
+                    out_dir = ''
+                    out_port = ''
+                    if out['direction'].x > 0.5:
+                        out_dir = 'right'
+                        out_port = 'C'
+                    elif out['direction'].x < -0.5:
+                        out_dir = 'left'
+                        out_port = 'A'
+                    elif out['direction'].y > 0.5:
+                        out_dir = 'down'
+                        out_port = 'B'
+                    elif out['direction'].y < -0.5:
+                        out_dir = 'up'
+                        out_port = 'D'
+                    
+                    print(f"  {test['name']} ({test['port']}) → {out_dir} ({out_port})")
+                    
+                    # Verify phase shift
+                    phase_shift = out['phase'] - beam['phase']
+                    print(f"    Phase shift: {phase_shift*180/math.pi:.0f}° (should be ±180°)")
+            
+            # Show expected behavior
+            if mirror.mirror_type == '/':
+                print("  Expected for '/' mirror: left↔top, bottom↔right")
+            else:
+                print("  Expected for '\\' mirror: left↔bottom, top↔right")
+    
+    @staticmethod
     def test_beam_splitter(components):
         """Test beam splitter with beams from all 4 directions."""
         print("\n=== BEAM SPLITTER TEST MODE ===")
         for comp in components:
             if comp.component_type == 'beamsplitter':
                 print(f"\nTesting beam splitter at {comp.position}")
+                print("Expected behavior for '\\' orientation:")
+                print("  A (left) → C (right) transmitted, B (down) reflected")
+                print("  B (bottom) → D (up) transmitted, A (left) reflected")
+                print("  C (right) → A (left) transmitted, D (up) reflected")
+                print("  D (top) → B (down) transmitted, C (right) reflected")
+                
                 comp.reset_frame()
                 
                 # Test all 4 input directions (corrected for screen coordinates)
@@ -115,6 +185,7 @@ class TestUtilities:
                         'direction': test['dir'],
                         'amplitude': 1.0,
                         'phase': 0,
+                        'accumulated_phase': 0,
                         'path_length': 0,
                         'total_path_length': 0,
                         'source_type': 'laser'
@@ -126,15 +197,42 @@ class TestUtilities:
                     total_out_power = sum(out['amplitude']**2 for out in outputs)
                     print(f"    Input power: 1.000")
                     print(f"    Outputs: {len(outputs)} beams")
+                    
+                    # Show each output beam
+                    output_by_port = {'A': 0, 'B': 0, 'C': 0, 'D': 0}
                     for out in outputs:
                         dir_name = ''
-                        if out['direction'].x > 0.5: dir_name = 'RIGHT'
-                        elif out['direction'].x < -0.5: dir_name = 'LEFT'
-                        elif out['direction'].y > 0.5: dir_name = 'DOWN'
-                        elif out['direction'].y < -0.5: dir_name = 'UP'
-                        print(f"      → {dir_name}: amp={out['amplitude']:.3f}, power={out['amplitude']**2:.3f}")
+                        port_name = ''
+                        if out['direction'].x > 0.5:
+                            dir_name = 'RIGHT'
+                            port_name = 'C'
+                        elif out['direction'].x < -0.5:
+                            dir_name = 'LEFT'
+                            port_name = 'A'
+                        elif out['direction'].y > 0.5:
+                            dir_name = 'DOWN'
+                            port_name = 'B'
+                        elif out['direction'].y < -0.5:
+                            dir_name = 'UP'
+                            port_name = 'D'
+                        
+                        output_by_port[port_name] = out['amplitude']**2
+                        print(f"      Port {port_name} ({dir_name}): amp={out['amplitude']:.3f}, power={out['amplitude']**2:.3f}")
+                    
+                    # Check if any expected outputs are missing
                     print(f"    Total output power: {total_out_power:.3f}")
-                    print(f"    Energy conserved: {'YES' if abs(total_out_power - 1.0) < 0.001 else 'NO'}")
+                    print(f"    Energy conserved: {'YES ✓' if abs(total_out_power - 1.0) < 0.001 else 'NO ✗'}")
+                    
+                    if abs(total_out_power - 1.0) > 0.001:
+                        print(f"    ERROR: Power deviation = {(total_out_power - 1.0)*100:.1f}%")
+                        
+                        # Additional debugging for energy non-conservation
+                        if hasattr(comp, 'get_info'):
+                            info = comp.get_info()
+                            print(f"    Component info: t={info['t']:.3f}, r={info['r']:.3f}, r'={info['r_prime']:.3f}")
+                            if info['last_input'] is not None and info['last_output'] is not None:
+                                print(f"    Last v_in: {info['last_input']}")
+                                print(f"    Last v_out: {info['last_output']}")
                 
                 return
         

@@ -1,7 +1,7 @@
 """Debug display module for showing OPD and physics information."""
 import pygame
 import math
-from config.settings import CYAN, WHITE, GREEN, CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_HEIGHT, CANVAS_WIDTH, WAVELENGTH
+from config.settings import CYAN, WHITE, GREEN, CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_HEIGHT, CANVAS_WIDTH, WAVELENGTH, GRID_SIZE, IDEAL_COMPONENTS
 
 class DebugDisplay:
     """Handles display of debug information and optical path differences."""
@@ -131,7 +131,6 @@ class DebugDisplay:
         self.screen.blit(subtitle, subtitle_rect)
         
         # Show if using ideal components
-        from config.settings import IDEAL_COMPONENTS, GRID_SIZE
         info_y = 20
         if IDEAL_COMPONENTS:
             ideal_font = pygame.font.Font(None, 18)
@@ -153,6 +152,6 @@ class DebugDisplay:
         self.screen.blit(wave_text, wave_rect)
         
         # Show control hints
-        toggle_text = info_font.render("C:MZ A:asym Shift+D:demo M:multi I:test V:vis H:help O:OPD T:BS G:debug", True, WHITE)
+        toggle_text = info_font.render("C:MZ A:asym Shift+D:demo M:multi I:test V:vis H:help O:OPD T:BS R:mirror G:debug", True, WHITE)
         toggle_rect = toggle_text.get_rect(left=CANVAS_OFFSET_X + 20, y=45)
         self.screen.blit(toggle_text, toggle_rect)

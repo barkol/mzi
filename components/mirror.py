@@ -1,20 +1,52 @@
-"""Mirror components."""
+"""Mirror component - special case of tunable beam splitter with no transmission."""
 import pygame
-import math
-from components.base import Component
-from utils.vector import Vector2
-from config.settings import MAGENTA, MIRROR_LOSS, IDEAL_COMPONENTS
+import numpy as np
+from components.tunable_beamsplitter import TunableBeamSplitter
+from config.settings import MAGENTA, MIRROR_LOSS
 
-class Mirror(Component):
-    """45-degree mirror for beam reflection."""
+class Mirror(TunableBeamSplitter):
+    """Perfect mirror - a tunable beam splitter with t=0, r=-1."""
     
     def __init__(self, x, y, mirror_type='/'):
-        super().__init__(x, y, "mirror")
-        self.mirror_type = mirror_type  # '/' or '\'
-        self.debug = False  # Disable debugging by default
+        """
+        Initialize mirror.
+        
+        Args:
+            x, y: Position
+            mirror_type: '/' or '\' - determines reflection geometry
+        """
+        # For a perfect mirror:
+        # t = 0 (no transmission)
+        # r = -1 (perfect reflection with π phase shift)
+        # r' = -1 (to satisfy r*r' = -1)
+        t = 0.0
+        r = -1.0
+        
+        super().__init__(x, y, t=t, r=r, orientation=mirror_type, loss=MIRROR_LOSS)
+        self.component_type = "mirror"
+        self.mirror_type = mirror_type
+        
+        # Override the scattering matrix for proper mirror behavior
+        # Port order: [A (left), B (bottom), C (right), D (top)]
+        if mirror_type == '/':
+            # '/' mirror: A↔D, B↔C (with π phase shift)
+            self.S = np.array([
+                [0,  0,  0, -1],  # A reflects to/from D
+                [0,  0, -1,  0],  # B reflects to/from C
+                [0, -1,  0,  0],  # C reflects to/from B
+                [-1, 0,  0,  0]   # D reflects to/from A
+            ], dtype=complex)
+        else:  # '\'
+            # '\' mirror: A↔B, C↔D (with π phase shift)
+            self.S = np.array([
+                [0, -1,  0,  0],  # A reflects to/from B
+                [-1, 0,  0,  0],  # B reflects to/from A
+                [0,  0,  0, -1],  # C reflects to/from D
+                [0,  0, -1,  0]   # D reflects to/from C
+            ], dtype=complex)
     
     def draw(self, screen):
-        """Draw mirror."""
+        """Draw mirror with custom appearance."""
         # Mirror surface
         if self.mirror_type == '/':
             start = (self.position.x - 20, self.position.y + 20)
@@ -39,76 +71,58 @@ class Mirror(Component):
                            (s_center[0] + 20, s_center[1] + 20), 2)
         screen.blit(s, (self.position.x - 30, self.position.y - 30))
         
-        # Add direction hint
+        # Add direction hints
         if self.mirror_type == '/':
-            # Show left->down reflection
-            points = [
-                (self.position.x - 20, self.position.y),
-                (self.position.x - 10, self.position.y),
-                (self.position.x - 10, self.position.y + 10)
-            ]
-            pygame.draw.lines(screen, MAGENTA, False, points, 1)
-        else:  # '\'
-            # Show left->up reflection
+            # '/' mirror reflects: left↔top, bottom↔right
+            # Show left→top reflection
             points = [
                 (self.position.x - 20, self.position.y),
                 (self.position.x - 10, self.position.y),
                 (self.position.x - 10, self.position.y - 10)
             ]
             pygame.draw.lines(screen, MAGENTA, False, points, 1)
-    
-    def process_beam(self, beam):
-        """Reflect beam according to mirror orientation."""
-        direction = beam['direction']
-        
-        # Ensure direction is normalized
-        mag = math.sqrt(direction.x**2 + direction.y**2)
-        if abs(mag - 1.0) > 0.001:
-            print(f"WARNING: Mirror received non-normalized direction vector: ({direction.x}, {direction.y}), magnitude={mag}")
-            direction = Vector2(direction.x / mag, direction.y / mag)
-        
-        # Calculate new direction based on mirror type
-        if self.mirror_type == '/':
-            # / mirror: (dx,dy) -> (-dy,-dx)
-            new_direction = Vector2(-direction.y, -direction.x)
+            # Show bottom→right reflection
+            points2 = [
+                (self.position.x, self.position.y + 20),
+                (self.position.x, self.position.y + 10),
+                (self.position.x + 10, self.position.y + 10)
+            ]
+            pygame.draw.lines(screen, MAGENTA, False, points2, 1)
         else:  # '\'
-            # \ mirror: (dx,dy) -> (dy,dx)
-            new_direction = Vector2(direction.y, direction.x)
+            # '\' mirror reflects: left↔bottom, top↔right
+            # Show left→bottom reflection
+            points = [
+                (self.position.x - 20, self.position.y),
+                (self.position.x - 10, self.position.y),
+                (self.position.x - 10, self.position.y + 10)
+            ]
+            pygame.draw.lines(screen, MAGENTA, False, points, 1)
+            # Show top→right reflection
+            points2 = [
+                (self.position.x, self.position.y - 20),
+                (self.position.x, self.position.y - 10),
+                (self.position.x + 10, self.position.y - 10)
+            ]
+            pygame.draw.lines(screen, MAGENTA, False, points2, 1)
         
-        # Verify output is normalized
-        out_mag = math.sqrt(new_direction.x**2 + new_direction.y**2)
-        if abs(out_mag - 1.0) > 0.001:
-            print(f"WARNING: Mirror producing non-normalized output: ({new_direction.x}, {new_direction.y}), magnitude={out_mag}")
-        
-        # Calculate amplitude after reflection
-        if IDEAL_COMPONENTS:
-            amplitude_factor = 1.0  # No loss
-        else:
-            amplitude_factor = 1.0 - MIRROR_LOSS  # Apply configured loss
-        
-        # Mirrors add π (180°) phase shift on reflection
-        phase_shift = math.pi  # 180 degrees
-        
+        # Show debug info
         if self.debug:
-            print(f"\nMirror {self.mirror_type} at ({self.position.x}, {self.position.y}):")
-            print(f"  Input: dir=({direction.x:.3f},{direction.y:.3f}), phase={beam['phase']*180/math.pi:.1f}°")
-            if 'accumulated_phase' in beam:
-                print(f"  Input accumulated phase: {beam['accumulated_phase']*180/math.pi:.1f}°")
-            print(f"  Output: dir=({new_direction.x:.3f},{new_direction.y:.3f}), phase={(beam['phase']+phase_shift)*180/math.pi:.1f}°")
-            print(f"  Phase shift: {phase_shift*180/math.pi:.0f}° (reflection)")
-            if not IDEAL_COMPONENTS and MIRROR_LOSS > 0:
-                print(f"  Loss: {MIRROR_LOSS*100:.1f}% (amplitude factor: {amplitude_factor:.3f})")
-        
-        # Calculate the new phase (including mirror phase shift)
-        new_phase = beam['phase'] + phase_shift
-        
-        return [{
-            'position': self.position + new_direction * 30,  # Increased from 25 to avoid immediate collision
-            'direction': new_direction,
-            'amplitude': beam['amplitude'] * amplitude_factor,
-            'phase': new_phase,  # Base phase + mirror phase shift
-            'accumulated_phase': new_phase,  # Propagate accumulated phase
-            'path_length': 0,
-            'total_path_length': beam.get('total_path_length', 0),  # Preserve total path
-            'source_type': beam['source_type']
-        }]
+            font = pygame.font.Font(None, 10)
+            # Show mirror type and phase shift
+            info_text = f"Mirror {self.mirror_type}: r={self.r:.0f} (π shift)"
+            info_surface = font.render(info_text, True, MAGENTA)
+            screen.blit(info_surface, (self.position.x - 30, self.position.y + 25))
+            
+            # Show active ports if available
+            if self._last_v_in is not None and self._last_v_out is not None:
+                # Find non-zero input/output
+                port_names = ['A', 'B', 'C', 'D']
+                for i in range(4):
+                    if abs(self._last_v_in[i]) > 0.001:
+                        for j in range(4):
+                            if abs(self._last_v_out[j]) > 0.001:
+                                reflection_text = f"{port_names[i]}→{port_names[j]}"
+                                refl_surface = font.render(reflection_text, True, MAGENTA)
+                                screen.blit(refl_surface, (self.position.x - 20, self.position.y + 35))
+                                break
+                        break

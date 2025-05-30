@@ -29,6 +29,7 @@ class KeyboardHandler:
             new_debug_state = not self.game.laser.debug
             self.game.laser.debug = new_debug_state
             self.game.beam_tracer.debug = new_debug_state
+            self.game.beam_renderer.set_debug(new_debug_state)
             self.game.component_manager.set_debug_mode(new_debug_state)
             print(f"\nDebug mode: {'ON' if new_debug_state else 'OFF'} for all components")
             return True
@@ -70,6 +71,11 @@ class KeyboardHandler:
             self.tests.test_multiple_inputs(self.game.component_manager.components)
             return True
             
+        elif event.key == pygame.K_r:
+            # Test mirrors
+            self.tests.test_mirrors(self.game.component_manager.components)
+            return True
+            
         elif event.key == pygame.K_h:
             # Show help
             self._show_help()
@@ -91,6 +97,14 @@ class KeyboardHandler:
         print("This means:")
         print("- UP in physics = NEGATIVE Y in pygame")
         print("- DOWN in physics = POSITIVE Y in pygame")
+        print("")
+        print("Beam splitter behavior ('\\' orientation):")
+        print("  Input from LEFT (A):")
+        print("    - Transmitted RIGHT (C)")
+        print("    - Reflected DOWN (B)")
+        print("  Input from BOTTOM (B):")
+        print("    - Transmitted UP (D)")
+        print("    - Reflected LEFT (A)")
         print("")
         print("Mirror reflections in pygame coords:")
         print("  '/' mirror:")
@@ -116,4 +130,5 @@ class KeyboardHandler:
         print("  I = Detector interference test")
         print("  T = Beam splitter direction test")
         print("  M = Multiple input port test")
+        print("  R = Mirror reflection test")
         print("  H = Show this help")
