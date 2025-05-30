@@ -4,6 +4,7 @@ import math
 import cmath
 from core.interferometer_presets import InterferometerPresets
 from core.test_utilities import TestUtilities
+from config.settings import PLACEMENT_SCORE
 
 class KeyboardHandler:
     """Handles keyboard shortcuts and debug commands."""
@@ -22,6 +23,14 @@ class KeyboardHandler:
         if event.key == pygame.K_o:
             self.game.show_opd_info = not self.game.show_opd_info
             print(f"OPD display: {'ON' if self.game.show_opd_info else 'OFF'}")
+            return True
+            
+        elif event.key == pygame.K_l:
+            # Toggle leaderboard display
+            if self.game.leaderboard_display.visible:
+                self.game.leaderboard_display.hide()
+            else:
+                self.game.leaderboard_display.show()
             return True
             
         elif event.key == pygame.K_g:
@@ -48,6 +57,18 @@ class KeyboardHandler:
         elif event.key == pygame.K_d and pygame.key.get_mods() & pygame.KMOD_SHIFT:
             # Beam splitter interference demo (Shift+D)
             self.presets.create_beam_splitter_demo(self.game.component_manager.components, self.game.laser)
+            return True
+            
+        elif event.key == pygame.K_n and pygame.key.get_mods() & pygame.KMOD_SHIFT:
+            # Shift+N - New session (reset score and completed challenges)
+            self.game.score = PLACEMENT_SCORE
+            self.game.controls.score = self.game.score
+            self.game.completed_challenges.clear()
+            self.game.component_manager.clear_all(self.game.laser)
+            print("\n=== NEW SESSION STARTED ===")
+            print("Score reset to initial value")
+            print("All challenges can be completed again for points")
+            self.game.controls.set_status("New session started!")
             return True
             
         # Test functions
@@ -121,14 +142,18 @@ class KeyboardHandler:
         print("  Port C (right) = positive X direction")
         print("")
         print("Key bindings:")
+        print("  L = Toggle leaderboard display")
         print("  G = Toggle debug mode for all components")
         print("  O = Toggle OPD display")
         print("  C = Create Mach-Zehnder interferometer")
         print("  A = Create asymmetric MZ interferometer")
         print("  Shift+D = Beam splitter interference demo")
+        print("  Shift+N = New session (reset score and challenges)")
         print("  V = Visual direction test (add detectors)")
         print("  I = Detector interference test")
         print("  T = Beam splitter direction test")
         print("  M = Multiple input port test")
         print("  R = Mirror reflection test")
         print("  H = Show this help")
+        print("")
+        print("Note: Shift+Click 'Clear All' button also resets completed challenges")

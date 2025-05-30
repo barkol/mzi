@@ -65,26 +65,57 @@ class Grid:
                                  (x, y), radius)
     
     def _draw_blocked_positions(self, screen, blocked_positions):
-        """Draw blocked positions on the grid."""
+        """Draw blocked positions on the grid as beam obstacles."""
         for pos in blocked_positions:
-            # Draw red X at blocked position
+            # Draw as solid obstacle that will block beams
             x, y = int(pos.x), int(pos.y)
-            size = GRID_SIZE // 3
             
-            # Draw semi-transparent red square
-            s = pygame.Surface((GRID_SIZE, GRID_SIZE), pygame.SRCALPHA)
-            pygame.draw.rect(s, (255, 0, 0, 50), pygame.Rect(0, 0, GRID_SIZE, GRID_SIZE))
-            screen.blit(s, (x - GRID_SIZE // 2, y - GRID_SIZE // 2))
+            # Draw main obstacle square
+            obstacle_rect = pygame.Rect(x - GRID_SIZE // 2, y - GRID_SIZE // 2, GRID_SIZE, GRID_SIZE)
             
-            # Draw X
-            pygame.draw.line(screen, (255, 0, 0),
-                           (x - size, y - size), (x + size, y + size), 3)
-            pygame.draw.line(screen, (255, 0, 0),
-                           (x + size, y - size), (x - size, y + size), 3)
+            # Draw multiple layers for 3D effect
+            # Shadow layer
+            shadow_rect = obstacle_rect.copy()
+            shadow_rect.x += 2
+            shadow_rect.y += 2
+            pygame.draw.rect(screen, (0, 0, 0, 100), shadow_rect)
             
-            # Draw border
-            rect = pygame.Rect(x - GRID_SIZE // 2, y - GRID_SIZE // 2, GRID_SIZE, GRID_SIZE)
-            pygame.draw.rect(screen, (255, 0, 0, 100), rect, 2)
+            # Main obstacle - solid dark red/black
+            pygame.draw.rect(screen, (40, 0, 0), obstacle_rect)
+            pygame.draw.rect(screen, (80, 10, 10), obstacle_rect, 3)
+            
+            # Inner pattern - cross-hatch to show it's solid
+            for i in range(0, GRID_SIZE, 8):
+                pygame.draw.line(screen, (60, 5, 5),
+                               (obstacle_rect.left + i, obstacle_rect.top),
+                               (obstacle_rect.left, obstacle_rect.top + i), 1)
+                pygame.draw.line(screen, (60, 5, 5),
+                               (obstacle_rect.right - i, obstacle_rect.bottom),
+                               (obstacle_rect.right, obstacle_rect.bottom - i), 1)
+            
+            # Bright border to make it stand out
+            pygame.draw.rect(screen, (200, 20, 20), obstacle_rect, 2)
+            
+            # Corner highlights for 3D effect
+            corner_size = 5
+            # Top-left corner
+            pygame.draw.lines(screen, (255, 50, 50), False, [
+                (obstacle_rect.left, obstacle_rect.top + corner_size),
+                (obstacle_rect.left, obstacle_rect.top),
+                (obstacle_rect.left + corner_size, obstacle_rect.top)
+            ], 2)
+            
+            # Warning symbol in center
+            font = pygame.font.Font(None, 20)
+            warning = font.render("⚡", True, (255, 100, 100))
+            warning_rect = warning.get_rect(center=(x, y))
+            screen.blit(warning, warning_rect)
+            
+            # Pulsing glow effect
+            pulse = pulse_alpha(100)
+            glow_surf = pygame.Surface((GRID_SIZE + 10, GRID_SIZE + 10), pygame.SRCALPHA)
+            pygame.draw.rect(glow_surf, (255, 0, 0, pulse // 2), glow_surf.get_rect(), border_radius=5)
+            screen.blit(glow_surf, (x - GRID_SIZE // 2 - 5, y - GRID_SIZE // 2 - 5))
     
     def _draw_hover_highlight(self, screen, components, laser_pos, blocked_positions=None):
         """Draw hover highlight for component placement."""
@@ -144,7 +175,7 @@ class Grid:
     def _draw_blocked_text(self, screen, x, y):
         """Draw blocked position warning."""
         font = pygame.font.Font(None, 14)
-        text = font.render("BLOCKED", True, (255, 0, 0))
+        text = font.render("BEAM OBSTACLE", True, (255, 0, 0))
         text_rect = text.get_rect(topleft=(x + 15, y - 25))
         
         # Background

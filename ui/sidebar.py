@@ -34,7 +34,7 @@ class Sidebar:
                 self.dragging = True
                 # Calculate offset from component center
                 comp_rect = self._get_component_rect(index)
-                self.drag_offset = (event.pos[0] - comp_rect.centerx, 
+                self.drag_offset = (event.pos[0] - comp_rect.centerx,
                                   event.pos[1] - comp_rect.centery)
                 return True
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
@@ -80,8 +80,8 @@ class Sidebar:
         screen.blit(s, self.rect.topleft)
         
         # Border
-        pygame.draw.line(screen, PURPLE, 
-                        (self.rect.right, 0), 
+        pygame.draw.line(screen, PURPLE,
+                        (self.rect.right, 0),
                         (self.rect.right, WINDOW_HEIGHT), 2)
         
         # Title
@@ -133,8 +133,8 @@ class Sidebar:
     def _draw_component_icon(self, screen, comp_type, center):
         """Draw simplified component icon."""
         if comp_type == 'laser':
-            # Laser icon - circle with rays
-            pygame.draw.circle(screen, RED, center, 12)
+            # Laser icon - circle with rays (now GREEN to match detector)
+            pygame.draw.circle(screen, GREEN, center, 12)
             # Rays
             for angle in range(0, 360, 45):
                 rad = math.radians(angle)
@@ -142,14 +142,14 @@ class Sidebar:
                 start_y = center[1] + 12 * math.sin(rad)
                 end_x = center[0] + 18 * math.cos(rad)
                 end_y = center[1] + 18 * math.sin(rad)
-                pygame.draw.line(screen, RED, (start_x, start_y), (end_x, end_y), 2)
+                pygame.draw.line(screen, GREEN, (start_x, start_y), (end_x, end_y), 2)
         elif comp_type == 'beamsplitter':
             rect = pygame.Rect(center[0] - 15, center[1] - 15, 30, 30)
             pygame.draw.rect(screen, CYAN, rect, 2)
             pygame.draw.line(screen, CYAN, rect.topleft, rect.bottomright, 2)
         elif comp_type.startswith('mirror'):
             if '/' in comp_type:
-                pygame.draw.line(screen, MAGENTA, 
+                pygame.draw.line(screen, MAGENTA,
                                (center[0] - 15, center[1] + 15),
                                (center[0] + 15, center[1] - 15), 4)
             else:

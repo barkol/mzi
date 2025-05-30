@@ -19,8 +19,8 @@ WHITE = (255, 255, 255)
 PURPLE = (138, 43, 226)
 CYAN = (0, 255, 255)
 MAGENTA = (255, 0, 255)
-RED = (255, 0, 0)
-GREEN = (0, 255, 0)
+RED = (255, 0, 0)  # Used for UI elements like close buttons
+GREEN = (0, 255, 0)  # Used for both laser and detector for visual consistency
 DARK_PURPLE = (26, 10, 46)
 
 # UI Colors (RGBA)

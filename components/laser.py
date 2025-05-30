@@ -3,7 +3,7 @@ import pygame
 import math
 from components.base import Component
 from utils.vector import Vector2
-from config.settings import RED, WHITE
+from config.settings import GREEN, WHITE
 
 class Laser(Component):
     """Laser source that emits coherent light."""
@@ -20,11 +20,11 @@ class Laser(Component):
         for i in range(5, 0, -1):
             alpha = 50 // i
             s = pygame.Surface((self.radius * 4, self.radius * 4), pygame.SRCALPHA)
-            pygame.draw.circle(s, (RED[0], RED[1], RED[2], alpha), (self.radius * 2, self.radius * 2), self.radius + i * 3)
+            pygame.draw.circle(s, (GREEN[0], GREEN[1], GREEN[2], alpha), (self.radius * 2, self.radius * 2), self.radius + i * 3)
             screen.blit(s, (int(self.position.x - self.radius * 2), int(self.position.y - self.radius * 2)))
         
         # Main laser circle
-        pygame.draw.circle(screen, RED, self.position.tuple(), self.radius)
+        pygame.draw.circle(screen, GREEN, self.position.tuple(), self.radius)
         
         # Inner bright spot
         pygame.draw.circle(screen, WHITE, self.position.tuple(), 5)
@@ -34,9 +34,9 @@ class Laser(Component):
             # Arrow pointing right
             arrow_start = (self.position.x + self.radius + 5, self.position.y)
             arrow_end = (self.position.x + self.radius + 15, self.position.y)
-            pygame.draw.line(screen, RED, arrow_start, arrow_end, 2)
+            pygame.draw.line(screen, GREEN, arrow_start, arrow_end, 2)
             # Arrowhead
-            pygame.draw.lines(screen, RED, False, [
+            pygame.draw.lines(screen, GREEN, False, [
                 (arrow_end[0] - 5, arrow_end[1] - 5),
                 arrow_end,
                 (arrow_end[0] - 5, arrow_end[1] + 5)

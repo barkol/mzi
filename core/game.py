@@ -9,9 +9,11 @@ from core.component_manager import ComponentManager
 from core.keyboard_handler import KeyboardHandler
 from core.debug_display import DebugDisplay
 from core.challenge_manager import ChallengeManager
+from core.leaderboard import LeaderboardManager
 from ui.sidebar import Sidebar
 from ui.controls import ControlPanel
 from ui.effects import EffectsManager
+from ui.leaderboard_display import LeaderboardDisplay
 from utils.vector import Vector2
 from config.settings import *
 
@@ -32,6 +34,10 @@ class Game:
         self.debug_display = DebugDisplay(screen)
         self.challenge_manager = ChallengeManager()
         
+        # Leaderboard system
+        self.leaderboard_manager = LeaderboardManager()
+        self.leaderboard_display = LeaderboardDisplay(self.leaderboard_manager)
+        
         # UI elements
         self.grid = Grid()
         self.sidebar = Sidebar()
@@ -51,6 +57,10 @@ class Game:
         self.controls.score = self.score  # Update control panel
         self.show_opd_info = True  # Toggle for OPD display
         
+        # Track session high score and completed challenges
+        self.session_high_score = 0
+        self.completed_challenges = set()  # Track which challenges have been completed
+        
         # Load blocked fields
         self.challenge_manager.load_blocked_fields()
         
@@ -60,7 +70,11 @@ class Game:
     
     def handle_event(self, event):
         """Handle game events."""
-        # Handle keyboard events first
+        # Handle leaderboard events first
+        if self.leaderboard_display.handle_event(event):
+            return
+        
+        # Handle keyboard events
         if self.keyboard_handler.handle_key(event):
             return
         
@@ -126,14 +140,43 @@ class Game:
             new_score = self.component_manager.clear_all(self.laser)
             self.score = new_score
             self.controls.score = self.score
+            # Optionally reset completed challenges when clearing all
+            # This allows players to retry challenges in the same session
+            if pygame.key.get_mods() & pygame.KMOD_SHIFT:
+                # Shift+Clear All resets completed challenges
+                self.completed_challenges.clear()
+                self.controls.set_status("Setup cleared and challenges reset!")
+                print("Completed challenges reset - you can earn points again")
         elif action == 'Check Setup':
             # Check against current challenge
             success, message, points = self.challenge_manager.check_setup(
                 self.component_manager.components, self.laser)
             if success:
-                self._update_score(points)
-                self.effects.add_success_message()
-                self.controls.set_status(message.split('\n')[0])  # Show first line
+                # Check if this challenge was already completed
+                challenge_name = self.challenge_manager.current_challenge
+                if challenge_name and challenge_name not in self.completed_challenges:
+                    # First time completing this challenge - award points
+                    self._update_score(points)
+                    self.completed_challenges.add(challenge_name)
+                    self.effects.add_success_message()
+                    
+                    # Check if this is a high score
+                    if self.score > self.session_high_score:
+                        self.session_high_score = self.score
+                    
+                    # Show leaderboard with potential score entry
+                    challenge_info = self.challenge_manager.challenges.get(challenge_name, {})
+                    self.leaderboard_display.show(
+                        auto_add_score=self.score,
+                        challenge=challenge_info.get('name', 'Unknown'),
+                        components=len(self.component_manager.components)
+                    )
+                else:
+                    # Already completed - just show success without points
+                    self.controls.set_status("Challenge already completed this session!")
+                    self.effects.add_info_message("Challenge Complete", "No additional points awarded")
+                    print("Challenge already completed - no additional points awarded")
+                
                 print(message)  # Full message to console
             else:
                 self.controls.set_status(f"Failed: {message}")
@@ -157,12 +200,22 @@ class Game:
                 challenge_name, challenge_title = challenges[next_idx]
                 self.challenge_manager.set_current_challenge(challenge_name)
                 self.controls.set_challenge(challenge_title)
+                
+                # Note: We don't reset completed_challenges here to prevent
+                # players from farming points by reloading the same challenge
                 print(f"Loaded challenge: {challenge_title}")
+        elif action == 'Leaderboard':
+            # Show leaderboard
+            self.leaderboard_display.show()
     
     def _update_score(self, points):
         """Update game score."""
         self.score = max(0, self.score + points)
         self.controls.score = self.score
+        
+        # Update session high score
+        if self.score > self.session_high_score:
+            self.session_high_score = self.score
     
     def update(self, dt):
         """Update game state."""
@@ -200,7 +253,8 @@ class Game:
         if self.laser and self.laser.enabled:
             self.beam_renderer.draw_beams(self.beam_tracer, self.laser,
                                         self.component_manager.components,
-                                        0)  # No phase shift anymore
+                                        0,  # No phase shift anymore
+                                        self.challenge_manager.get_blocked_positions())
         
         # Draw UI
         self.sidebar.draw(self.screen)
@@ -216,6 +270,47 @@ class Game:
         # Draw title and debug info
         self.debug_display.draw_title_info()
         self.debug_display.draw_opd_info(self.component_manager.components, self.show_opd_info)
+        
+        # Draw session high score
+        self._draw_session_high_score()
+        
+        # Draw challenge completion status
+        self._draw_challenge_status()
+        
+        # Draw leaderboard if visible
+        self.leaderboard_display.draw(self.screen)
+    
+    def _draw_session_high_score(self):
+        """Draw session high score indicator."""
+        if self.session_high_score > 0:
+            font = pygame.font.Font(None, 18)
+            text = font.render(f"Session Best: {self.session_high_score}", True, GREEN)
+            text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - 20, y=70)
+            
+            # Background
+            bg_rect = text_rect.inflate(10, 4)
+            s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+            s.fill((0, 0, 0, 150))
+            self.screen.blit(s, bg_rect.topleft)
+            
+            self.screen.blit(text, text_rect)
+    
+    def _draw_challenge_status(self):
+        """Draw indicator if current challenge is already completed."""
+        if (self.challenge_manager.current_challenge and
+            self.challenge_manager.current_challenge in self.completed_challenges):
+            font = pygame.font.Font(None, 16)
+            text = font.render("[DONE] Challenge Completed", True, GREEN)
+            text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - 20,
+                                     y=CANVAS_OFFSET_Y + CANVAS_HEIGHT - 15)
+            
+            # Background
+            bg_rect = text_rect.inflate(10, 4)
+            s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+            s.fill((0, 0, 0, 150))
+            self.screen.blit(s, bg_rect.topleft)
+            
+            self.screen.blit(text, text_rect)
     
     def _draw_drag_preview(self):
         """Draw preview of component being dragged."""
@@ -226,12 +321,12 @@ class Game:
         alpha = 128
         
         if comp_type == 'laser':
-            # Draw laser preview
+            # Draw laser preview (now GREEN to match detector)
             s = pygame.Surface((60, 60), pygame.SRCALPHA)
-            pygame.draw.circle(s, (RED[0], RED[1], RED[2], alpha), (30, 30), 15)
+            pygame.draw.circle(s, (GREEN[0], GREEN[1], GREEN[2], alpha), (30, 30), 15)
             # Glow effect
             for i in range(3, 0, -1):
-                pygame.draw.circle(s, (RED[0], RED[1], RED[2], alpha // (i + 1)), (30, 30), 15 + i * 3)
+                pygame.draw.circle(s, (GREEN[0], GREEN[1], GREEN[2], alpha // (i + 1)), (30, 30), 15 + i * 3)
             self.screen.blit(s, (x - 30, y - 30))
             
         elif comp_type == 'beamsplitter':

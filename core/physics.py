@@ -2,7 +2,7 @@
 import math
 import cmath
 from utils.vector import Vector2
-from config.settings import WAVELENGTH, IDEAL_COMPONENTS
+from config.settings import WAVELENGTH, IDEAL_COMPONENTS, GRID_SIZE
 
 class BeamTracer:
     """Traces beam paths through optical components."""
@@ -11,6 +11,11 @@ class BeamTracer:
         self.active_beams = []
         self.k = 2 * math.pi / WAVELENGTH  # Wave number
         self.debug = False  # Debug flag for detailed output
+        self.blocked_positions = []  # Positions that block beams
+    
+    def set_blocked_positions(self, blocked_positions):
+        """Set positions that block beam propagation."""
+        self.blocked_positions = blocked_positions
     
     def reset(self):
         """Reset beam tracer for new frame."""
@@ -57,8 +62,8 @@ class BeamTracer:
                 if abs(beam['amplitude']) < 0.01:
                     continue
                 
-                # Trace beam to next component
-                path, hit_component, path_length = self._trace_single_beam(beam, components)
+                # Trace beam to next component or blocked position
+                path, hit_component, path_length, blocked = self._trace_single_beam(beam, components)
                 
                 if path and len(path) >= 2:
                     # Calculate phase change from propagation
@@ -70,8 +75,15 @@ class BeamTracer:
                         'path': path,
                         'amplitude': abs(beam['amplitude']),
                         'phase': new_accumulated_phase,
-                        'source_type': beam.get('source_type', 'laser')
+                        'source_type': beam.get('source_type', 'laser'),
+                        'blocked': blocked  # Mark if beam was blocked
                     })
+                    
+                    if blocked:
+                        # Beam hit a blocked position - stop propagation
+                        if self.debug:
+                            print(f"  Beam blocked at position {path[-1]}")
+                        continue
                     
                     if hit_component:
                         # Update beam with new phase
@@ -97,7 +109,8 @@ class BeamTracer:
                                         'path': output_path,
                                         'amplitude': abs(out_beam['amplitude']),
                                         'phase': out_beam['phase'],
-                                        'source_type': out_beam.get('source_type', 'laser')
+                                        'source_type': out_beam.get('source_type', 'laser'),
+                                        'blocked': False
                                     })
                                     
                                     new_beams.append(out_beam)
@@ -133,17 +146,6 @@ class BeamTracer:
                         if self.debug:
                             print(f"\n  Processing beam splitter at {comp.position}")
                             print(f"    Total accumulated beams: {total_beams}")
-                            
-                            # Show what beams are being processed
-                            total_input_intensity = 0
-                            for port_idx, port_beams in comp.all_beams_by_port.items():
-                                port_name = ['A', 'B', 'C', 'D'][port_idx]
-                                if port_beams:
-                                    print(f"      Port {port_name}: {len(port_beams)} beams")
-                                    for beam in port_beams:
-                                        intensity = beam['amplitude']**2
-                                        total_input_intensity += intensity
-                            print(f"    Total input intensity: {total_input_intensity*100:.1f}%")
                         
                         # Process with ALL accumulated beams
                         output_beams = comp.finalize_frame()
@@ -159,7 +161,8 @@ class BeamTracer:
                                 'path': output_path,
                                 'amplitude': abs(out_beam['amplitude']),
                                 'phase': out_beam['phase'],
-                                'source_type': out_beam.get('source_type', 'laser')
+                                'source_type': out_beam.get('source_type', 'laser'),
+                                'blocked': False
                             })
                             
                             new_beams.append(out_beam)
@@ -167,11 +170,6 @@ class BeamTracer:
                             if self.debug:
                                 dir_str = self._direction_to_string(out_beam['direction'])
                                 print(f"    Output {dir_str}: amp={abs(out_beam['amplitude']):.3f}, intensity={intensity*100:.1f}%")
-                        
-                        if self.debug:
-                            print(f"    Total output intensity: {total_output_intensity*100:.1f}%")
-                            if abs(total_output_intensity - total_input_intensity) > 0.01:
-                                print(f"    WARNING: Energy not conserved! Difference = {(total_output_intensity - total_input_intensity)*100:.1f}%")
             
             # Trace the new beams from beam splitters
             if new_beams:
@@ -185,7 +183,7 @@ class BeamTracer:
                         if abs(beam['amplitude']) < 0.01:
                             continue
                         
-                        path, hit_component, path_length = self._trace_single_beam(beam, components)
+                        path, hit_component, path_length, blocked = self._trace_single_beam(beam, components)
                         
                         if path and len(path) >= 2:
                             phase_change = self.k * path_length
@@ -195,8 +193,14 @@ class BeamTracer:
                                 'path': path,
                                 'amplitude': abs(beam['amplitude']),
                                 'phase': new_accumulated_phase,
-                                'source_type': beam.get('source_type', 'laser')
+                                'source_type': beam.get('source_type', 'laser'),
+                                'blocked': blocked
                             })
+                            
+                            if blocked:
+                                if self.debug:
+                                    print(f"  Beam blocked at position {path[-1]}")
+                                continue
                             
                             if hit_component:
                                 beam_at_component = beam.copy()
@@ -216,7 +220,8 @@ class BeamTracer:
                                                 'path': output_path,
                                                 'amplitude': abs(out_beam['amplitude']),
                                                 'phase': out_beam['phase'],
-                                                'source_type': out_beam.get('source_type', 'laser')
+                                                'source_type': out_beam.get('source_type', 'laser'),
+                                                'blocked': False
                                             })
                                             
                                             next_beams.append(out_beam)
@@ -251,7 +256,10 @@ class BeamTracer:
             return "UNKNOWN"
     
     def _trace_single_beam(self, beam, components):
-        """Trace a single beam until it hits a component or leaves bounds."""
+        """
+        Trace a single beam until it hits a component, blocked position, or leaves bounds.
+        Returns: (path, hit_component, path_length, blocked)
+        """
         path = [beam['position']]
         current_pos = Vector2(beam['position'].x, beam['position'].y)
         direction = beam['direction']
@@ -265,6 +273,19 @@ class BeamTracer:
             # Move beam forward
             next_pos = current_pos + direction * step_size
             distance += step_size
+            
+            # Check if beam hits a blocked position
+            for blocked_pos in self.blocked_positions:
+                if blocked_pos.distance_to(next_pos) < GRID_SIZE / 2:
+                    # Beam hit a blocked position - calculate exact intersection
+                    intersection = self._calculate_blocked_intersection(current_pos, next_pos, blocked_pos)
+                    if intersection:
+                        path.append(intersection)
+                        total_path_length += current_pos.distance_to(intersection)
+                    else:
+                        path.append(blocked_pos)
+                        total_path_length += current_pos.distance_to(blocked_pos)
+                    return path, None, total_path_length, True
             
             # Check grid bounds
             from config.settings import CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT
@@ -280,7 +301,7 @@ class BeamTracer:
                 if edge_pos:
                     path.append(edge_pos)
                     total_path_length += current_pos.distance_to(edge_pos)
-                return path, None, total_path_length
+                return path, None, total_path_length, False
             
             # Check for component collision
             hit_component = None
@@ -296,7 +317,7 @@ class BeamTracer:
                 # Beam hit a component - stop at its center
                 path.append(hit_component.position)
                 total_path_length += current_pos.distance_to(hit_component.position)
-                return path, hit_component, total_path_length
+                return path, hit_component, total_path_length, False
             
             # No collision, continue tracing
             total_path_length += step_size
@@ -308,7 +329,37 @@ class BeamTracer:
         
         # Reached max distance
         path.append(current_pos)
-        return path, None, total_path_length
+        return path, None, total_path_length, False
+    
+    def _calculate_blocked_intersection(self, start, end, blocked_pos):
+        """Calculate intersection point with blocked position area."""
+        # Treat blocked position as a square with GRID_SIZE dimensions
+        half_size = GRID_SIZE / 2
+        
+        # Define the four edges of the blocked square
+        edges = [
+            (Vector2(blocked_pos.x - half_size, blocked_pos.y - half_size),
+             Vector2(blocked_pos.x + half_size, blocked_pos.y - half_size)),  # Top
+            (Vector2(blocked_pos.x + half_size, blocked_pos.y - half_size),
+             Vector2(blocked_pos.x + half_size, blocked_pos.y + half_size)),  # Right
+            (Vector2(blocked_pos.x + half_size, blocked_pos.y + half_size),
+             Vector2(blocked_pos.x - half_size, blocked_pos.y + half_size)),  # Bottom
+            (Vector2(blocked_pos.x - half_size, blocked_pos.y + half_size),
+             Vector2(blocked_pos.x - half_size, blocked_pos.y - half_size))   # Left
+        ]
+        
+        closest_intersection = None
+        min_distance = float('inf')
+        
+        for edge_start, edge_end in edges:
+            intersection = self._line_intersection(start, end, edge_start, edge_end)
+            if intersection:
+                dist = start.distance_to(intersection)
+                if dist < min_distance:
+                    min_distance = dist
+                    closest_intersection = intersection
+        
+        return closest_intersection
     
     def _calculate_edge_intersection(self, start, end, x_min, y_min, x_max, y_max):
         """Calculate intersection point with grid boundary."""

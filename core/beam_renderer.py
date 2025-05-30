@@ -1,7 +1,7 @@
 """Beam rendering and visualization module."""
 import pygame
 import math
-from config.settings import BEAM_WIDTH, RED, MAGENTA, WHITE, CYAN
+from config.settings import BEAM_WIDTH, GREEN, MAGENTA, WHITE, CYAN, RED
 
 class BeamRenderer:
     """Handles beam path rendering and visualization."""
@@ -14,9 +14,15 @@ class BeamRenderer:
         """Set debug mode for beam renderer."""
         self.debug = debug_state
     
-    def draw_beams(self, beam_tracer, laser, components, phase_value=0):
+    def draw_beams(self, beam_tracer, laser, components, phase_value=0, blocked_positions=None):
         """Trace and draw all laser beams."""
         beam_tracer.reset()
+        
+        # Pass blocked positions to beam tracer
+        if blocked_positions:
+            beam_tracer.set_blocked_positions(blocked_positions)
+        else:
+            beam_tracer.set_blocked_positions([])
         
         # Update debug state from beam tracer
         self.debug = beam_tracer.debug
@@ -54,11 +60,16 @@ class BeamRenderer:
         if beam_data['amplitude'] < 0.01:
             return
         
-        # Color based on source type
-        if beam_data['source_type'] == 'shifted':
+        # Check if beam was blocked
+        was_blocked = beam_data.get('blocked', False)
+        
+        # Color based on source type and blocked status
+        if was_blocked:
+            color = RED  # Red for blocked beams
+        elif beam_data['source_type'] == 'shifted':
             color = MAGENTA
         else:
-            color = RED
+            color = GREEN  # Changed from RED to GREEN
         
         # Adjust alpha based on amplitude squared (intensity)
         # Use amplitude squared for intensity representation
@@ -78,8 +89,8 @@ class BeamRenderer:
             # Draw beam with adjusted color intensity based on amplitude
             beam_color = tuple(int(c * alpha / 255) for c in color)
             
-            # Draw glow effect for stronger beams
-            if beam_data['amplitude'] > 0.7:
+            # Draw glow effect for stronger beams (not for blocked beams)
+            if beam_data['amplitude'] > 0.7 and not was_blocked:
                 glow_width = beam_width + 3
                 glow_color = tuple(int(c * alpha / 510) for c in color)  # Dimmer glow
                 pygame.draw.line(self.screen, glow_color, start, end, glow_width)
@@ -87,9 +98,42 @@ class BeamRenderer:
             # Draw beam core
             pygame.draw.line(self.screen, beam_color, start, end, beam_width)
         
+        # Draw impact effect for blocked beams
+        if was_blocked and len(path) >= 2:
+            self._draw_blocked_impact(path[-1], beam_data['amplitude'])
+        
         # Draw phase information in debug mode
-        if self.debug and len(path) >= 2:
+        if self.debug and len(path) >= 2 and not was_blocked:
             self._draw_phase_info(beam_data, path)
+    
+    def _draw_blocked_impact(self, position, amplitude):
+        """Draw impact effect where beam hits blocked position."""
+        pos = position.tuple() if hasattr(position, 'tuple') else position
+        
+        # Draw impact flash effect
+        impact_radius = int(10 + amplitude * 20)
+        alpha = int(amplitude * 128)
+        
+        # Outer glow
+        for r in range(3):
+            radius = impact_radius - r * 3
+            if radius > 0:
+                surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+                pygame.draw.circle(surf, (RED[0], RED[1], RED[2], alpha // (r + 1)),
+                                 (radius, radius), radius)
+                self.screen.blit(surf, (pos[0] - radius, pos[1] - radius))
+        
+        # Inner bright spot
+        pygame.draw.circle(self.screen, (255, 200, 200), pos, 3)
+        
+        # Draw small particles/sparks
+        import random
+        random.seed(int(pos[0] + pos[1]))  # Consistent randomness based on position
+        for _ in range(5):
+            offset_x = random.randint(-15, 15)
+            offset_y = random.randint(-15, 15)
+            particle_pos = (pos[0] + offset_x, pos[1] + offset_y)
+            pygame.draw.circle(self.screen, (255, 100, 100), particle_pos, 1)
     
     def _draw_phase_info(self, beam_data, path):
         """Draw phase information at beam origin and end."""

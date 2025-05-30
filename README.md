@@ -7,6 +7,8 @@ An educational game for learning quantum optics by building a Mach-Zehnder inter
 - Real-time beam tracing with quantum physics
 - Phase control for interference patterns
 - Visual feedback and scoring system
+- Leaderboard for high scores
+- Multiple challenges to complete
 
 ## Installation
 
@@ -29,20 +31,24 @@ python main.py
    - 2 beam splitters
    - 2 mirrors
    - 1 or more detectors
-3. **Adjust the phase** slider to see interference effects
-4. **Click components** to remove them
+3. **Complete challenges** and earn points
+4. **Submit high scores** to the leaderboard
+5. **Click components** to remove them
 
 ## Controls
 
 - **Left click**: Place/remove components
-- **Phase slider**: Control interference pattern
 - **Clear All**: Remove all components
 - **Check Setup**: Verify your interferometer
 - **Toggle Laser**: Turn laser on/off
+- **Leaderboard**: View high scores
+- **L key**: Toggle leaderboard
+- **H key**: Show help
 
 ## Physics
 
 The game simulates real quantum optics:
+- Green laser beams show coherent light paths
 - Beam splitters create superposition states
 - Phase differences create interference
 - Detectors show intensity based on quantum amplitudes
