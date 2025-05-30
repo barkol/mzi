@@ -102,21 +102,6 @@ class ComponentManager:
             laser.position = Vector2(CANVAS_OFFSET_X + GRID_SIZE, CANVAS_OFFSET_Y + 7 * GRID_SIZE)
         return PLACEMENT_SCORE  # Reset to initial score
     
-    def check_solution(self, laser):
-        """Check if player has built a valid interferometer."""
-        if not laser:
-            print("No laser placed!")
-            return False
-            
-        beam_splitters = sum(1 for c in self.components if c.component_type == 'beamsplitter')
-        mirrors = sum(1 for c in self.components if c.component_type == 'mirror')
-        detectors = sum(1 for c in self.components if c.component_type == 'detector')
-        
-        if beam_splitters >= 2 and mirrors >= 2 and detectors >= 1:
-            self.effects.add_success_message()
-            return True
-        return False
-    
     def set_debug_mode(self, debug_state):
         """Set debug mode for all components."""
         for comp in self.components:

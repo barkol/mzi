@@ -8,3 +8,4 @@ from .keyboard_handler import KeyboardHandler
 from .debug_display import DebugDisplay
 from .interferometer_presets import InterferometerPresets
 from .test_utilities import TestUtilities
+from .challenge_manager import ChallengeManager

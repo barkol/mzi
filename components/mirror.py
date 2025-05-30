@@ -126,3 +126,21 @@ class Mirror(TunableBeamSplitter):
                                 screen.blit(refl_surface, (self.position.x - 20, self.position.y + 35))
                                 break
                         break
+            
+            # Show beam accumulation info in debug mode
+            if hasattr(self, 'all_beams_by_port'):
+                total_beams = sum(len(beams) for beams in self.all_beams_by_port.values())
+                if total_beams > 0:
+                    beam_text = f"Beams: {total_beams}"
+                    beam_surface = font.render(beam_text, True, MAGENTA)
+                    screen.blit(beam_surface, (self.position.x - 20, self.position.y + 45))
+                    
+                    # Show which ports have beams
+                    ports_with_beams = []
+                    for port_idx, beams in self.all_beams_by_port.items():
+                        if beams:
+                            ports_with_beams.append(port_names[port_idx])
+                    if ports_with_beams:
+                        ports_text = f"Ports: {','.join(ports_with_beams)}"
+                        ports_surface = font.render(ports_text, True, MAGENTA)
+                        screen.blit(ports_surface, (self.position.x - 20, self.position.y + 55))

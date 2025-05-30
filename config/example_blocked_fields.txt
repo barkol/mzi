@@ -1,0 +1,32 @@
+# Blocked Fields Configuration
+# Format: grid_x,grid_y
+# Grid coordinates start at 0,0 (top-left of canvas)
+# Canvas is 20x15 grid cells (800x600 pixels with 40px grid)
+# Lines starting with # are comments
+
+# Block center cross pattern
+9,7
+10,7
+11,7
+10,6
+10,8
+
+# Block some corners to make it challenging
+0,0
+0,1
+1,0
+18,0
+19,0
+19,1
+0,13
+0,14
+1,14
+18,14
+19,14
+19,13
+
+# Create an obstacle in the middle-right area
+15,7
+15,8
+16,7
+16,8

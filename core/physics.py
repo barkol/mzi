@@ -24,10 +24,10 @@ class BeamTracer:
         """
         Trace all beams through components.
         
-        Components remember all beams they've processed and reprocess
-        everything when new beams arrive.
+        Key change: Components accumulate beams across all iterations,
+        then process everything at the end.
         """
-        # Reset components for new frame (but they keep their beam history)
+        # Reset components for new frame
         for comp in components:
             if hasattr(comp, 'reset_frame'):
                 comp.reset_frame()
@@ -36,12 +36,13 @@ class BeamTracer:
         all_traced_paths = []
         
         if self.debug:
-            print(f"\n=== NEW FRAME - Beam tracing with memory ===")
+            print(f"\n=== NEW FRAME - Beam tracing with proper accumulation ===")
         
         # Start with initial beams
         active_beams = self.active_beams.copy()
         iteration = 0
         
+        # Phase 1: Trace all beams and accumulate them at components
         # Keep iterating until no new beams are generated
         while active_beams and iteration < max_depth:
             if self.debug:
@@ -81,57 +82,70 @@ class BeamTracer:
                         if self.debug:
                             print(f"  Beam hit {hit_component.component_type} at {hit_component.position}")
                         
-                        # Add beam to component
+                        # Add beam to component (accumulate, don't process yet)
                         if hit_component.component_type in ["mirror", "beamsplitter", "detector"]:
                             hit_component.add_beam(beam_at_component)
-                            # Note: add_beam automatically marks component as not processed
+                            
+                            # For mirrors, process immediately since they don't have interference
+                            if hit_component.component_type == "mirror" and not hit_component.processed_this_frame:
+                                output_beams = hit_component.finalize_frame()
+                                
+                                for out_beam in output_beams:
+                                    # Visualization
+                                    output_path = [hit_component.position, out_beam['position']]
+                                    all_traced_paths.append({
+                                        'path': output_path,
+                                        'amplitude': abs(out_beam['amplitude']),
+                                        'phase': out_beam['phase'],
+                                        'source_type': out_beam.get('source_type', 'laser')
+                                    })
+                                    
+                                    new_beams.append(out_beam)
+                                    
+                                    if self.debug:
+                                        dir_str = self._direction_to_string(out_beam['direction'])
+                                        print(f"    Mirror output {dir_str}: amp={abs(out_beam['amplitude']):.3f}")
             
-            # Process components that have beams and aren't processed
+            # Continue with new beams from mirrors only
+            active_beams = new_beams
+            iteration += 1
+        
+        # Phase 2: Process all beam splitters AFTER all beams have been accumulated
+        if self.debug:
+            print(f"\n=== PROCESSING BEAM SPLITTERS - All beams accumulated ===")
+        
+        # Keep processing beam splitters until no new beams are generated
+        bs_iteration = 0
+        bs_processed_any = True
+        
+        while bs_processed_any and bs_iteration < max_depth:
+            bs_processed_any = False
+            new_beams = []
+            
             for comp in components:
-                if hasattr(comp, 'processed_this_frame') and not comp.processed_this_frame:
-                    if comp.component_type == "mirror" and len(comp.incoming_beams) > 0:
-                        if self.debug:
-                            print(f"\n  Processing mirror at {comp.position}")
-                            print(f"    Input beams: {len(comp.incoming_beams)}")
-                        
-                        # Process mirror
-                        output_beams = comp.finalize_frame()
-                        
-                        for out_beam in output_beams:
-                            # Visualization
-                            output_path = [comp.position, out_beam['position']]
-                            all_traced_paths.append({
-                                'path': output_path,
-                                'amplitude': abs(out_beam['amplitude']),
-                                'phase': out_beam['phase'],
-                                'source_type': out_beam.get('source_type', 'laser')
-                            })
-                            
-                            new_beams.append(out_beam)
-                            
-                            if self.debug:
-                                dir_str = self._direction_to_string(out_beam['direction'])
-                                print(f"    Output {dir_str}: amp={abs(out_beam['amplitude']):.3f}")
+                if comp.component_type == "beamsplitter" and not comp.processed_this_frame:
+                    # Check if this beam splitter has any beams to process
+                    total_beams = sum(len(beams) for beams in comp.all_beams_by_port.values())
                     
-                    elif comp.component_type == "beamsplitter" and len(comp.incoming_beams) > 0:
-                        # Beam splitter will process ALL beams (history + new)
+                    if total_beams > 0:
+                        bs_processed_any = True
+                        
                         if self.debug:
                             print(f"\n  Processing beam splitter at {comp.position}")
-                            new_count = len(comp.incoming_beams)
-                            total_count = len(comp.all_processed_beams) + new_count
-                            print(f"    Processing {total_count} beams ({len(comp.all_processed_beams)} historical + {new_count} new)")
+                            print(f"    Total accumulated beams: {total_beams}")
                             
                             # Show what beams are being processed
-                            all_beams = comp.all_processed_beams + comp.incoming_beams
                             total_input_intensity = 0
-                            for i, beam in enumerate(all_beams):
-                                intensity = beam['amplitude']**2
-                                total_input_intensity += intensity
-                                status = "old" if i < len(comp.all_processed_beams) else "NEW"
-                                print(f"      Beam {i+1} ({status}): amp={beam['amplitude']:.3f}, phase={beam.get('accumulated_phase', 0)*180/math.pi:.1f}°, intensity={intensity*100:.1f}%")
+                            for port_idx, port_beams in comp.all_beams_by_port.items():
+                                port_name = ['A', 'B', 'C', 'D'][port_idx]
+                                if port_beams:
+                                    print(f"      Port {port_name}: {len(port_beams)} beams")
+                                    for beam in port_beams:
+                                        intensity = beam['amplitude']**2
+                                        total_input_intensity += intensity
                             print(f"    Total input intensity: {total_input_intensity*100:.1f}%")
                         
-                        # Process with ALL beams (finalize_frame handles history)
+                        # Process with ALL accumulated beams
                         output_beams = comp.finalize_frame()
                         
                         total_output_intensity = 0
@@ -159,11 +173,59 @@ class BeamTracer:
                             if abs(total_output_intensity - total_input_intensity) > 0.01:
                                 print(f"    WARNING: Energy not conserved! Difference = {(total_output_intensity - total_input_intensity)*100:.1f}%")
             
-            # Continue with new beams
-            active_beams = new_beams
-            iteration += 1
+            # Trace the new beams from beam splitters
+            if new_beams:
+                active_beams = new_beams
+                
+                # Trace these new beams to see if they hit other components
+                while active_beams:
+                    next_beams = []
+                    
+                    for beam in active_beams:
+                        if abs(beam['amplitude']) < 0.01:
+                            continue
+                        
+                        path, hit_component, path_length = self._trace_single_beam(beam, components)
+                        
+                        if path and len(path) >= 2:
+                            phase_change = self.k * path_length
+                            new_accumulated_phase = beam.get('accumulated_phase', beam['phase']) + phase_change
+                            
+                            all_traced_paths.append({
+                                'path': path,
+                                'amplitude': abs(beam['amplitude']),
+                                'phase': new_accumulated_phase,
+                                'source_type': beam.get('source_type', 'laser')
+                            })
+                            
+                            if hit_component:
+                                beam_at_component = beam.copy()
+                                beam_at_component['accumulated_phase'] = new_accumulated_phase
+                                beam_at_component['total_path_length'] = beam.get('total_path_length', 0) + path_length
+                                
+                                if hit_component.component_type in ["mirror", "beamsplitter", "detector"]:
+                                    hit_component.add_beam(beam_at_component)
+                                    
+                                    # Process mirrors immediately
+                                    if hit_component.component_type == "mirror" and not hit_component.processed_this_frame:
+                                        mirror_outputs = hit_component.finalize_frame()
+                                        
+                                        for out_beam in mirror_outputs:
+                                            output_path = [hit_component.position, out_beam['position']]
+                                            all_traced_paths.append({
+                                                'path': output_path,
+                                                'amplitude': abs(out_beam['amplitude']),
+                                                'phase': out_beam['phase'],
+                                                'source_type': out_beam.get('source_type', 'laser')
+                                            })
+                                            
+                                            next_beams.append(out_beam)
+                    
+                    active_beams = next_beams
+            
+            bs_iteration += 1
         
-        # Process all detectors
+        # Phase 3: Process all detectors
         for comp in components:
             if comp.component_type == "detector" and hasattr(comp, 'finalize_frame'):
                 comp.finalize_frame()

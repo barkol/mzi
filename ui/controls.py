@@ -3,7 +3,7 @@ import pygame
 from config.settings import *
 
 class ControlPanel:
-    """Bottom control panel with buttons and phase slider."""
+    """Bottom control panel with buttons."""
     
     def __init__(self):
         self.rect = pygame.Rect(
@@ -16,16 +16,13 @@ class ControlPanel:
         self.buttons = [
             {'name': 'Clear All', 'rect': pygame.Rect(self.rect.x + 20, self.rect.y + 20, 100, 40)},
             {'name': 'Check Setup', 'rect': pygame.Rect(self.rect.x + 140, self.rect.y + 20, 120, 40)},
-            {'name': 'Toggle Laser', 'rect': pygame.Rect(self.rect.x + 280, self.rect.y + 20, 120, 40)}
+            {'name': 'Toggle Laser', 'rect': pygame.Rect(self.rect.x + 280, self.rect.y + 20, 120, 40)},
+            {'name': 'Load Challenge', 'rect': pygame.Rect(self.rect.x + 420, self.rect.y + 20, 120, 40)}
         ]
         
-        # Phase slider
-        self.slider_rect = pygame.Rect(self.rect.x + 450, self.rect.y + 30, 200, 20)
-        self.slider_pos = self.slider_rect.x
-        self.phase = 0
-        self.dragging_slider = False
-        
         self.score = 0
+        self.current_challenge = None
+        self.challenge_status = ""
     
     def handle_event(self, event):
         """Handle control events."""
@@ -34,22 +31,17 @@ class ControlPanel:
             for button in self.buttons:
                 if button['rect'].collidepoint(event.pos):
                     return button['name']
-            
-            # Check slider
-            if self.slider_rect.collidepoint(event.pos):
-                self.dragging_slider = True
-        
-        elif event.type == pygame.MOUSEBUTTONUP:
-            self.dragging_slider = False
-        
-        elif event.type == pygame.MOUSEMOTION and self.dragging_slider:
-            # Update slider
-            self.slider_pos = max(self.slider_rect.x, 
-                                min(event.pos[0], self.slider_rect.right))
-            self.phase = ((self.slider_pos - self.slider_rect.x) / 
-                         self.slider_rect.width) * 360
         
         return None
+    
+    def set_challenge(self, challenge_name):
+        """Set the current challenge being attempted."""
+        self.current_challenge = challenge_name
+        self.challenge_status = f"Challenge: {challenge_name}"
+    
+    def set_status(self, status):
+        """Set status message."""
+        self.challenge_status = status
     
     def draw(self, screen):
         """Draw control panel."""
@@ -83,47 +75,22 @@ class ControlPanel:
             text_rect = text.get_rect(center=button['rect'].center)
             screen.blit(text, text_rect)
         
-        # Phase slider
-        self._draw_slider(screen)
+        # Challenge status
+        if self.challenge_status:
+            status_font = pygame.font.Font(None, 16)
+            status_text = status_font.render(self.challenge_status, True, CYAN)
+            status_rect = status_text.get_rect(left=self.rect.x + 560, centery=self.rect.centery - 10)
+            screen.blit(status_text, status_rect)
         
         # Score
         self._draw_score(screen)
-    
-    def _draw_slider(self, screen):
-        """Draw phase slider."""
-        font = pygame.font.Font(None, 16)
-        
-        # Label
-        label = font.render("Phase Shift:", True, WHITE)
-        screen.blit(label, (self.slider_rect.x - 80, self.slider_rect.y))
-        
-        # Track
-        s = pygame.Surface((self.slider_rect.width, self.slider_rect.height), pygame.SRCALPHA)
-        pygame.draw.rect(s, (PURPLE[0], PURPLE[1], PURPLE[2], 100), s.get_rect(), border_radius=10)
-        screen.blit(s, self.slider_rect.topleft)
-        
-        # Fill
-        fill_width = int((self.phase / 360) * self.slider_rect.width)
-        if fill_width > 0:
-            fill_rect = pygame.Rect(self.slider_rect.x, self.slider_rect.y,
-                                  fill_width, self.slider_rect.height)
-            pygame.draw.rect(screen, CYAN, fill_rect, border_radius=10)
-        
-        # Knob
-        knob_x = self.slider_rect.x + int((self.phase / 360) * self.slider_rect.width)
-        pygame.draw.circle(screen, WHITE, (knob_x, self.slider_rect.centery), 12)
-        pygame.draw.circle(screen, CYAN, (knob_x, self.slider_rect.centery), 8)
-        
-        # Value
-        value_text = font.render(f"{int(self.phase)}°", True, CYAN)
-        screen.blit(value_text, (self.slider_rect.right + 10, self.slider_rect.y))
     
     def _draw_score(self, screen):
         """Draw score display."""
         font = pygame.font.Font(None, 24)
         score_text = font.render(f"Score: {self.score}", True, CYAN)
         score_rect = score_text.get_rect(right=self.rect.right - 20,
-                                        centery=self.rect.centery)
+                                        centery=self.rect.centery + 10)
         
         # Background
         bg_rect = score_rect.inflate(20, 10)

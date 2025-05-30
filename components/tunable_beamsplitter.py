@@ -63,8 +63,14 @@ class TunableBeamSplitter(Component):
         
         self.orientation = orientation
         self.loss = loss
-        self.incoming_beams = []
+        
+        # Beam accumulation across all generations
+        # Dictionary mapping port index to list of all beams that have arrived
+        self.all_beams_by_port = {0: [], 1: [], 2: [], 3: []}  # A, B, C, D
+        self.current_iteration_beams = []  # Beams added in current iteration
         self.processed_this_frame = False
+        self.output_beams = []  # Current output beams
+        
         self.debug = False
         
         # Build scattering matrix based on orientation
@@ -127,65 +133,81 @@ class TunableBeamSplitter(Component):
                 print("This is expected when r ≠ r'")
     
     def reset_frame(self):
-        """Reset for new frame processing."""
-        self.incoming_beams = []
+        """Reset for new frame processing - clears all accumulated beams."""
+        self.all_beams_by_port = {0: [], 1: [], 2: [], 3: []}
+        self.current_iteration_beams = []
         self.processed_this_frame = False
+        self.output_beams = []
     
     def add_beam(self, beam):
-        """Add a beam to be processed."""
+        """Add a beam to be processed - accumulates across all iterations."""
         if not self.processed_this_frame:
-            self.incoming_beams.append(beam)
+            self.current_iteration_beams.append(beam)
+            
+            # Map beam to input port and store it
+            direction = beam['direction']
+            port_idx = None
+            
+            if direction.x > 0.5 and abs(direction.y) < 0.5:  # RIGHT → Port A
+                port_idx = 0
+            elif direction.y < -0.5 and abs(direction.x) < 0.5:  # UP → Port B
+                port_idx = 1
+            elif direction.x < -0.5 and abs(direction.y) < 0.5:  # LEFT → Port C
+                port_idx = 2
+            elif direction.y > 0.5 and abs(direction.x) < 0.5:  # DOWN → Port D
+                port_idx = 3
+            
+            if port_idx is not None:
+                self.all_beams_by_port[port_idx].append(beam)
+                
             if self.debug:
                 phase_deg = beam.get('accumulated_phase', beam['phase']) * 180 / math.pi
-                print(f"  {self.component_type} at {self.position}: beam from dir ({beam['direction'].x:.1f}, {beam['direction'].y:.1f}), phase={phase_deg:.1f}°")
+                port_name = ['A', 'B', 'C', 'D'][port_idx] if port_idx is not None else '?'
+                print(f"  {self.component_type} at {self.position}: beam added to port {port_name}, "
+                      f"dir ({beam['direction'].x:.1f}, {beam['direction'].y:.1f}), phase={phase_deg:.1f}°")
     
     def process_beam(self, beam):
         """Process single beam (for compatibility)."""
-        self.reset_frame()
+        # Don't reset - just add to accumulation
         self.add_beam(beam)
         return self.finalize_frame()
     
     def finalize_frame(self):
-        """Process all beams using scattering matrix formalism."""
-        if self.processed_this_frame or not self.incoming_beams:
-            return []
+        """Process all accumulated beams across all generations using scattering matrix."""
+        if self.processed_this_frame:
+            return self.output_beams
         
         self.processed_this_frame = True
         
-        if self.debug:
-            print(f"\n{self.component_type} at {self.position} - processing {len(self.incoming_beams)} beam(s)")
-            print(f"  Coefficients: t={self.t:.3f}, r={self.r:.3f}, r'={self.r_prime:.3f}")
-            print(f"  Orientation: {self.orientation}")
-        
-        # Build input amplitude vector
+        # Build input amplitude vector by summing ALL beams at each port
         v_in = np.zeros(4, dtype=complex)
-        path_lengths = []
         
-        for beam in self.incoming_beams:
-            direction = beam['direction']
-            total_phase = beam.get('accumulated_phase', beam['phase'])
-            amplitude = beam['amplitude'] * cmath.exp(1j * total_phase)
-            path_lengths.append(beam.get('total_path_length', 0))
+        total_beam_count = sum(len(beams) for beams in self.all_beams_by_port.values())
+        
+        if self.debug and total_beam_count > 0:
+            print(f"\n{self.component_type} at {self.position} - processing ALL accumulated beams")
+            print(f"  Total beams across all generations: {total_beam_count}")
+            print(f"  Beams by port: A={len(self.all_beams_by_port[0])}, "
+                  f"B={len(self.all_beams_by_port[1])}, C={len(self.all_beams_by_port[2])}, "
+                  f"D={len(self.all_beams_by_port[3])}")
+        
+        # Sum complex amplitudes at each port from ALL generations
+        port_names = ['A', 'B', 'C', 'D']
+        for port_idx in range(4):
+            port_sum = 0j
+            for beam in self.all_beams_by_port[port_idx]:
+                total_phase = beam.get('accumulated_phase', beam['phase'])
+                amplitude = beam['amplitude'] * cmath.exp(1j * total_phase)
+                port_sum += amplitude
+                
+                if self.debug and abs(amplitude) > 0.001:
+                    print(f"    Port {port_names[port_idx]}: adding beam with |E|={beam['amplitude']:.3f}, "
+                          f"φ={total_phase*180/math.pi:.1f}°, complex amp={amplitude:.3f}")
             
-            # Map to input port
-            port_idx = None
-            port_name = None
+            v_in[port_idx] = port_sum
             
-            if direction.x > 0.5 and abs(direction.y) < 0.5:  # RIGHT → Port A
-                v_in[0] += amplitude
-                port_name = 'A'
-            elif direction.y < -0.5 and abs(direction.x) < 0.5:  # UP → Port B
-                v_in[1] += amplitude
-                port_name = 'B'
-            elif direction.x < -0.5 and abs(direction.y) < 0.5:  # LEFT → Port C
-                v_in[2] += amplitude
-                port_name = 'C'
-            elif direction.y > 0.5 and abs(direction.x) < 0.5:  # DOWN → Port D
-                v_in[3] += amplitude
-                port_name = 'D'
-            
-            if self.debug and port_name:
-                print(f"    Beam → port {port_name}: |E|={beam['amplitude']:.3f}, φ={total_phase*180/math.pi:.1f}°")
+            if self.debug and abs(port_sum) > 0.001:
+                print(f"    Port {port_names[port_idx]} total input: {port_sum:.3f}")
         
         self._last_v_in = v_in.copy()
         
@@ -199,21 +221,10 @@ class TunableBeamSplitter(Component):
         
         self._last_v_out = v_out.copy()
         
-        if self.debug:
+        if self.debug and np.any(np.abs(v_in) > 0.001):
             print(f"\n  Input/Output vectors:")
             print(f"    v_in  = [{v_in[0]:.3f}, {v_in[1]:.3f}, {v_in[2]:.3f}, {v_in[3]:.3f}]")
             print(f"    v_out = [{v_out[0]:.3f}, {v_out[1]:.3f}, {v_out[2]:.3f}, {v_out[3]:.3f}]")
-            
-            # Detailed port analysis
-            port_names = ['A(left)', 'B(bottom)', 'C(right)', 'D(top)']
-            print(f"\n  Detailed transformation:")
-            for i in range(4):
-                if abs(v_in[i]) > 0.001:
-                    print(f"    Input at {port_names[i]}: {v_in[i]:.3f}")
-                    for j in range(4):
-                        if abs(self.S[j, i]) > 0.001:
-                            contribution = self.S[j, i] * v_in[i]
-                            print(f"      → {port_names[j]}: S[{j},{i}]={self.S[j, i]:.3f} × {v_in[i]:.3f} = {contribution:.3f}")
             
             # Energy conservation check
             input_power = np.sum(np.abs(v_in)**2)
@@ -224,12 +235,18 @@ class TunableBeamSplitter(Component):
                 print(f"    Input power: Σ|v_in|² = {input_power:.6f}")
                 print(f"    Output power: Σ|v_out|² = {output_power:.6f}")
                 print(f"    Power ratio: {ratio:.6f}")
-                if abs(ratio - 1.0) > 0.001:
+                if abs(ratio - 1.0) > 0.001 and self.loss == 0:
                     print(f"    WARNING: Energy not conserved! Deviation: {(ratio-1)*100:.2f}%")
         
-        # Generate output beams
-        output_beams = []
-        avg_path_length = sum(path_lengths) / len(path_lengths) if path_lengths else 0
+        # Generate output beams - these REPLACE any previous outputs
+        self.output_beams = []
+        
+        # Calculate average path length from all input beams
+        all_path_lengths = []
+        for beams in self.all_beams_by_port.values():
+            for beam in beams:
+                all_path_lengths.append(beam.get('total_path_length', 0))
+        avg_path_length = sum(all_path_lengths) / len(all_path_lengths) if all_path_lengths else 0
         
         # Port directions
         port_info = [
@@ -251,16 +268,19 @@ class TunableBeamSplitter(Component):
                     'accumulated_phase': output_phase,
                     'path_length': 0,
                     'total_path_length': avg_path_length,
-                    'source_type': self.incoming_beams[0].get('source_type', 'laser') if self.incoming_beams else 'laser',
+                    'source_type': 'mixed' if total_beam_count > 1 else (
+                        self.all_beams_by_port[0][0].get('source_type', 'laser')
+                        if self.all_beams_by_port[0] else 'laser'
+                    ),
                     'origin_phase': output_phase,
                     'origin_component': self
                 }
-                output_beams.append(beam)
+                self.output_beams.append(beam)
                 
                 if self.debug:
                     print(f"    Output port {port['name']}: |E|={abs(amplitude):.3f}, φ={output_phase*180/math.pi:.1f}°")
         
-        return output_beams
+        return self.output_beams
     
     def get_info(self):
         """Get component information."""
@@ -272,5 +292,6 @@ class TunableBeamSplitter(Component):
             'orientation': self.orientation,
             'matrix': self.S,
             'last_input': self._last_v_in,
-            'last_output': self._last_v_out
+            'last_output': self._last_v_out,
+            'total_beams': sum(len(beams) for beams in self.all_beams_by_port.values())
         }

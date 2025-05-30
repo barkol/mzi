@@ -1,0 +1,56 @@
+{
+  "challenges": {
+    "basic_mz": {
+      "name": "Basic Mach-Zehnder",
+      "description": "Build a Mach-Zehnder interferometer with 2 beam splitters, 2 mirrors, and 2 detectors",
+      "requirements": {
+        "beamsplitter": 2,
+        "mirror": 2,
+        "detector": 2
+      },
+      "min_components": 6,
+      "max_components": 8,
+      "points": 100,
+      "bonus_conditions": [
+        {
+          "type": "interference",
+          "description": "Achieve interference at both detectors",
+          "points": 50
+        }
+      ]
+    },
+    "triple_path": {
+      "name": "Triple Path Interferometer",
+      "description": "Create an interferometer with 3 different beam paths",
+      "requirements": {
+        "beamsplitter": 3,
+        "mirror": 4,
+        "detector": 3
+      },
+      "min_components": 10,
+      "max_components": 15,
+      "points": 200,
+      "bonus_conditions": [
+        {
+          "type": "all_detectors_active",
+          "description": "All detectors show signal",
+          "points": 100
+        }
+      ]
+    },
+    "compact_mz": {
+      "name": "Compact Design",
+      "description": "Build a working MZ interferometer with minimal components",
+      "requirements": {
+        "beamsplitter": 2,
+        "mirror": 2,
+        "detector": 1
+      },
+      "min_components": 5,
+      "max_components": 5,
+      "points": 150,
+      "bonus_conditions": []
+    }
+  },
+  "blocked_fields_file": "config/blocked_fields.txt"
+}

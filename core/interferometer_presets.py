@@ -66,7 +66,7 @@ class InterferometerPresets:
         path_diff = lower_path - upper_path
         
         print(f"\nPath difference: {path_diff:.1f}px = {path_diff/WAVELENGTH:.2f}λ")
-        print("Adjust phase slider to see interference!")
+        print("This creates a fixed phase difference based on path lengths")
         print("\nNote: Both beams interfere at BOTH detectors")
         print("- Right detector gets: upper (transmitted) + lower (reflected left then transmitted)")
         print("- Bottom detector gets: upper (reflected down) + lower (transmitted up then reflected)")
@@ -130,8 +130,7 @@ class InterferometerPresets:
         print(f"  Upper arm: {upper_path:.1f}px = {upper_path/WAVELENGTH:.2f}λ")
         print(f"  Lower arm: {lower_path:.1f}px = {lower_path/WAVELENGTH:.2f}λ")
         print(f"  Path difference: {path_diff:.1f}px = {path_diff/WAVELENGTH:.2f}λ")
-        print(f"\nThis creates a phase difference of {(path_diff/WAVELENGTH)*360:.1f}° from path alone")
-        print("Plus any additional phase from the slider!")
+        print(f"\nThis creates a phase difference of {(path_diff/WAVELENGTH)*360:.1f}° from path length alone")
     
     @staticmethod
     def create_beam_splitter_demo(components, laser):
@@ -191,7 +190,7 @@ class InterferometerPresets:
         print("- Beam from D: transmitted to B, reflected to C")
         print("- Both outputs (B and C) show interference!")
         print("- Outputs A and D are zero (no input from B or C)")
-        print("\nAdjust phase slider to see interference patterns change!")
+        print("\nThe interference pattern depends on the path length difference!")
     
     @staticmethod
     def add_visual_test_detectors(components):

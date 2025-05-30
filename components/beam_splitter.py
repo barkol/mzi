@@ -121,16 +121,35 @@ class BeamSplitter(TunableBeamSplitter):
     
     def finalize_frame(self):
         """Process beams and calculate OPD for display."""
-        # Store beam info for OPD calculation
-        if len(self.incoming_beams) == 2:
+        # Store beam info for OPD calculation if we have beams from exactly 2 ports
+        ports_with_beams = []
+        for port_idx, beams in self.all_beams_by_port.items():
+            if beams:
+                ports_with_beams.append(port_idx)
+        
+        if len(ports_with_beams) == 2:
+            # Calculate average path length and phase for each port
             path_lengths = []
             phases = []
-            for beam in self.incoming_beams:
-                path_lengths.append(beam.get('total_path_length', 0))
-                phases.append(beam.get('accumulated_phase', beam['phase']))
             
-            self.last_opd = path_lengths[1] - path_lengths[0]
-            self.last_phase_diff = (phases[1] - phases[0]) % (2 * math.pi)
+            for port_idx in ports_with_beams:
+                port_beams = self.all_beams_by_port[port_idx]
+                if port_beams:
+                    # Average path length for this port
+                    avg_path = sum(b.get('total_path_length', 0) for b in port_beams) / len(port_beams)
+                    path_lengths.append(avg_path)
+                    
+                    # Calculate resultant phase from interference at this port
+                    complex_sum = 0j
+                    for beam in port_beams:
+                        total_phase = beam.get('accumulated_phase', beam['phase'])
+                        complex_sum += beam['amplitude'] * cmath.exp(1j * total_phase)
+                    resultant_phase = cmath.phase(complex_sum) if abs(complex_sum) > 0 else 0
+                    phases.append(resultant_phase)
+            
+            if len(path_lengths) == 2:
+                self.last_opd = path_lengths[1] - path_lengths[0]
+                self.last_phase_diff = (phases[1] - phases[0]) % (2 * math.pi)
         
         # Call parent method
         return super().finalize_frame()

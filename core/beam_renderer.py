@@ -14,7 +14,7 @@ class BeamRenderer:
         """Set debug mode for beam renderer."""
         self.debug = debug_state
     
-    def draw_beams(self, beam_tracer, laser, components, phase_slider_value):
+    def draw_beams(self, beam_tracer, laser, components, phase_value=0):
         """Trace and draw all laser beams."""
         beam_tracer.reset()
         
@@ -24,8 +24,8 @@ class BeamRenderer:
         # Add laser beam
         laser_beam = laser.emit_beam()
         if laser_beam:
-            # Apply phase shift from slider to both phase and accumulated_phase
-            phase_from_slider = math.radians(phase_slider_value)
+            # Apply phase shift (now always 0, but kept for compatibility)
+            phase_from_slider = math.radians(phase_value)
             laser_beam['phase'] += phase_from_slider
             laser_beam['accumulated_phase'] = laser_beam['phase']  # Set accumulated phase
             laser_beam['origin_phase'] = 0  # Original phase at laser

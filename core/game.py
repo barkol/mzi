@@ -1,5 +1,6 @@
 """Main game logic and state management."""
 import pygame
+import os
 from components.laser import Laser
 from core.grid import Grid
 from core.physics import BeamTracer
@@ -7,6 +8,7 @@ from core.beam_renderer import BeamRenderer
 from core.component_manager import ComponentManager
 from core.keyboard_handler import KeyboardHandler
 from core.debug_display import DebugDisplay
+from core.challenge_manager import ChallengeManager
 from ui.sidebar import Sidebar
 from ui.controls import ControlPanel
 from ui.effects import EffectsManager
@@ -28,6 +30,7 @@ class Game:
         self.component_manager = ComponentManager(self.effects)
         self.beam_renderer = BeamRenderer(screen)
         self.debug_display = DebugDisplay(screen)
+        self.challenge_manager = ChallengeManager()
         
         # UI elements
         self.grid = Grid()
@@ -47,6 +50,13 @@ class Game:
         self.score = PLACEMENT_SCORE  # Start with score for initial laser
         self.controls.score = self.score  # Update control panel
         self.show_opd_info = True  # Toggle for OPD display
+        
+        # Load blocked fields
+        self.challenge_manager.load_blocked_fields()
+        
+        # Create template if it doesn't exist
+        if not os.path.exists("config/blocked_fields_template.txt"):
+            self.challenge_manager.create_blocked_fields_template()
     
     def handle_event(self, event):
         """Handle game events."""
@@ -72,7 +82,11 @@ class Game:
                 x = round((event.pos[0] - CANVAS_OFFSET_X) / GRID_SIZE) * GRID_SIZE + CANVAS_OFFSET_X
                 y = round((event.pos[1] - CANVAS_OFFSET_Y) / GRID_SIZE) * GRID_SIZE + CANVAS_OFFSET_Y
                 
-                if not self.component_manager.is_position_occupied(x, y, self.laser, 
+                # Check if position is blocked
+                if self.challenge_manager.is_position_blocked(x, y):
+                    self.controls.set_status("Cannot place component here - position blocked!")
+                    print(f"Position ({x}, {y}) is blocked")
+                elif not self.component_manager.is_position_occupied(x, y, self.laser,
                                                                   self.sidebar.selected == 'laser'):
                     score_delta = self.component_manager.add_component(
                         self.sidebar.selected, x, y, self.laser)
@@ -113,11 +127,37 @@ class Game:
             self.score = new_score
             self.controls.score = self.score
         elif action == 'Check Setup':
-            if self.component_manager.check_solution(self.laser):
-                self._update_score(COMPLETION_SCORE)
+            # Check against current challenge
+            success, message, points = self.challenge_manager.check_setup(
+                self.component_manager.components, self.laser)
+            if success:
+                self._update_score(points)
+                self.effects.add_success_message()
+                self.controls.set_status(message.split('\n')[0])  # Show first line
+                print(message)  # Full message to console
+            else:
+                self.controls.set_status(f"Failed: {message}")
+                print(f"Challenge check failed: {message}")
         elif action == 'Toggle Laser':
             if self.laser:
                 self.laser.enabled = not self.laser.enabled
+        elif action == 'Load Challenge':
+            # Cycle through challenges
+            challenges = self.challenge_manager.get_challenge_list()
+            if challenges:
+                current_idx = -1
+                if self.challenge_manager.current_challenge:
+                    for i, (name, _) in enumerate(challenges):
+                        if name == self.challenge_manager.current_challenge:
+                            current_idx = i
+                            break
+                
+                # Go to next challenge
+                next_idx = (current_idx + 1) % len(challenges)
+                challenge_name, challenge_title = challenges[next_idx]
+                self.challenge_manager.set_current_challenge(challenge_name)
+                self.controls.set_challenge(challenge_title)
+                print(f"Loaded challenge: {challenge_title}")
     
     def _update_score(self, points):
         """Update game score."""
@@ -145,7 +185,8 @@ class Game:
         
         # Draw grid
         laser_pos = self.laser.position.tuple() if self.laser else None
-        self.grid.draw(self.screen, self.component_manager.components, laser_pos)
+        self.grid.draw(self.screen, self.component_manager.components, laser_pos,
+                      self.challenge_manager.get_blocked_positions())
         
         # Draw laser
         if self.laser:
@@ -157,9 +198,9 @@ class Game:
         
         # Trace and draw beams
         if self.laser and self.laser.enabled:
-            self.beam_renderer.draw_beams(self.beam_tracer, self.laser, 
-                                        self.component_manager.components, 
-                                        self.controls.phase)
+            self.beam_renderer.draw_beams(self.beam_tracer, self.laser,
+                                        self.component_manager.components,
+                                        0)  # No phase shift anymore
         
         # Draw UI
         self.sidebar.draw(self.screen)
