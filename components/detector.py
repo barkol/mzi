@@ -21,6 +21,8 @@ class Detector(Component):
         """Reset for new frame processing."""
         self.incoming_amplitudes = []
         self.processed_this_frame = False
+        self.intensity = 0  # Reset intensity each frame
+        self.total_path_length = 0
     
     def add_beam(self, beam):
         """Add a beam's complex amplitude for accumulation."""
@@ -47,10 +49,16 @@ class Detector(Component):
     
     def finalize_frame(self):
         """Calculate final intensity from all accumulated beams."""
-        if self.processed_this_frame or not self.incoming_amplitudes:
+        if self.processed_this_frame:
             return
         
         self.processed_this_frame = True
+        
+        # If no beams reached this detector, intensity remains 0
+        if not self.incoming_amplitudes:
+            self.intensity = 0
+            self.total_path_length = 0
+            return
         
         # Sum all complex amplitudes
         total_amplitude = sum(beam['amplitude'] for beam in self.incoming_amplitudes)
@@ -116,6 +124,19 @@ class Detector(Component):
                 text_color = WHITE
             
             text = font.render(f"{display_percent}%", True, text_color)
+            text_rect = text.get_rect(center=(self.position.x, self.position.y + 50))
+            
+            # Background for text
+            bg_rect = text_rect.inflate(10, 5)
+            s3 = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+            s3.fill((0, 0, 0, 180))
+            screen.blit(s3, bg_rect.topleft)
+            
+            screen.blit(text, text_rect)
+        else:
+            # Show 0% when no intensity
+            font = pygame.font.Font(None, 20)
+            text = font.render("0%", True, (100, 100, 100))
             text_rect = text.get_rect(center=(self.position.x, self.position.y + 50))
             
             # Background for text

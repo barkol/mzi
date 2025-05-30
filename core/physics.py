@@ -1,7 +1,8 @@
 """Physics engine for beam propagation."""
 import math
+import cmath
 from utils.vector import Vector2
-from config.settings import WAVELENGTH
+from config.settings import WAVELENGTH, IDEAL_COMPONENTS
 
 class BeamTracer:
     """Traces beam paths through optical components."""
@@ -20,127 +21,172 @@ class BeamTracer:
         self.active_beams.append(beam)
     
     def trace_beams(self, components, max_depth=10):
-        """Trace all beams through components."""
-        all_traced_beams = []
-        current_beams = self.active_beams.copy()
+        """
+        Trace all beams through components.
         
-        # Reset all components that need frame-based accumulation
+        Components remember all beams they've processed and reprocess
+        everything when new beams arrive.
+        """
+        # Reset components for new frame (but they keep their beam history)
         for comp in components:
             if hasattr(comp, 'reset_frame'):
                 comp.reset_frame()
         
-        for depth in range(max_depth):
-            if not current_beams:
-                break
-                
-            # Trace all beams at current depth and collect component hits
-            traced_this_depth = []
-            component_hits = {}  # component -> list of beams
+        # Storage for visualization
+        all_traced_paths = []
+        
+        if self.debug:
+            print(f"\n=== NEW FRAME - Beam tracing with memory ===")
+        
+        # Start with initial beams
+        active_beams = self.active_beams.copy()
+        iteration = 0
+        
+        # Keep iterating until no new beams are generated
+        while active_beams and iteration < max_depth:
+            if self.debug:
+                print(f"\n--- Iteration {iteration} ---")
+                print(f"Active beams: {len(active_beams)}")
             
-            for beam in current_beams:
+            new_beams = []
+            
+            # Trace all active beams
+            for beam in active_beams:
                 # Skip very weak beams
-                if beam['amplitude'] < 0.01:
+                if abs(beam['amplitude']) < 0.01:
                     continue
-                    
-                # Trace beam to next component or boundary
+                
+                # Trace beam to next component
                 path, hit_component, path_length = self._trace_single_beam(beam, components)
                 
                 if path and len(path) >= 2:
-                    # Update beam's phase based on distance traveled
-                    # Phase change = k * path_length where k = 2π/λ
+                    # Calculate phase change from propagation
                     phase_change = self.k * path_length
+                    new_accumulated_phase = beam.get('accumulated_phase', beam['phase']) + phase_change
                     
-                    # Update the beam's accumulated phase
-                    beam['accumulated_phase'] = beam.get('accumulated_phase', beam['phase']) + phase_change
-                    beam['total_path_length'] = beam.get('total_path_length', 0) + path_length
-                    
-                    # Record the traced path with the beam's amplitude BEFORE hitting the component
-                    traced_this_depth.append({
+                    # Store path for visualization
+                    all_traced_paths.append({
                         'path': path,
-                        'amplitude': beam['amplitude'],
-                        'phase': beam.get('accumulated_phase', beam['phase']),
+                        'amplitude': abs(beam['amplitude']),
+                        'phase': new_accumulated_phase,
                         'source_type': beam.get('source_type', 'laser')
                     })
                     
-                    # If hit a component, record it for processing
                     if hit_component:
-                        if hit_component not in component_hits:
-                            component_hits[hit_component] = []
-                        component_hits[hit_component].append(beam)
-            
-            # Add this depth's traced beams to results
-            all_traced_beams.extend(traced_this_depth)
-            
-            # First, add all beams to components that accumulate (beam splitters and detectors)
-            for component, hitting_beams in component_hits.items():
-                if component.component_type in ["beamsplitter", "detector"]:
-                    for beam in hitting_beams:
-                        component.add_beam(beam)
-            
-            # Process all components to generate new beams
-            next_beams = []
-            output_paths = []  # Store output beam paths for visualization
-            
-            # Process ALL beam splitters (not just those hit this depth)
-            for component in components:
-                if component.component_type == "beamsplitter" and len(component.incoming_beams) > 0:
-                    # Get the position for output beam paths
-                    bs_pos = component.position
-                    
-                    # Finalize processing with amplitude accumulation
-                    output_beams = component.finalize_frame()
-                    
-                    # Create paths for output beams
-                    for out_beam in output_beams:
-                        # Create a short path segment for the output beam
-                        output_path = [bs_pos, out_beam['position']]
-                        output_paths.append({
-                            'path': output_path,
-                            'amplitude': out_beam['amplitude'],
-                            'phase': out_beam['phase'],
-                            'source_type': out_beam.get('source_type', 'laser')
-                        })
-                    
-                    next_beams.extend(output_beams)
-            
-            # Process other components (mirrors only - detectors accumulate)
-            for component, hitting_beams in component_hits.items():
-                if component.component_type not in ["beamsplitter", "detector"]:
-                    for beam in hitting_beams:
-                        # Pass the beam with its accumulated phase
-                        beam_to_process = beam.copy()
-                        beam_to_process['phase'] = beam.get('accumulated_phase', beam['phase'])
+                        # Update beam with new phase
+                        beam_at_component = beam.copy()
+                        beam_at_component['accumulated_phase'] = new_accumulated_phase
+                        beam_at_component['total_path_length'] = beam.get('total_path_length', 0) + path_length
                         
-                        output_beams = component.process_beam(beam_to_process)
+                        if self.debug:
+                            print(f"  Beam hit {hit_component.component_type} at {hit_component.position}")
                         
-                        # Propagate accumulated phase and path length to output beams
+                        # Add beam to component
+                        if hit_component.component_type in ["mirror", "beamsplitter", "detector"]:
+                            hit_component.add_beam(beam_at_component)
+                            # Note: add_beam automatically marks component as not processed
+            
+            # Process components that have beams and aren't processed
+            for comp in components:
+                if hasattr(comp, 'processed_this_frame') and not comp.processed_this_frame:
+                    if comp.component_type == "mirror" and len(comp.incoming_beams) > 0:
+                        if self.debug:
+                            print(f"\n  Processing mirror at {comp.position}")
+                            print(f"    Input beams: {len(comp.incoming_beams)}")
+                        
+                        # Process mirror
+                        output_beams = comp.finalize_frame()
+                        
                         for out_beam in output_beams:
-                            out_beam['accumulated_phase'] = out_beam['phase']
-                            out_beam['total_path_length'] = beam.get('total_path_length', 0)
-                            
-                            # Create a short path for the output beam
-                            output_path = [component.position, out_beam['position']]
-                            output_paths.append({
+                            # Visualization
+                            output_path = [comp.position, out_beam['position']]
+                            all_traced_paths.append({
                                 'path': output_path,
-                                'amplitude': out_beam['amplitude'],
+                                'amplitude': abs(out_beam['amplitude']),
                                 'phase': out_beam['phase'],
                                 'source_type': out_beam.get('source_type', 'laser')
                             })
+                            
+                            new_beams.append(out_beam)
+                            
+                            if self.debug:
+                                dir_str = self._direction_to_string(out_beam['direction'])
+                                print(f"    Output {dir_str}: amp={abs(out_beam['amplitude']):.3f}")
+                    
+                    elif comp.component_type == "beamsplitter" and len(comp.incoming_beams) > 0:
+                        # Beam splitter will process ALL beams (history + new)
+                        if self.debug:
+                            print(f"\n  Processing beam splitter at {comp.position}")
+                            new_count = len(comp.incoming_beams)
+                            total_count = len(comp.all_processed_beams) + new_count
+                            print(f"    Processing {total_count} beams ({len(comp.all_processed_beams)} historical + {new_count} new)")
+                            
+                            # Show what beams are being processed
+                            all_beams = comp.all_processed_beams + comp.incoming_beams
+                            total_input_intensity = 0
+                            for i, beam in enumerate(all_beams):
+                                intensity = beam['amplitude']**2
+                                total_input_intensity += intensity
+                                status = "old" if i < len(comp.all_processed_beams) else "NEW"
+                                print(f"      Beam {i+1} ({status}): amp={beam['amplitude']:.3f}, phase={beam.get('accumulated_phase', 0)*180/math.pi:.1f}°, intensity={intensity*100:.1f}%")
+                            print(f"    Total input intensity: {total_input_intensity*100:.1f}%")
                         
-                        next_beams.extend(output_beams)
+                        # Process with ALL beams (finalize_frame handles history)
+                        output_beams = comp.finalize_frame()
+                        
+                        total_output_intensity = 0
+                        for out_beam in output_beams:
+                            intensity = out_beam['amplitude']**2
+                            total_output_intensity += intensity
+                            
+                            # Visualization
+                            output_path = [comp.position, out_beam['position']]
+                            all_traced_paths.append({
+                                'path': output_path,
+                                'amplitude': abs(out_beam['amplitude']),
+                                'phase': out_beam['phase'],
+                                'source_type': out_beam.get('source_type', 'laser')
+                            })
+                            
+                            new_beams.append(out_beam)
+                            
+                            if self.debug:
+                                dir_str = self._direction_to_string(out_beam['direction'])
+                                print(f"    Output {dir_str}: amp={abs(out_beam['amplitude']):.3f}, intensity={intensity*100:.1f}%")
+                        
+                        if self.debug:
+                            print(f"    Total output intensity: {total_output_intensity*100:.1f}%")
+                            if abs(total_output_intensity - total_input_intensity) > 0.01:
+                                print(f"    WARNING: Energy not conserved! Difference = {(total_output_intensity - total_input_intensity)*100:.1f}%")
             
-            # Add output paths to traced beams (these show the correct amplitudes)
-            all_traced_beams.extend(output_paths)
-            
-            # Continue with next depth
-            current_beams = next_beams
+            # Continue with new beams
+            active_beams = new_beams
+            iteration += 1
         
-        # Finalize all components that accumulate beams (detectors)
+        # Process all detectors
         for comp in components:
-            if hasattr(comp, 'finalize_frame'):
+            if comp.component_type == "detector" and hasattr(comp, 'finalize_frame'):
                 comp.finalize_frame()
+                
+                if self.debug and (comp.intensity > 0 or len(comp.incoming_amplitudes) > 0):
+                    print(f"\nDetector at {comp.position}:")
+                    print(f"  Intensity: {comp.intensity*100:.1f}%")
+                    print(f"  Beams: {len(comp.incoming_amplitudes)}")
         
-        return all_traced_beams
+        return all_traced_paths
+    
+    def _direction_to_string(self, direction):
+        """Convert direction vector to string."""
+        if direction.x > 0.5:
+            return "RIGHT"
+        elif direction.x < -0.5:
+            return "LEFT"
+        elif direction.y > 0.5:
+            return "DOWN"
+        elif direction.y < -0.5:
+            return "UP"
+        else:
+            return "UNKNOWN"
     
     def _trace_single_beam(self, beam, components):
         """Trace a single beam until it hits a component or leaves bounds."""
@@ -158,7 +204,7 @@ class BeamTracer:
             next_pos = current_pos + direction * step_size
             distance += step_size
             
-            # Check grid bounds (stop at canvas edges)
+            # Check grid bounds
             from config.settings import CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT
             if (next_pos.x < CANVAS_OFFSET_X or
                 next_pos.x > CANVAS_OFFSET_X + CANVAS_WIDTH or
@@ -179,7 +225,6 @@ class BeamTracer:
             min_distance = float('inf')
             
             for comp in components:
-                # Check if beam will hit this component
                 dist_to_comp = comp.position.distance_to(next_pos)
                 if dist_to_comp < comp.radius and dist_to_comp < min_distance:
                     hit_component = comp
@@ -195,7 +240,7 @@ class BeamTracer:
             total_path_length += step_size
             current_pos = next_pos
             
-            # Add intermediate points for smooth rendering every 10 pixels
+            # Add intermediate points for smooth rendering
             if int(distance) % 10 == 0:
                 path.append(Vector2(current_pos.x, current_pos.y))
         
@@ -205,16 +250,11 @@ class BeamTracer:
     
     def _calculate_edge_intersection(self, start, end, x_min, y_min, x_max, y_max):
         """Calculate intersection point with grid boundary."""
-        # Check each edge
         edges = [
-            # Left edge
-            (Vector2(x_min, y_min), Vector2(x_min, y_max)),
-            # Right edge
-            (Vector2(x_max, y_min), Vector2(x_max, y_max)),
-            # Top edge
-            (Vector2(x_min, y_min), Vector2(x_max, y_min)),
-            # Bottom edge
-            (Vector2(x_min, y_max), Vector2(x_max, y_max))
+            (Vector2(x_min, y_min), Vector2(x_min, y_max)),  # Left
+            (Vector2(x_max, y_min), Vector2(x_max, y_max)),  # Right
+            (Vector2(x_min, y_min), Vector2(x_max, y_min)),  # Top
+            (Vector2(x_min, y_max), Vector2(x_max, y_max))   # Bottom
         ]
         
         closest_intersection = None
