@@ -54,7 +54,7 @@ class RightPanel:
         
         # Title
         font_title = pygame.font.Font(None, 24)
-        title_text = "Help" if self.show_help else "Debug Log"
+        title_text = "MaZeInvader: Help" if self.show_help else "MaZeInvader: Debug Log"
         title = font_title.render(title_text, True, CYAN)
         title_rect = title.get_rect(centerx=self.rect.centerx, y=20)
         screen.blit(title, title_rect)
@@ -91,11 +91,6 @@ class RightPanel:
             ("H", "Show coordinate help"),
             ("Shift+H", "Toggle help/debug view"),
             ("Shift+N", "New session"),
-            ("", ""),
-            ("TESTING", ""),
-            ("T", "Beam splitter test"),
-            ("M", "Multiple input test"),
-            ("R", "Mirror test"),
         ]
         
         for key, desc in controls:

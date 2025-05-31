@@ -1,6 +1,7 @@
 """Main game logic and state management."""
 import pygame
 import os
+import math
 from components.laser import Laser
 from core.grid import Grid
 from core.physics import BeamTracer
@@ -65,11 +66,16 @@ class Game:
         self.mouse_pos = (0, 0)
         self.score = 0  # Score based on detector power, starts at 0
         self.controls.score = self.score  # Update control panel
+        if hasattr(self.controls, 'set_gold_bonus'):
+            self.controls.set_gold_bonus(0)  # Initialize gold bonus display
         self.show_opd_info = True  # Toggle for OPD display
         
         # Track session high score and completed challenges
         self.session_high_score = 0
         self.completed_challenges = set()  # Track which challenges have been completed
+        
+        # Challenge display state
+        self.current_challenge_display_name = None  # Store the display name separately
         
         # Load gold fields first
         self.challenge_manager.load_gold_fields()
@@ -90,7 +96,13 @@ class Game:
             for name, title in challenges:
                 if name == "basic_mz":
                     self.challenge_manager.set_current_challenge(name)
+                    self.current_challenge_display_name = title  # Store display name
                     self.controls.set_challenge(title)
+                    # Set completion status if method exists
+                    if hasattr(self.controls, 'set_challenge_completed'):
+                        self.controls.set_challenge_completed(False)
+                    if hasattr(self.controls, 'set_gold_bonus'):
+                        self.controls.set_gold_bonus(0)
                     self.right_panel.add_debug_message(f"Loaded challenge: {title}")
                     break
         
@@ -192,11 +204,17 @@ class Game:
             self.component_manager.clear_all(self.laser)
             self.score = 0  # Reset score to 0
             self.controls.score = self.score
+            if hasattr(self.controls, 'set_gold_bonus'):
+                self.controls.set_gold_bonus(0)  # Reset gold bonus display
             # Optionally reset completed challenges when clearing all
             # This allows players to retry challenges in the same session
             if pygame.key.get_mods() & pygame.KMOD_SHIFT:
                 # Shift+Clear All resets completed challenges
                 self.completed_challenges.clear()
+                if hasattr(self.controls, 'set_challenge_completed'):
+                    self.controls.set_challenge_completed(False)  # Reset gold color
+                if hasattr(self.controls, 'set_gold_bonus'):
+                    self.controls.set_gold_bonus(0)  # Reset gold bonus display
                 self.controls.set_status("Setup cleared and challenges reset!")
                 self.right_panel.add_debug_message("Session reset - challenges can be completed again")
                 print("Completed challenges reset - you can earn points again")
@@ -215,6 +233,10 @@ class Game:
                     self._update_score(points)
                     self.completed_challenges.add(challenge_name)
                     self.effects.add_success_message()
+                    
+                    # Update controls to show gold color
+                    if hasattr(self.controls, 'set_challenge_completed'):
+                        self.controls.set_challenge_completed(True)
                     
                     # Check if this is a high score
                     if self.score > self.session_high_score:
@@ -255,11 +277,18 @@ class Game:
                 next_idx = (current_idx + 1) % len(challenges)
                 challenge_name, challenge_title = challenges[next_idx]
                 self.challenge_manager.set_current_challenge(challenge_name)
+                self.current_challenge_display_name = challenge_title  # Update display name
                 self.controls.set_challenge(challenge_title)
+                
+                # Update completion status for the controls
+                is_completed = challenge_name in self.completed_challenges
+                if hasattr(self.controls, 'set_challenge_completed'):
+                    self.controls.set_challenge_completed(is_completed)
                 
                 # Note: We don't reset completed_challenges here to prevent
                 # players from farming points by reloading the same challenge
                 print(f"Loaded challenge: {challenge_title}")
+                self.right_panel.add_debug_message(f"Loaded challenge: {challenge_title}")
     
     def _update_score(self, points):
         """Update game score."""
@@ -279,6 +308,19 @@ class Game:
     
     def draw(self):
         """Draw the game."""
+        # Update challenge completion status for controls
+        if self.challenge_manager.current_challenge and hasattr(self.controls, 'set_challenge_completed'):
+            is_completed = self.challenge_manager.current_challenge in self.completed_challenges
+            self.controls.set_challenge_completed(is_completed)
+        
+        # Update gold bonus for controls
+        if hasattr(self.beam_tracer, 'gold_field_hits') and hasattr(self.controls, 'set_gold_bonus'):
+            total_bonus = 0
+            for position, intensity in self.beam_tracer.gold_field_hits.items():
+                bonus = int(intensity * 100)
+                total_bonus += bonus
+            self.controls.set_gold_bonus(total_bonus)
+        
         # Clear screen
         self.screen.fill(BLACK)
         
@@ -287,6 +329,9 @@ class Game:
         
         # Draw game info above canvas
         self._draw_game_info_top()
+        
+        # Draw challenge name above grid
+        self._draw_challenge_name()
         
         # Draw game canvas background (SEMITRANSPARENT)
         canvas_rect = pygame.Rect(CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT)
@@ -347,6 +392,68 @@ class Game:
         # Draw leaderboard if visible
         self.leaderboard_display.draw(self.screen)
     
+    def _draw_challenge_name(self):
+        """Draw the current challenge name above the grid."""
+        if self.current_challenge_display_name:
+            # Check if current challenge is completed
+            is_completed = (self.challenge_manager.current_challenge and
+                          self.challenge_manager.current_challenge in self.completed_challenges)
+            
+            # Use gold color if completed, cyan otherwise
+            GOLD = (255, 215, 0)
+            color = GOLD if is_completed else CYAN
+            
+            font = pygame.font.Font(None, 32)
+            text = font.render(self.current_challenge_display_name, True, color)
+            text_rect = text.get_rect(centerx=CANVAS_OFFSET_X + CANVAS_WIDTH // 2,
+                                     y=CANVAS_OFFSET_Y - 65)
+            
+            # Background with glow effect
+            bg_rect = text_rect.inflate(40, 12)
+            
+            # Glow effect
+            glow_surf = pygame.Surface((bg_rect.width + 20, bg_rect.height + 20), pygame.SRCALPHA)
+            pygame.draw.rect(glow_surf, (color[0], color[1], color[2], 20),
+                           glow_surf.get_rect(), border_radius=20)
+            self.screen.blit(glow_surf, (bg_rect.x - 10, bg_rect.y - 10))
+            
+            # Background
+            s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+            pygame.draw.rect(s, (0, 0, 0, 200), s.get_rect(), border_radius=15)
+            self.screen.blit(s, bg_rect.topleft)
+            pygame.draw.rect(self.screen, color, bg_rect, 2, border_radius=15)
+            
+            # Draw the text
+            self.screen.blit(text, text_rect)
+            
+            # Add decorative elements
+            # Left decoration
+            deco_left = pygame.Rect(bg_rect.left - 50, bg_rect.centery - 1, 40, 2)
+            pygame.draw.rect(self.screen, color, deco_left)
+            pygame.draw.circle(self.screen, color, (deco_left.left, deco_left.centery), 3)
+            
+            # Right decoration
+            deco_right = pygame.Rect(bg_rect.right + 10, bg_rect.centery - 1, 40, 2)
+            pygame.draw.rect(self.screen, color, deco_right)
+            pygame.draw.circle(self.screen, color, (deco_right.right, deco_right.centery), 3)
+            
+            # Add completed indicator if applicable
+            if is_completed:
+                # Draw "DONE" text for better compatibility
+                done_font = pygame.font.Font(None, 20)
+                done_text = done_font.render("DONE", True, GOLD)
+                done_rect = done_text.get_rect(left=bg_rect.right + 10, centery=bg_rect.centery)
+                
+                # Background for DONE text
+                done_bg_rect = done_rect.inflate(8, 4)
+                s = pygame.Surface((done_bg_rect.width, done_bg_rect.height), pygame.SRCALPHA)
+                pygame.draw.rect(s, (GOLD[0]//4, GOLD[1]//4, GOLD[2]//4, 200),
+                               s.get_rect(), border_radius=5)
+                self.screen.blit(s, done_bg_rect.topleft)
+                pygame.draw.rect(self.screen, GOLD, done_bg_rect, 1, border_radius=5)
+                
+                self.screen.blit(done_text, done_rect)
+    
     def _draw_session_high_score(self):
         """Draw session high score indicator."""
         if self.session_high_score > 0:
@@ -363,7 +470,7 @@ class Game:
             self.screen.blit(text, text_rect)
     
     def _draw_game_info_top(self):
-        """Draw detector power and gold bonus above the canvas."""
+        """Draw detector power above the canvas."""
         info_y = CANVAS_OFFSET_Y - 35
         
         # Calculate total detector power
@@ -387,40 +494,6 @@ class Game:
             pygame.draw.rect(self.screen, CYAN, bg_rect, 1, border_radius=8)
             
             self.screen.blit(text, text_rect)
-        
-        # Draw gold bonus info
-        if hasattr(self.beam_tracer, 'gold_field_hits') and self.beam_tracer.gold_field_hits:
-            # Calculate current gold bonus
-            total_bonus = 0
-            for position, intensity in self.beam_tracer.gold_field_hits.items():
-                bonus = int(intensity * 100)
-                total_bonus += bonus
-            
-            if total_bonus > 0:
-                # Define gold color locally if not already imported
-                GOLD = (255, 215, 0)
-                
-                font = pygame.font.Font(None, 20)
-                text = font.render(f"Gold Bonus: +{total_bonus}", True, GOLD)
-                text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - 20, centery=info_y)
-                
-                # Background with gold glow
-                bg_rect = text_rect.inflate(20, 8)
-                
-                # Glow effect
-                glow_surf = pygame.Surface((bg_rect.width + 10, bg_rect.height + 10), pygame.SRCALPHA)
-                pygame.draw.rect(glow_surf, (GOLD[0], GOLD[1], GOLD[2], 40),
-                               glow_surf.get_rect(), border_radius=10)
-                self.screen.blit(glow_surf, (bg_rect.x - 5, bg_rect.y - 5))
-                
-                # Background
-                s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-                pygame.draw.rect(s, (GOLD[0]//4, GOLD[1]//4, GOLD[2]//4, 200),
-                               s.get_rect(), border_radius=10)
-                self.screen.blit(s, bg_rect.topleft)
-                pygame.draw.rect(self.screen, GOLD, bg_rect, 2, border_radius=10)
-                
-                self.screen.blit(text, text_rect)
     
     def _draw_component_counter(self):
         """Draw component counter in bottom left corner."""

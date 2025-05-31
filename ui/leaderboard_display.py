@@ -1,5 +1,6 @@
 """Leaderboard display UI."""
 import pygame
+import math
 from datetime import datetime
 from config.settings import *
 
@@ -108,6 +109,59 @@ class LeaderboardDisplay:
             self.player_name = ""
             self.pending_score = None
     
+    def _draw_trophy(self, screen, x, y, size=30, color=(255, 215, 0)):
+        """Draw a simple trophy shape."""
+        # Cup part
+        cup_width = size
+        cup_height = int(size * 0.7)
+        cup_rect = pygame.Rect(x - cup_width//2, y - cup_height//2, cup_width, cup_height)
+        
+        # Draw cup with gradient effect
+        for i in range(cup_height // 2):
+            shade = int(255 - i * 2)
+            gradient_color = (min(255, color[0]), min(255, int(color[1] * shade / 255)), 0)
+            pygame.draw.rect(screen, gradient_color,
+                           pygame.Rect(cup_rect.x + 2, cup_rect.y + i, cup_rect.width - 4, 2))
+        
+        pygame.draw.rect(screen, color, cup_rect, 2, border_radius=5)
+        
+        # Handles
+        handle_size = size // 3
+        # Left handle
+        pygame.draw.arc(screen, color,
+                       pygame.Rect(x - cup_width//2 - handle_size//2, y - cup_height//2,
+                                  handle_size, cup_height//2),
+                       -1.57, 1.57, 2)
+        # Right handle
+        pygame.draw.arc(screen, color,
+                       pygame.Rect(x + cup_width//2 - handle_size//2, y - cup_height//2,
+                                  handle_size, cup_height//2),
+                       1.57, 4.71, 2)
+        
+        # Base
+        base_width = int(cup_width * 0.8)
+        base_height = size // 5
+        base_rect = pygame.Rect(x - base_width//2, y + cup_height//2 - 2, base_width, base_height)
+        pygame.draw.rect(screen, color, base_rect)
+        
+        # Star on trophy
+        star_size = size // 3
+        self._draw_star(screen, x, y - size//6, star_size, (255, 255, 255))
+    
+    def _draw_star(self, screen, x, y, size, color):
+        """Draw a star shape."""
+        points = []
+        for i in range(10):
+            angle = -1.57 + (i * 3.14159 / 5)
+            if i % 2 == 0:  # Outer points
+                radius = size
+            else:  # Inner points
+                radius = size * 0.5
+            px = x + radius * math.cos(angle)
+            py = y + radius * math.sin(angle)
+            points.append((px, py))
+        pygame.draw.polygon(screen, color, points)
+    
     def draw(self, screen):
         """Draw the leaderboard."""
         if not self.visible:
@@ -138,13 +192,11 @@ class LeaderboardDisplay:
         screen.blit(title, title_rect)
         
         # Trophy symbols on sides
-        trophy_font = pygame.font.Font(None, 36)
-        trophy_left = trophy_font.render("[#]", True, (255, 215, 0))  # Gold color
-        trophy_right = trophy_font.render("[#]", True, (255, 215, 0))
-        trophy_left_rect = trophy_left.get_rect(right=title_rect.left - 10, centery=title_rect.centery)
-        trophy_right_rect = trophy_right.get_rect(left=title_rect.right + 10, centery=title_rect.centery)
-        screen.blit(trophy_left, trophy_left_rect)
-        screen.blit(trophy_right, trophy_right_rect)
+        trophy_y = title_rect.centery
+        # Left trophy
+        self._draw_trophy(screen, title_rect.left - 40, trophy_y, size=30)
+        # Right trophy
+        self._draw_trophy(screen, title_rect.right + 40, trophy_y, size=30)
         
         # Close button
         pygame.draw.rect(screen, RED, self.close_button, border_radius=5)
@@ -184,8 +236,19 @@ class LeaderboardDisplay:
                 
                 color = CYAN if is_recent else WHITE
                 
-                # Rank
-                rank_text = entry_font.render(f"#{i+1}", True, color)
+                # Rank with medals for top 3
+                if i == 0:  # Gold medal
+                    self._draw_star(screen, header_x[0] - 15, y_offset + 9, 8, (255, 215, 0))
+                    rank_text = entry_font.render("1st", True, (255, 215, 0))
+                elif i == 1:  # Silver medal
+                    self._draw_star(screen, header_x[0] - 15, y_offset + 9, 8, (192, 192, 192))
+                    rank_text = entry_font.render("2nd", True, (192, 192, 192))
+                elif i == 2:  # Bronze medal
+                    self._draw_star(screen, header_x[0] - 15, y_offset + 9, 8, (205, 127, 50))
+                    rank_text = entry_font.render("3rd", True, (205, 127, 50))
+                else:
+                    rank_text = entry_font.render(f"#{i+1}", True, color)
+                
                 screen.blit(rank_text, (header_x[0], y_offset))
                 
                 # Name

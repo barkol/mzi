@@ -23,6 +23,8 @@ class ControlPanel:
         self.score = 0
         self.current_challenge = None
         self.challenge_status = ""
+        self.challenge_completed = False  # Track if current challenge is completed
+        self.gold_bonus = 0  # Track current gold bonus
     
     def handle_event(self, event):
         """Handle control events."""
@@ -37,11 +39,19 @@ class ControlPanel:
     def set_challenge(self, challenge_name):
         """Set the current challenge being attempted."""
         self.current_challenge = challenge_name
-        self.challenge_status = f"Challenge: {challenge_name}"
+        # Don't show "Challenge: " prefix anymore
     
     def set_status(self, status):
         """Set status message."""
         self.challenge_status = status
+    
+    def set_challenge_completed(self, completed):
+        """Set whether the current challenge is completed."""
+        self.challenge_completed = completed
+    
+    def set_gold_bonus(self, bonus):
+        """Set the current gold bonus value."""
+        self.gold_bonus = bonus
     
     def draw(self, screen):
         """Draw control panel."""
@@ -76,35 +86,77 @@ class ControlPanel:
             
             screen.blit(text, text_rect)
         
-        # Challenge status
-        if self.challenge_status:
-            status_font = pygame.font.Font(None, 16)
-            status_text = status_font.render(self.challenge_status, True, CYAN)
-            status_rect = status_text.get_rect(left=self.rect.x + 620, centery=self.rect.centery - 10)
-            screen.blit(status_text, status_rect)
+        # Status message removed - no longer displaying challenge status
         
         # Score
         self._draw_score(screen)
     
     def _draw_score(self, screen):
         """Draw score display."""
+        # Use gold color if challenge is completed, cyan otherwise
+        GOLD = (255, 215, 0)
+        score_color = GOLD if self.challenge_completed else CYAN
+        
         font = pygame.font.Font(None, 24)
-        score_text = font.render(f"Score: {self.score}", True, CYAN)
+        score_text = font.render(f"Score: {self.score}", True, score_color)
         score_rect = score_text.get_rect(right=self.rect.right - 20,
                                         centery=self.rect.centery + 10)
         
-        # Background with glow effect
+        # Draw gold bonus above score if present
+        if self.gold_bonus > 0:
+            bonus_font = pygame.font.Font(None, 18)
+            bonus_text = bonus_font.render(f"Gold Bonus: +{self.gold_bonus}", True, GOLD)
+            bonus_rect = bonus_text.get_rect(right=self.rect.right - 20,
+                                            bottom=score_rect.top - 5)
+            
+            # Background for gold bonus
+            bonus_bg_rect = bonus_rect.inflate(16, 6)
+            
+            # Glow effect for gold bonus
+            glow_surf = pygame.Surface((bonus_bg_rect.width + 8, bonus_bg_rect.height + 8), pygame.SRCALPHA)
+            pygame.draw.rect(glow_surf, (GOLD[0], GOLD[1], GOLD[2], 25),
+                           glow_surf.get_rect(), border_radius=10)
+            screen.blit(glow_surf, (bonus_bg_rect.x - 4, bonus_bg_rect.y - 4))
+            
+            # Background
+            s = pygame.Surface((bonus_bg_rect.width, bonus_bg_rect.height), pygame.SRCALPHA)
+            pygame.draw.rect(s, (GOLD[0]//4, GOLD[1]//4, GOLD[2]//4, 200),
+                           s.get_rect(), border_radius=10)
+            screen.blit(s, bonus_bg_rect.topleft)
+            pygame.draw.rect(screen, GOLD, bonus_bg_rect, 1, border_radius=10)
+            
+            screen.blit(bonus_text, bonus_rect)
+        
+        # Background with glow effect for score
         bg_rect = score_rect.inflate(20, 10)
         
         # Glow
         glow_surf = pygame.Surface((bg_rect.width + 10, bg_rect.height + 10), pygame.SRCALPHA)
-        pygame.draw.rect(glow_surf, (CYAN[0], CYAN[1], CYAN[2], 20), glow_surf.get_rect(), border_radius=15)
+        pygame.draw.rect(glow_surf, (score_color[0], score_color[1], score_color[2], 20),
+                        glow_surf.get_rect(), border_radius=15)
         screen.blit(glow_surf, (bg_rect.x - 5, bg_rect.y - 5))
         
         # Background
         s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-        pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], 30), s.get_rect(), border_radius=15)
+        pygame.draw.rect(s, (score_color[0], score_color[1], score_color[2], 30),
+                        s.get_rect(), border_radius=15)
         screen.blit(s, bg_rect.topleft)
-        pygame.draw.rect(screen, CYAN, bg_rect, 1, border_radius=15)
+        pygame.draw.rect(screen, score_color, bg_rect, 1, border_radius=15)
         
         screen.blit(score_text, score_rect)
+        
+        # Add "WIN!" text if challenge is completed
+        if self.challenge_completed:
+            win_font = pygame.font.Font(None, 18)
+            win_text = win_font.render("WIN!", True, GOLD)
+            win_rect = win_text.get_rect(right=bg_rect.left - 10, centery=bg_rect.centery)
+            
+            # Background for WIN text
+            win_bg_rect = win_rect.inflate(8, 4)
+            s = pygame.Surface((win_bg_rect.width, win_bg_rect.height), pygame.SRCALPHA)
+            pygame.draw.rect(s, (GOLD[0]//4, GOLD[1]//4, GOLD[2]//4, 200),
+                           s.get_rect(), border_radius=5)
+            screen.blit(s, win_bg_rect.topleft)
+            pygame.draw.rect(screen, GOLD, win_bg_rect, 1, border_radius=5)
+            
+            screen.blit(win_text, win_rect)

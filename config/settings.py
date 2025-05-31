@@ -31,7 +31,7 @@ HOVER_INVALID_COLOR = (255, 0, 0, 80)
 
 # Component settings
 COMPONENT_RADIUS = 25
-BEAM_WIDTH = 3
+BEAM_WIDTH = 5  # Increased from 3 to 12 (4x wider)
 
 # Physics settings
 WAVELENGTH = 30  # Wavelength in pixels (λ = 30px) - not a multiple of grid size
@@ -44,7 +44,7 @@ DETECTOR_DECAY_RATE = 0.95  # How fast detector readings decay (visual effect on
 
 # Set to True for ideal components (no losses)
 # When True, all components have 100% efficiency
-IDEAL_COMPONENTS = False  # Change to True for perfect components
+IDEAL_COMPONENTS = True  # Change to True for perfect components
 
 # Beam splitter model
 # Set to True for realistic beam splitter with π/2 phase shift on reflection

@@ -84,8 +84,8 @@ class BeamRenderer:
         alpha = max(10, alpha)  # Ensure minimum visibility
         
         # Adjust beam width based on amplitude
-        # Width varies from 1 (weak) to BEAM_WIDTH + 2 (strong)
-        beam_width = max(1, int(BEAM_WIDTH * beam_data['amplitude']))
+        # For 4x wider beams, scale accordingly
+        beam_width = max(2, int(BEAM_WIDTH * beam_data['amplitude']))
         
         # Draw path
         for i in range(len(path) - 1):
@@ -97,12 +97,24 @@ class BeamRenderer:
             
             # Draw glow effect for stronger beams (not for blocked beams)
             if beam_data['amplitude'] > 0.7 and not was_blocked:
-                glow_width = beam_width + 3
+                # Multiple glow layers for wider beam
+                glow_width = beam_width + 8
                 glow_color = tuple(int(c * alpha / 510) for c in color)  # Dimmer glow
                 pygame.draw.line(self.screen, glow_color, start, end, glow_width)
+                
+                # Second glow layer
+                glow_width2 = beam_width + 4
+                glow_color2 = tuple(int(c * alpha / 380) for c in color)
+                pygame.draw.line(self.screen, glow_color2, start, end, glow_width2)
             
             # Draw beam core
             pygame.draw.line(self.screen, beam_color, start, end, beam_width)
+            
+            # Add bright center line for very strong beams
+            if beam_data['amplitude'] > 0.9 and not was_blocked:
+                center_width = max(1, beam_width // 3)
+                center_color = (200, 255, 255)  # Almost white cyan
+                pygame.draw.line(self.screen, center_color, start, end, center_width)
         
         # Draw impact effect for blocked beams
         if was_blocked and len(path) >= 2:
@@ -116,13 +128,13 @@ class BeamRenderer:
         """Draw impact effect where beam hits blocked position."""
         pos = position.tuple() if hasattr(position, 'tuple') else position
         
-        # Draw impact flash effect
-        impact_radius = int(10 + amplitude * 20)
+        # Draw impact flash effect - scale with wider beam
+        impact_radius = int(15 + amplitude * 30)
         alpha = int(amplitude * 128)
         
         # Outer glow
         for r in range(3):
-            radius = impact_radius - r * 3
+            radius = impact_radius - r * 4
             if radius > 0:
                 surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
                 pygame.draw.circle(surf, (CYAN[0], CYAN[1], CYAN[2], alpha // (r + 1)),
@@ -130,16 +142,16 @@ class BeamRenderer:
                 self.screen.blit(surf, (pos[0] - radius, pos[1] - radius))
         
         # Inner bright spot
-        pygame.draw.circle(self.screen, (200, 255, 255), pos, 3)
+        pygame.draw.circle(self.screen, (200, 255, 255), pos, 5)
         
         # Draw small particles/sparks
         import random
         random.seed(int(pos[0] + pos[1]))  # Consistent randomness based on position
-        for _ in range(5):
-            offset_x = random.randint(-15, 15)
-            offset_y = random.randint(-15, 15)
+        for _ in range(8):  # More particles for wider beam
+            offset_x = random.randint(-20, 20)
+            offset_y = random.randint(-20, 20)
             particle_pos = (pos[0] + offset_x, pos[1] + offset_y)
-            pygame.draw.circle(self.screen, (100, 255, 255), particle_pos, 1)
+            pygame.draw.circle(self.screen, (100, 255, 255), particle_pos, 2)
     
     def _draw_phase_info(self, beam_data, path):
         """Draw phase information at beam origin and end."""

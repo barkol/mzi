@@ -7,17 +7,96 @@ import sys
 from core.game import Game
 from config.settings import WINDOW_WIDTH, WINDOW_HEIGHT, FPS
 
+def get_display_mode():
+    """Get the best display mode for the game."""
+    pygame.init()
+    
+    # Get display info
+    info = pygame.display.Info()
+    screen_width = info.current_w
+    screen_height = info.current_h
+    
+    print(f"Screen resolution: {screen_width}x{screen_height}")
+    print(f"Default game resolution: {WINDOW_WIDTH}x{WINDOW_HEIGHT}")
+    
+    # Check if we should use fullscreen or windowed mode
+    if screen_width < WINDOW_WIDTH or screen_height < WINDOW_HEIGHT:
+        # Screen is smaller than default game size - use fullscreen
+        print("Using fullscreen mode (screen smaller than game)")
+        return (screen_width, screen_height), pygame.FULLSCREEN
+    else:
+        # Check for command line arguments
+        if len(sys.argv) > 1:
+            if sys.argv[1] == "--fullscreen" or sys.argv[1] == "-f":
+                print("Using fullscreen mode (requested)")
+                return (screen_width, screen_height), pygame.FULLSCREEN
+            elif sys.argv[1] == "--scale" or sys.argv[1] == "-s":
+                # Scale to 90% of screen size to leave room for taskbar
+                scaled_width = int(screen_width * 0.9)
+                scaled_height = int(screen_height * 0.9)
+                
+                # Maintain aspect ratio
+                game_aspect = WINDOW_WIDTH / WINDOW_HEIGHT
+                screen_aspect = scaled_width / scaled_height
+                
+                if screen_aspect > game_aspect:
+                    # Screen is wider - limit by height
+                    final_height = scaled_height
+                    final_width = int(final_height * game_aspect)
+                else:
+                    # Screen is taller - limit by width
+                    final_width = scaled_width
+                    final_height = int(final_width / game_aspect)
+                
+                print(f"Using scaled windowed mode: {final_width}x{final_height}")
+                return (final_width, final_height), pygame.RESIZABLE
+        
+        # Default windowed mode
+        print("Using default windowed mode")
+        return (WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE
+
 def main():
     """Initialize and run the game."""
+    # Get display mode
+    display_size, display_flags = get_display_mode()
+    
     pygame.init()
     pygame.display.set_caption("Photon Path: Mach-Zehnder Interferometer")
     
-    # Create display
-    screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+    # Create display with appropriate flags
+    if display_flags == pygame.FULLSCREEN:
+        # For fullscreen, create at full resolution
+        screen = pygame.display.set_mode(display_size, display_flags)
+        
+        # Calculate scaling factor
+        scale_x = display_size[0] / WINDOW_WIDTH
+        scale_y = display_size[1] / WINDOW_HEIGHT
+        scale = min(scale_x, scale_y)
+        
+        # Create a surface at the game's native resolution
+        game_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+        
+        # Calculate centered position
+        scaled_width = int(WINDOW_WIDTH * scale)
+        scaled_height = int(WINDOW_HEIGHT * scale)
+        x_offset = (display_size[0] - scaled_width) // 2
+        y_offset = (display_size[1] - scaled_height) // 2
+        
+    else:
+        # For windowed mode, allow resizing
+        screen = pygame.display.set_mode(display_size, display_flags)
+        game_surface = None
+        scale = 1.0
+        x_offset = 0
+        y_offset = 0
+    
     clock = pygame.time.Clock()
     
-    # Create game instance
-    game = Game(screen)
+    # Create game instance with the appropriate surface
+    if game_surface:
+        game = Game(game_surface)
+    else:
+        game = Game(screen)
     
     # Store default cursor
     default_cursor = pygame.mouse.get_cursor()
@@ -33,7 +112,68 @@ def main():
         for event in events:
             if event.type == pygame.QUIT:
                 running = False
-            game.handle_event(event)
+            elif event.type == pygame.KEYDOWN:
+                # Allow ESC to exit fullscreen
+                if event.key == pygame.K_ESCAPE and display_flags == pygame.FULLSCREEN:
+                    running = False
+                # Allow F11 to toggle fullscreen (when not already fullscreen)
+                elif event.key == pygame.K_F11 and display_flags != pygame.FULLSCREEN:
+                    # Toggle fullscreen
+                    info = pygame.display.Info()
+                    if screen.get_flags() & pygame.FULLSCREEN:
+                        # Switch to windowed
+                        screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
+                        game_surface = None
+                        scale = 1.0
+                        x_offset = 0
+                        y_offset = 0
+                        game.screen = screen
+                    else:
+                        # Switch to fullscreen
+                        screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
+                        scale_x = info.current_w / WINDOW_WIDTH
+                        scale_y = info.current_h / WINDOW_HEIGHT
+                        scale = min(scale_x, scale_y)
+                        game_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+                        scaled_width = int(WINDOW_WIDTH * scale)
+                        scaled_height = int(WINDOW_HEIGHT * scale)
+                        x_offset = (info.current_w - scaled_width) // 2
+                        y_offset = (info.current_h - scaled_height) // 2
+                        game.screen = game_surface
+                    continue
+            elif event.type == pygame.VIDEORESIZE and display_flags == pygame.RESIZABLE:
+                # Handle window resize
+                screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+                # Optionally implement scaling here for windowed mode
+                # For now, just use the screen directly
+                game.screen = screen
+                
+            # Adjust mouse position for fullscreen scaling
+            if game_surface and event.type in [pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP]:
+                # Convert screen coordinates to game coordinates
+                if hasattr(event, 'pos'):
+                    mouse_x = (event.pos[0] - x_offset) / scale
+                    mouse_y = (event.pos[1] - y_offset) / scale
+                    # Clamp to game bounds
+                    mouse_x = max(0, min(WINDOW_WIDTH, mouse_x))
+                    mouse_y = max(0, min(WINDOW_HEIGHT, mouse_y))
+                    # Create new event with adjusted position
+                    if event.type == pygame.MOUSEMOTION:
+                        new_event = pygame.event.Event(event.type, {
+                            'pos': (int(mouse_x), int(mouse_y)),
+                            'rel': event.rel,
+                            'buttons': event.buttons
+                        })
+                    else:  # MOUSEBUTTONDOWN or MOUSEBUTTONUP
+                        new_event = pygame.event.Event(event.type, {
+                            'pos': (int(mouse_x), int(mouse_y)),
+                            'button': event.button
+                        })
+                    game.handle_event(new_event)
+                else:
+                    game.handle_event(event)
+            else:
+                game.handle_event(event)
         
         # Update cursor based on drag state
         if game.sidebar.dragging:
@@ -45,11 +185,36 @@ def main():
         game.update(dt)
         
         # Draw
-        game.draw()
+        if game_surface:
+            # Draw to game surface
+            game.draw()
+            
+            # Clear screen with black
+            screen.fill((0, 0, 0))
+            
+            # Scale and blit game surface to screen
+            scaled_surface = pygame.transform.smoothscale(game_surface, (scaled_width, scaled_height))
+            screen.blit(scaled_surface, (x_offset, y_offset))
+        else:
+            # Draw directly to screen
+            game.draw()
+        
         pygame.display.flip()
     
     pygame.quit()
     sys.exit()
 
 if __name__ == "__main__":
+    # Print usage info
+    print("\nPhoton Path: Mach-Zehnder Interferometer")
+    print("========================================")
+    print("Usage:")
+    print("  python main.py              - Run in default windowed mode")
+    print("  python main.py --fullscreen - Run in fullscreen mode")
+    print("  python main.py --scale      - Run in scaled windowed mode (90% of screen)")
+    print("\nControls:")
+    print("  F11 - Toggle fullscreen (in windowed mode)")
+    print("  ESC - Exit fullscreen")
+    print()
+    
     main()
