@@ -1,4 +1,4 @@
-"""Component management module."""
+"""Component management module with sound support."""
 from components.laser import Laser
 from components.beam_splitter import BeamSplitter
 from components.mirror import Mirror
@@ -9,9 +9,10 @@ from config.settings import GRID_SIZE
 class ComponentManager:
     """Manages game components - adding, removing, and tracking."""
     
-    def __init__(self, effects_manager):
+    def __init__(self, effects_manager, sound_manager=None):
         self.components = []
         self.effects = effects_manager
+        self.sound_manager = sound_manager
     
     def add_component(self, comp_type, x, y, laser=None):
         """Add a component to the game."""
@@ -22,6 +23,8 @@ class ComponentManager:
             if laser:
                 laser.position = Vector2(x, y)
                 self.effects.add_placement_effect(x, y)
+                if self.sound_manager:
+                    self.sound_manager.play('place_component')
                 print("Laser moved")
                 
                 # Clear OPD from all beam splitters when laser moves
@@ -36,15 +39,23 @@ class ComponentManager:
             # Beam splitters always include π/2 phase shift on reflection
             comp = BeamSplitter(x, y)
             self.components.append(comp)
+            if self.sound_manager:
+                self.sound_manager.play('place_component')
         elif comp_type == 'mirror/':
             comp = Mirror(x, y, '/')
             self.components.append(comp)
+            if self.sound_manager:
+                self.sound_manager.play('place_component')
         elif comp_type == 'mirror\\':
             comp = Mirror(x, y, '\\')
             self.components.append(comp)
+            if self.sound_manager:
+                self.sound_manager.play('place_component')
         elif comp_type == 'detector':
             comp = Detector(x, y)
             self.components.append(comp)
+            if self.sound_manager:
+                self.sound_manager.play('place_component')
         else:
             print(f"Unknown component type: {comp_type}")  # Debug
             return
@@ -68,6 +79,10 @@ class ComponentManager:
                     comp.last_phase_diff = None
                 
                 self.components.pop(i)
+                
+                # Play removal sound
+                if self.sound_manager:
+                    self.sound_manager.play('remove_component')
                 
                 # Clear OPD from all beam splitters when setup changes
                 self._clear_opd_data()
@@ -98,6 +113,11 @@ class ComponentManager:
         if laser:
             from config.settings import CANVAS_OFFSET_X, CANVAS_OFFSET_Y, GRID_SIZE
             laser.position = Vector2(CANVAS_OFFSET_X + GRID_SIZE, CANVAS_OFFSET_Y + 7 * GRID_SIZE)
+        
+        # Play clear sound
+        if self.sound_manager:
+            self.sound_manager.play('remove_component')
+        
         # No score returned - scoring is based on detector power
     
     def set_debug_mode(self, debug_state):

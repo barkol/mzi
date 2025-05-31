@@ -1,4 +1,4 @@
-"""Challenge configuration and blocked/gold field management."""
+"""Challenge configuration and blocked/gold field management with improved interference detection."""
 import json
 import os
 from utils.vector import Vector2
@@ -48,7 +48,7 @@ class ChallengeManager:
                 "bonus_conditions": [
                     {
                         "type": "interference",
-                        "description": "Achieve interference at both detectors",
+                        "description": "Achieve interference (2+ beams enter same beam splitter)",
                         "points": 200
                     }
                 ]
@@ -69,6 +69,11 @@ class ChallengeManager:
                         "type": "gold_fields",
                         "description": "Pass beams through gold fields",
                         "points": 0  # Dynamic based on intensity
+                    },
+                    {
+                        "type": "interference",
+                        "description": "Achieve interference",
+                        "points": 100
                     }
                 ]
             },
@@ -88,6 +93,11 @@ class ChallengeManager:
                         "type": "all_detectors_active",
                         "description": "All detectors show signal",
                         "points": 300
+                    },
+                    {
+                        "type": "multi_port_interference",
+                        "description": "3+ beams interfere in one component",
+                        "points": 500
                     }
                 ]
             },
@@ -104,9 +114,14 @@ class ChallengeManager:
                 "points": 0,  # Not used anymore
                 "bonus_conditions": [
                     {
+                        "type": "interference",
+                        "description": "Achieve interference",
+                        "points": 300
+                    },
+                    {
                         "type": "efficiency",
                         "description": "Achieve >90% detector efficiency",
-                        "points": 500
+                        "points": 200
                     }
                 ]
             },
@@ -124,7 +139,31 @@ class ChallengeManager:
                 "bonus_conditions": [
                     {
                         "type": "high_power",
-                        "description": "Achieve total detector power > 3.5",
+                        "description": "Achieve total detector power > 1.8",
+                        "points": 500
+                    },
+                    {
+                        "type": "constructive_interference",
+                        "description": "All interfering beams are in phase",
+                        "points": 500
+                    }
+                ]
+            },
+            "interference_explorer": {
+                "name": "Interference Explorer",
+                "description": "Create multiple interference points in your setup",
+                "requirements": {
+                    "beamsplitter": 4,
+                    "mirror": 2,
+                    "detector": 4
+                },
+                "min_components": 10,
+                "max_components": 20,
+                "points": 0,
+                "bonus_conditions": [
+                    {
+                        "type": "multiple_interference_points",
+                        "description": "Create interference at 3+ beam splitters",
                         "points": 1000
                     }
                 ]
@@ -403,11 +442,79 @@ class ChallengeManager:
     def _check_bonus_condition(self, condition, components, beam_tracer=None):
         """Check if a bonus condition is met."""
         if condition['type'] == 'interference':
-            # Check if detectors show interference (varying intensity)
-            detectors = [c for c in components if c.component_type == 'detector']
-            active_detectors = [d for d in detectors if d.intensity > 0.01]
-            if len(active_detectors) >= 2:
+            # Check if any beam splitter has beams from multiple ports
+            beam_splitters = [c for c in components if c.component_type == 'beamsplitter']
+            for bs in beam_splitters:
+                if hasattr(bs, 'all_beams_by_port'):
+                    # Count how many ports have beams
+                    ports_with_beams = 0
+                    for port_beams in bs.all_beams_by_port.values():
+                        if len(port_beams) > 0:
+                            ports_with_beams += 1
+                    
+                    # Interference happens when beams enter from 2+ different ports
+                    if ports_with_beams >= 2:
+                        return condition['points'], f"Bonus: {condition['description']} +{condition['points']} points"
+            return 0, ""
+        
+        elif condition['type'] == 'multi_port_interference':
+            # Check for 3+ beams interfering
+            beam_splitters = [c for c in components if c.component_type == 'beamsplitter']
+            for bs in beam_splitters:
+                if hasattr(bs, 'all_beams_by_port'):
+                    ports_with_beams = 0
+                    for port_beams in bs.all_beams_by_port.values():
+                        if len(port_beams) > 0:
+                            ports_with_beams += 1
+                    
+                    if ports_with_beams >= 3:
+                        return condition['points'], f"Bonus: {condition['description']} +{condition['points']} points"
+            return 0, ""
+        
+        elif condition['type'] == 'multiple_interference_points':
+            # Count beam splitters with interference
+            beam_splitters = [c for c in components if c.component_type == 'beamsplitter']
+            interference_count = 0
+            
+            for bs in beam_splitters:
+                if hasattr(bs, 'all_beams_by_port'):
+                    ports_with_beams = 0
+                    for port_beams in bs.all_beams_by_port.values():
+                        if len(port_beams) > 0:
+                            ports_with_beams += 1
+                    
+                    if ports_with_beams >= 2:
+                        interference_count += 1
+            
+            if interference_count >= 3:
                 return condition['points'], f"Bonus: {condition['description']} +{condition['points']} points"
+            return 0, ""
+        
+        elif condition['type'] == 'constructive_interference':
+            # Check if interfering beams are in phase
+            import math
+            beam_splitters = [c for c in components if c.component_type == 'beamsplitter']
+            
+            for bs in beam_splitters:
+                if hasattr(bs, 'all_beams_by_port'):
+                    # Get all beams entering this beam splitter
+                    all_phases = []
+                    ports_with_beams = 0
+                    
+                    for port_beams in bs.all_beams_by_port.values():
+                        if port_beams:
+                            ports_with_beams += 1
+                            for beam in port_beams:
+                                phase = beam.get('accumulated_phase', beam.get('phase', 0))
+                                all_phases.append(phase % (2 * math.pi))
+                    
+                    # Check if we have interference (2+ ports)
+                    if ports_with_beams >= 2 and len(all_phases) >= 2:
+                        # Check if all phases are similar (within π/4)
+                        phase_spread = max(all_phases) - min(all_phases)
+                        if phase_spread < math.pi / 4:
+                            return condition['points'], f"Bonus: {condition['description']} +{condition['points']} points"
+            return 0, ""
         
         elif condition['type'] == 'all_detectors_active':
             # Check if all detectors have signal
@@ -429,7 +536,8 @@ class ChallengeManager:
             # Check if total detector power exceeds threshold
             detectors = [c for c in components if c.component_type == 'detector']
             total_power = sum(d.intensity for d in detectors)
-            if total_power > 3.5:
+            # Adjusted threshold for more realistic power levels
+            if total_power > 1.8:  # Changed from 3.5 to 1.8
                 return condition['points'], f"Bonus: {condition['description']} +{condition['points']} points"
         
         return 0, ""

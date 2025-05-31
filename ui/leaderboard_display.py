@@ -1,4 +1,4 @@
-"""Leaderboard display UI."""
+"""Leaderboard display UI with sound support."""
 import pygame
 import math
 from datetime import datetime
@@ -7,8 +7,9 @@ from config.settings import *
 class LeaderboardDisplay:
     """UI component for displaying the leaderboard."""
     
-    def __init__(self, leaderboard_manager):
+    def __init__(self, leaderboard_manager, sound_manager=None):
         self.leaderboard = leaderboard_manager
+        self.sound_manager = sound_manager
         self.visible = False
         self.rect = pygame.Rect(
             CANVAS_OFFSET_X + 100,
@@ -45,12 +46,17 @@ class LeaderboardDisplay:
     def show(self, auto_add_score=None, challenge=None, components=0):
         """Show the leaderboard."""
         self.visible = True
+        if self.sound_manager:
+            self.sound_manager.play('panel_open')
+            
         if auto_add_score and self.leaderboard.check_if_high_score(auto_add_score):
             self.name_input_active = True
             self.pending_score = auto_add_score
             self.pending_challenge = challenge
             self.pending_components = components
             self.player_name = ""
+            if self.sound_manager:
+                self.sound_manager.play('high_score')
     
     def hide(self):
         """Hide the leaderboard."""
@@ -58,6 +64,8 @@ class LeaderboardDisplay:
         self.name_input_active = False
         self.player_name = ""
         self.pending_score = None
+        if self.sound_manager:
+            self.sound_manager.play('panel_close')
     
     def handle_event(self, event):
         """Handle events for the leaderboard display."""
@@ -74,7 +82,8 @@ class LeaderboardDisplay:
             if self.name_input_active:
                 if self.name_input_rect.collidepoint(event.pos):
                     # Keep input active
-                    pass
+                    if self.sound_manager:
+                        self.sound_manager.play('button_click', volume=0.3)
                 elif self.submit_button.collidepoint(event.pos) and self.player_name:
                     # Submit score
                     self._submit_score()
@@ -86,12 +95,18 @@ class LeaderboardDisplay:
                 return True
             elif event.key == pygame.K_BACKSPACE:
                 self.player_name = self.player_name[:-1]
+                if self.sound_manager:
+                    self.sound_manager.play('button_click', volume=0.2)
             elif event.key == pygame.K_ESCAPE:
                 self.name_input_active = False
                 self.player_name = ""
+                if self.sound_manager:
+                    self.sound_manager.play('error', volume=0.5)
             elif len(self.player_name) < 15:  # Limit name length
                 if event.unicode and event.unicode.isprintable():
                     self.player_name += event.unicode
+                    if self.sound_manager:
+                        self.sound_manager.play('button_click', volume=0.2)
             return True
         
         return False
@@ -105,6 +120,8 @@ class LeaderboardDisplay:
                 self.pending_challenge,
                 self.pending_components
             )
+            if self.sound_manager:
+                self.sound_manager.play('success')
             self.name_input_active = False
             self.player_name = ""
             self.pending_score = None

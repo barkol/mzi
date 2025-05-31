@@ -1,12 +1,12 @@
-"""Sidebar UI for component selection."""
+"""Sidebar UI for component selection with sound support."""
 import pygame
 import math
 from config.settings import *
 
 class Sidebar:
-    """Component selection sidebar."""
+    """Component selection sidebar with sound effects."""
     
-    def __init__(self):
+    def __init__(self, sound_manager=None):
         self.rect = pygame.Rect(0, 0, CANVAS_OFFSET_X - 50, WINDOW_HEIGHT)
         self.components = [
             {'type': 'laser', 'name': 'Laser Source', 'desc': 'Move the laser'},
@@ -17,16 +17,25 @@ class Sidebar:
         ]
         self.selected = None
         self.hover_index = -1
+        self.last_hover_index = -1  # Track for hover sound
         self.dragging = False
         self.drag_offset = (0, 0)
-        self.last_dragged = None  # Track what was dragged
-        self.can_add_callback = None  # Callback to check if component can be added
+        self.last_dragged = None
+        self.can_add_callback = None
+        self.sound_manager = sound_manager
     
     def handle_event(self, event):
         """Handle mouse events."""
         if event.type == pygame.MOUSEMOTION:
             if not self.dragging:
+                old_hover = self.hover_index
                 self.hover_index = self._get_component_at_pos(event.pos)
+                
+                # Play hover sound when entering a new component
+                if self.hover_index != old_hover and self.hover_index >= 0:
+                    if self.sound_manager:
+                        self.sound_manager.play('button_hover', volume=0.3)
+                        
         elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             index = self._get_component_at_pos(event.pos)
             if index >= 0:
@@ -34,13 +43,22 @@ class Sidebar:
                 # Check if we can add this component (laser always allowed, it moves)
                 if comp_type == 'laser' or self._can_add_component():
                     self.selected = comp_type
-                    self.last_dragged = self.selected  # Remember what we're dragging
+                    self.last_dragged = self.selected
                     self.dragging = True
                     # Calculate offset from component center
                     comp_rect = self._get_component_rect(index)
                     self.drag_offset = (event.pos[0] - comp_rect.centerx,
                                       event.pos[1] - comp_rect.centery)
+                    
+                    # Play drag start sound
+                    if self.sound_manager:
+                        self.sound_manager.play('drag_start')
                     return True
+                else:
+                    # Can't add - play error sound
+                    if self.sound_manager:
+                        self.sound_manager.play('invalid_placement')
+                        
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
             was_dragging = self.dragging
             self.dragging = False

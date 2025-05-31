@@ -1,4 +1,4 @@
-"""Main game logic and state management."""
+"""Main game logic and state management with sound effects."""
 import pygame
 import os
 import math
@@ -11,6 +11,7 @@ from core.keyboard_handler import KeyboardHandler
 from core.debug_display import DebugDisplay
 from core.challenge_manager import ChallengeManager
 from core.leaderboard import LeaderboardManager
+from core.sound_manager import SoundManager
 from ui.sidebar import Sidebar
 from ui.controls import ControlPanel
 from ui.effects import EffectsManager
@@ -21,11 +22,15 @@ from utils.assets_loader import AssetsLoader
 from config.settings import *
 
 class Game:
-    """Main game class."""
+    """Main game class with sound support."""
     
     def __init__(self, screen):
         self.screen = screen
         self.clock = pygame.time.Clock()
+        
+        # Initialize sound manager first
+        self.sound_manager = SoundManager(volume=0.7)
+        self.sound_manager.start_ambient()  # Start ambient sound
         
         # Load assets
         self.assets_loader = AssetsLoader()
@@ -35,21 +40,21 @@ class Game:
         
         # Helper modules
         self.effects = EffectsManager()
-        self.component_manager = ComponentManager(self.effects)
+        self.component_manager = ComponentManager(self.effects, self.sound_manager)
         self.beam_renderer = BeamRenderer(screen)
         self.debug_display = DebugDisplay(screen)
-        self.debug_display.set_assets_loader(self.assets_loader)  # Pass assets loader
+        self.debug_display.set_assets_loader(self.assets_loader)
         self.challenge_manager = ChallengeManager()
         
         # Leaderboard system
         self.leaderboard_manager = LeaderboardManager()
-        self.leaderboard_display = LeaderboardDisplay(self.leaderboard_manager)
+        self.leaderboard_display = LeaderboardDisplay(self.leaderboard_manager, self.sound_manager)
         
-        # UI elements
+        # UI elements with sound support
         self.grid = Grid()
-        self.sidebar = Sidebar()
-        self.controls = ControlPanel()
-        self.right_panel = RightPanel()
+        self.sidebar = Sidebar(self.sound_manager)
+        self.controls = ControlPanel(self.sound_manager)
+        self.right_panel = RightPanel(self.sound_manager)
         
         # Set up sidebar callback for component limits
         self.sidebar.set_can_add_callback(self._can_add_component)
@@ -64,41 +69,43 @@ class Game:
         self.dragging = False
         self.drag_component = None
         self.mouse_pos = (0, 0)
-        self.score = 0  # Score based on detector power, starts at 0
-        self.controls.score = self.score  # Update control panel
+        self.score = 0
+        self.controls.score = self.score
         if hasattr(self.controls, 'set_gold_bonus'):
-            self.controls.set_gold_bonus(0)  # Initialize gold bonus display
-        self.show_opd_info = True  # Toggle for OPD display
+            self.controls.set_gold_bonus(0)
+        self.show_opd_info = True
         
         # Track session high score and completed challenges
         self.session_high_score = 0
-        self.completed_challenges = set()  # Track which challenges have been completed
+        self.completed_challenges = set()
         
         # Challenge display state
-        self.current_challenge_display_name = None  # Store the display name separately
+        self.current_challenge_display_name = None
+        
+        # Track gold field hits for sound
+        self.last_gold_hits = {}
         
         # Load gold fields first
         self.challenge_manager.load_gold_fields()
         
-        # Load blocked fields (these take precedence over gold if there's a conflict)
+        # Load blocked fields
         self.challenge_manager.load_blocked_fields()
         
-        # Validate configuration (helps level designers spot conflicts)
+        # Validate configuration
         self.challenge_manager.validate_field_configurations()
         
         # Create template if it doesn't exist
         if not os.path.exists("config/blocked_fields_template.txt"):
             self.challenge_manager.create_blocked_fields_template()
         
-        # Load default challenge (Basic Mach-Zehnder)
+        # Load default challenge
         challenges = self.challenge_manager.get_challenge_list()
         if challenges:
             for name, title in challenges:
                 if name == "basic_mz":
                     self.challenge_manager.set_current_challenge(name)
-                    self.current_challenge_display_name = title  # Store display name
+                    self.current_challenge_display_name = title
                     self.controls.set_challenge(title)
-                    # Set completion status if method exists
                     if hasattr(self.controls, 'set_challenge_completed'):
                         self.controls.set_challenge_completed(False)
                     if hasattr(self.controls, 'set_gold_bonus'):
@@ -145,16 +152,20 @@ class Game:
                 if self.sidebar.selected != 'laser' and not self._can_add_component():
                     self.controls.set_status("Component limit reached for this challenge!")
                     self.right_panel.add_debug_message("Cannot add component - limit reached")
+                    self.sound_manager.play('invalid_placement')
                 elif self.challenge_manager.is_position_blocked(x, y):
                     self.controls.set_status("Cannot place component here - position blocked!")
+                    self.sound_manager.play('beam_blocked')
                     print(f"Position ({x}, {y}) is blocked")
                 elif not self.component_manager.is_position_occupied(x, y, self.laser,
                                                                   self.sidebar.selected == 'laser'):
                     self.component_manager.add_component(
                         self.sidebar.selected, x, y, self.laser)
-                    # Score is now based on detector power, not placement
-                    print(f"Placed {self.sidebar.selected} at ({x}, {y})")  # Debug
+                    self.sound_manager.play('drag_end')
+                    print(f"Placed {self.sidebar.selected} at ({x}, {y})")
                     self.right_panel.add_debug_message(f"Placed {self.sidebar.selected} at grid ({(x-CANVAS_OFFSET_X)//GRID_SIZE}, {(y-CANVAS_OFFSET_Y)//GRID_SIZE})")
+                else:
+                    self.sound_manager.play('invalid_placement')
             
             # Clear grid hover after drop
             self.grid.set_hover(None)
@@ -177,7 +188,6 @@ class Game:
             if self._is_in_canvas(event.pos) and not self.sidebar.selected:
                 if self.component_manager.remove_component_at(event.pos):
                     self.right_panel.add_debug_message("Component removed")
-                # No score update - score based on detector power
     
     def _is_in_canvas(self, pos):
         """Check if position is within game canvas."""
@@ -187,7 +197,7 @@ class Game:
     def _can_add_component(self):
         """Check if we can add another component based on challenge limits."""
         if not self.challenge_manager.current_challenge:
-            return True  # No limits in free play
+            return True
         
         challenge = self.challenge_manager.challenges.get(self.challenge_manager.current_challenge)
         if not challenge:
@@ -202,47 +212,49 @@ class Game:
         """Handle control panel actions."""
         if action == 'Clear All':
             self.component_manager.clear_all(self.laser)
-            self.score = 0  # Reset score to 0
+            self.score = 0
             self.controls.score = self.score
             if hasattr(self.controls, 'set_gold_bonus'):
-                self.controls.set_gold_bonus(0)  # Reset gold bonus display
-            # Optionally reset completed challenges when clearing all
-            # This allows players to retry challenges in the same session
+                self.controls.set_gold_bonus(0)
+            
+            # Reset completed challenges with Shift
             if pygame.key.get_mods() & pygame.KMOD_SHIFT:
-                # Shift+Clear All resets completed challenges
                 self.completed_challenges.clear()
                 if hasattr(self.controls, 'set_challenge_completed'):
-                    self.controls.set_challenge_completed(False)  # Reset gold color
+                    self.controls.set_challenge_completed(False)
                 if hasattr(self.controls, 'set_gold_bonus'):
-                    self.controls.set_gold_bonus(0)  # Reset gold bonus display
+                    self.controls.set_gold_bonus(0)
                 self.controls.set_status("Setup cleared and challenges reset!")
                 self.right_panel.add_debug_message("Session reset - challenges can be completed again")
+                self.sound_manager.play('notification')
                 print("Completed challenges reset - you can earn points again")
             else:
                 self.controls.set_status("Score = Detector Power × 1000 + Gold Bonus")
                 self.right_panel.add_debug_message("Setup cleared")
+                
         elif action == 'Check Setup':
-            # Check against current challenge (pass beam_tracer for gold field calculation)
+            # Check against current challenge
             success, message, points = self.challenge_manager.check_setup(
                 self.component_manager.components, self.laser, self.beam_tracer)
             if success:
                 # Check if this challenge was already completed
                 challenge_name = self.challenge_manager.current_challenge
                 if challenge_name and challenge_name not in self.completed_challenges:
-                    # First time completing this challenge - award points
+                    # First time completing
                     self._update_score(points)
                     self.completed_challenges.add(challenge_name)
                     self.effects.add_success_message()
+                    self.sound_manager.play('challenge_complete')
                     
-                    # Update controls to show gold color
                     if hasattr(self.controls, 'set_challenge_completed'):
                         self.controls.set_challenge_completed(True)
                     
-                    # Check if this is a high score
+                    # Check high score
                     if self.score > self.session_high_score:
                         self.session_high_score = self.score
+                        self.sound_manager.play('high_score')
                     
-                    # Show leaderboard with potential score entry
+                    # Show leaderboard
                     challenge_info = self.challenge_manager.challenges.get(challenge_name, {})
                     self.leaderboard_display.show(
                         auto_add_score=self.score,
@@ -250,18 +262,26 @@ class Game:
                         components=len(self.component_manager.components)
                     )
                 else:
-                    # Already completed - just show success without points
+                    # Already completed
                     self.controls.set_status("Challenge already completed this session!")
                     self.effects.add_info_message("Challenge Complete", "No additional points awarded")
+                    self.sound_manager.play('notification')
                     print("Challenge already completed - no additional points awarded")
                 
-                print(message)  # Full message to console
+                print(message)
             else:
                 self.controls.set_status(f"Failed: {message}")
+                self.sound_manager.play('challenge_failed')
                 print(f"Challenge check failed: {message}")
+                
         elif action == 'Toggle Laser':
             if self.laser:
                 self.laser.enabled = not self.laser.enabled
+                if self.laser.enabled:
+                    self.sound_manager.play('laser_on')
+                else:
+                    self.sound_manager.play('laser_off')
+                    
         elif action == 'Load Challenge':
             # Cycle through challenges
             challenges = self.challenge_manager.get_challenge_list()
@@ -277,22 +297,21 @@ class Game:
                 next_idx = (current_idx + 1) % len(challenges)
                 challenge_name, challenge_title = challenges[next_idx]
                 self.challenge_manager.set_current_challenge(challenge_name)
-                self.current_challenge_display_name = challenge_title  # Update display name
+                self.current_challenge_display_name = challenge_title
                 self.controls.set_challenge(challenge_title)
                 
-                # Update completion status for the controls
+                # Update completion status
                 is_completed = challenge_name in self.completed_challenges
                 if hasattr(self.controls, 'set_challenge_completed'):
                     self.controls.set_challenge_completed(is_completed)
                 
-                # Note: We don't reset completed_challenges here to prevent
-                # players from farming points by reloading the same challenge
+                self.sound_manager.play('panel_open')
                 print(f"Loaded challenge: {challenge_title}")
                 self.right_panel.add_debug_message(f"Loaded challenge: {challenge_title}")
     
     def _update_score(self, points):
         """Update game score."""
-        self.score = points  # Score is now absolute, not cumulative from placement
+        self.score = points
         self.controls.score = self.score
         
         # Update session high score
@@ -303,8 +322,22 @@ class Game:
         """Update game state."""
         self.effects.update(dt)
         
-        # Note: Detector intensity is now calculated fresh each frame
-        # based on accumulated beam amplitudes, so no decay is needed
+        # Update detector sounds
+        detectors = [c for c in self.component_manager.components if c.component_type == 'detector']
+        for i, detector in enumerate(detectors):
+            self.sound_manager.update_detector_sound(
+                detector_id=id(detector),
+                intensity=detector.intensity,
+                position=detector.position.tuple()
+            )
+        
+        # Check for new gold field hits
+        if hasattr(self.beam_tracer, 'gold_field_hits'):
+            for pos, intensity in self.beam_tracer.gold_field_hits.items():
+                if pos not in self.last_gold_hits or self.last_gold_hits[pos] < intensity:
+                    # New or increased gold hit
+                    self.sound_manager.play('gold_field_hit', volume=min(1.0, intensity * 0.7))
+            self.last_gold_hits = self.beam_tracer.gold_field_hits.copy()
     
     def draw(self):
         """Draw the game."""
@@ -324,7 +357,7 @@ class Game:
         # Clear screen
         self.screen.fill(BLACK)
         
-        # Draw banner as the bottom-most layer (MOVED HERE)
+        # Draw banner as the bottom-most layer
         self.debug_display.draw_banner()
         
         # Draw game info above canvas
@@ -333,18 +366,18 @@ class Game:
         # Draw challenge name above grid
         self._draw_challenge_name()
         
-        # Draw game canvas background (SEMITRANSPARENT)
+        # Draw game canvas background
         canvas_rect = pygame.Rect(CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT)
         s = pygame.Surface((CANVAS_WIDTH, CANVAS_HEIGHT), pygame.SRCALPHA)
-        s.fill((BLACK[0], BLACK[1], BLACK[2], 60))  # Very transparent - only 60/255 opacity
+        s.fill((BLACK[0], BLACK[1], BLACK[2], 60))
         self.screen.blit(s, canvas_rect.topleft)
         pygame.draw.rect(self.screen, PURPLE, canvas_rect, 2, border_radius=15)
         
-        # Draw grid (pass gold positions)
+        # Draw grid
         laser_pos = self.laser.position.tuple() if self.laser else None
         self.grid.draw(self.screen, self.component_manager.components, laser_pos,
                       self.challenge_manager.get_blocked_positions(),
-                      self.challenge_manager.get_gold_positions())  # NEW parameter
+                      self.challenge_manager.get_gold_positions())
         
         # Draw laser
         if self.laser:
@@ -356,12 +389,12 @@ class Game:
         
         # Trace and draw beams
         if self.laser and self.laser.enabled:
-            # Set gold positions on beam tracer (NEW)
+            # Set gold positions on beam tracer
             self.beam_tracer.set_gold_positions(self.challenge_manager.get_gold_positions())
             
             self.beam_renderer.draw_beams(self.beam_tracer, self.laser,
                                         self.component_manager.components,
-                                        0,  # No phase shift anymore
+                                        0,
                                         self.challenge_manager.get_blocked_positions())
         
         # Draw UI
@@ -386,7 +419,7 @@ class Game:
         # Draw challenge completion status
         self._draw_challenge_status()
         
-        # Draw component counter (bottom left)
+        # Draw component counter
         self._draw_component_counter()
         
         # Draw leaderboard if visible
@@ -589,16 +622,13 @@ class Game:
             pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (0, 0), (40, 40), 2)
             self.screen.blit(s, rect.topleft)
             
-        elif comp_type == 'mirror/':
-            # Draw / mirror preview (turquoise)
+        elif comp_type.startswith('mirror'):
+            # Mirror icons
             s = pygame.Surface((50, 50), pygame.SRCALPHA)
-            pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (5, 45), (45, 5), 6)
-            self.screen.blit(s, (x - 25, y - 25))
-            
-        elif comp_type == 'mirror\\':
-            # Draw \ mirror preview (turquoise)
-            s = pygame.Surface((50, 50), pygame.SRCALPHA)
-            pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (5, 5), (45, 45), 6)
+            if '/' in comp_type:
+                pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (5, 45), (45, 5), 6)
+            else:
+                pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (5, 5), (45, 45), 6)
             self.screen.blit(s, (x - 25, y - 25))
             
         elif comp_type == 'detector':

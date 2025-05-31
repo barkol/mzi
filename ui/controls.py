@@ -1,11 +1,11 @@
-"""Control panel UI."""
+"""Control panel UI with sound support."""
 import pygame
 from config.settings import *
 
 class ControlPanel:
-    """Bottom control panel with buttons."""
+    """Bottom control panel with buttons and sound effects."""
     
-    def __init__(self):
+    def __init__(self, sound_manager=None):
         self.rect = pygame.Rect(
             CANVAS_OFFSET_X,
             CANVAS_OFFSET_Y + CANVAS_HEIGHT + 20,
@@ -23,15 +23,36 @@ class ControlPanel:
         self.score = 0
         self.current_challenge = None
         self.challenge_status = ""
-        self.challenge_completed = False  # Track if current challenge is completed
-        self.gold_bonus = 0  # Track current gold bonus
+        self.challenge_completed = False
+        self.gold_bonus = 0
+        self.sound_manager = sound_manager
+        
+        # Track hover state for buttons
+        self.hover_button = None
+        self.last_hover_button = None
     
     def handle_event(self, event):
         """Handle control events."""
-        if event.type == pygame.MOUSEBUTTONDOWN:
+        if event.type == pygame.MOUSEMOTION:
+            # Check button hover
+            old_hover = self.hover_button
+            self.hover_button = None
+            
+            for button in self.buttons:
+                if button['rect'].collidepoint(event.pos):
+                    self.hover_button = button['name']
+                    break
+            
+            # Play hover sound when entering a new button
+            if self.hover_button != old_hover and self.hover_button and self.sound_manager:
+                self.sound_manager.play('button_hover', volume=0.3)
+                
+        elif event.type == pygame.MOUSEBUTTONDOWN:
             # Check buttons
             for button in self.buttons:
                 if button['rect'].collidepoint(event.pos):
+                    if self.sound_manager:
+                        self.sound_manager.play('button_click')
                     return button['name']
         
         return None
@@ -39,7 +60,6 @@ class ControlPanel:
     def set_challenge(self, challenge_name):
         """Set the current challenge being attempted."""
         self.current_challenge = challenge_name
-        # Don't show "Challenge: " prefix anymore
     
     def set_status(self, status):
         """Set status message."""
@@ -69,24 +89,35 @@ class ControlPanel:
         # Buttons
         font = pygame.font.Font(None, 18)
         for button in self.buttons:
-            # Button background
-            pygame.draw.rect(screen, PURPLE, button['rect'], border_radius=20)
-            
-            # Gradient effect
-            s = pygame.Surface((button['rect'].width, button['rect'].height), pygame.SRCALPHA)
-            for i in range(button['rect'].height // 2):
-                alpha = 100 - i * 2
-                pygame.draw.rect(s, (PURPLE[0], PURPLE[1], PURPLE[2], alpha),
-                               pygame.Rect(0, i, button['rect'].width, 1))
-            screen.blit(s, button['rect'].topleft)
+            # Button background with hover effect
+            if button['name'] == self.hover_button:
+                # Highlighted button
+                pygame.draw.rect(screen, CYAN, button['rect'], border_radius=20)
+                
+                # Brighter gradient for hover
+                s = pygame.Surface((button['rect'].width, button['rect'].height), pygame.SRCALPHA)
+                for i in range(button['rect'].height // 2):
+                    alpha = 150 - i * 3
+                    pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], alpha),
+                                   pygame.Rect(0, i, button['rect'].width, 1))
+                screen.blit(s, button['rect'].topleft)
+            else:
+                # Normal button
+                pygame.draw.rect(screen, PURPLE, button['rect'], border_radius=20)
+                
+                # Gradient effect
+                s = pygame.Surface((button['rect'].width, button['rect'].height), pygame.SRCALPHA)
+                for i in range(button['rect'].height // 2):
+                    alpha = 100 - i * 2
+                    pygame.draw.rect(s, (PURPLE[0], PURPLE[1], PURPLE[2], alpha),
+                                   pygame.Rect(0, i, button['rect'].width, 1))
+                screen.blit(s, button['rect'].topleft)
             
             # Text
             text = font.render(button['name'], True, WHITE)
             text_rect = text.get_rect(center=button['rect'].center)
             
             screen.blit(text, text_rect)
-        
-        # Status message removed - no longer displaying challenge status
         
         # Score
         self._draw_score(screen)

@@ -1,11 +1,11 @@
-"""Right panel for help and debug information."""
+"""Right panel for help and debug information with sound support."""
 import pygame
 from config.settings import *
 
 class RightPanel:
     """Right panel displaying help and debug information."""
     
-    def __init__(self):
+    def __init__(self, sound_manager=None):
         self.rect = pygame.Rect(
             CANVAS_OFFSET_X + CANVAS_WIDTH + 50,
             0,
@@ -16,6 +16,7 @@ class RightPanel:
         self.max_debug_messages = 20
         self.show_help = True
         self.scroll_offset = 0
+        self.sound_manager = sound_manager
         
     def add_debug_message(self, message):
         """Add a debug message to the panel."""
@@ -30,6 +31,8 @@ class RightPanel:
     def toggle_help(self):
         """Toggle between help and debug view."""
         self.show_help = not self.show_help
+        if self.sound_manager:
+            self.sound_manager.play('panel_open')
         
     def handle_event(self, event):
         """Handle scroll events."""
@@ -54,7 +57,7 @@ class RightPanel:
         
         # Title
         font_title = pygame.font.Font(None, 24)
-        title_text = "MaZeInvader: Help" if self.show_help else "MaZeInvader: Debug Log"
+        title_text = "Photon Path: Help" if self.show_help else "Photon Path: Debug Log"
         title = font_title.render(title_text, True, CYAN)
         title_rect = title.get_rect(centerx=self.rect.centerx, y=20)
         screen.blit(title, title_rect)
@@ -88,10 +91,26 @@ class RightPanel:
             ("L", "Toggle leaderboard"),
             ("G", "Toggle debug mode"),
             ("O", "Toggle OPD display"),
-            ("H", "Show coordinate help"),
+            ("H", "Show help"),
             ("Shift+H", "Toggle help/debug view"),
             ("Shift+N", "New session"),
+            ("", ""),
+            ("SOUND CONTROLS", ""),
+            ("Shift+S", "Toggle sound on/off"),
+            ("Shift+V", "Increase volume 10%"),
+            ("Ctrl+Shift+V", "Decrease volume 10%"),
+            ("", ""),
+            ("WINDOW CONTROLS", ""),
+            ("F11", "Toggle fullscreen"),
+            ("ESC", "Exit fullscreen"),
         ]
+        
+        # Show current sound status
+        if self.sound_manager:
+            sound_status = "ON" if self.sound_manager.enabled else "OFF"
+            volume_percent = int(self.sound_manager.master_volume * 100)
+            controls.append(("", ""))
+            controls.append(("Sound Status:", f"{sound_status} ({volume_percent}%)"))
         
         for key, desc in controls:
             if key == "" and desc == "":
@@ -104,10 +123,10 @@ class RightPanel:
                 y += line_height + 5
             else:
                 if y > 0 and y < self.rect.height:
-                    key_surface = font_text.render(f"{key:8}", True, WHITE)
+                    key_surface = font_text.render(f"{key:13}", True, WHITE)
                     desc_surface = font_text.render(desc, True, (200, 200, 200))
                     screen.blit(key_surface, (x_margin, y))
-                    screen.blit(desc_surface, (x_margin + 60, y))
+                    screen.blit(desc_surface, (x_margin + 90, y))
                 y += line_height
         
         # Physics info
@@ -142,7 +161,7 @@ class RightPanel:
             "Base: Detector Power × 1000",
             "Gold fields: +100 per intensity",
             "Complete challenges for bonus",
-            "Max detector power: 100%",
+            "Interference bonus: varies",
             "Challenges can only be",
             "completed once per session",
         ]
@@ -164,15 +183,19 @@ class RightPanel:
             "• Build a Mach-Zehnder",
             "  interferometer with 2 beam",
             "  splitters and 2 mirrors",
-            "• Constructive interference",
-            "  occurs when beams combine",
-            "  with the same phase",
-            "• Destructive interference",
-            "  happens with opposite phases",
+            "• Interference occurs when",
+            "  beams enter the same beam",
+            "  splitter from different ports",
+            "• Constructive interference:",
+            "  beams with same phase",
+            "• Destructive interference:",
+            "  beams with opposite phase",
             "• Path length differences",
             "  create phase shifts",
             "• Gold fields award bonus",
-            "  points based on beam intensity",
+            "  points based on intensity",
+            "• Sound enhances gameplay -",
+            "  use Shift+S to toggle",
         ]
         
         for tip in tips:
@@ -212,6 +235,8 @@ class RightPanel:
                 color = (255, 100, 100)
             elif "SUCCESS" in message:
                 color = (100, 255, 100)
+            elif "Sound:" in message or "Volume:" in message:
+                color = (100, 200, 255)
             
             text = font.render(message, True, color)
             screen.blit(text, (x_margin, y))

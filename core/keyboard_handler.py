@@ -30,6 +30,32 @@ class KeyboardHandler:
                 self.game.leaderboard_display.show()
             return True
             
+        elif event.key == pygame.K_s and pygame.key.get_mods() & pygame.KMOD_SHIFT:
+            # Shift+S - Toggle sound
+            self.game.sound_manager.toggle_enabled()
+            status = "ON" if self.game.sound_manager.enabled else "OFF"
+            print(f"Sound: {status}")
+            self.game.right_panel.add_debug_message(f"Sound: {status}")
+            if self.game.sound_manager.enabled:
+                self.game.sound_manager.play('notification')
+                self.game.sound_manager.start_ambient()
+            return True
+            
+        elif event.key == pygame.K_v and pygame.key.get_mods() & pygame.KMOD_SHIFT:
+            # Shift+V - Volume control
+            if pygame.key.get_mods() & pygame.KMOD_CTRL:
+                # Ctrl+Shift+V - Decrease volume
+                new_volume = max(0.0, self.game.sound_manager.master_volume - 0.1)
+            else:
+                # Shift+V - Increase volume
+                new_volume = min(1.0, self.game.sound_manager.master_volume + 0.1)
+            
+            self.game.sound_manager.set_volume(new_volume)
+            print(f"Volume: {int(new_volume * 100)}%")
+            self.game.right_panel.add_debug_message(f"Volume: {int(new_volume * 100)}%")
+            self.game.sound_manager.play('button_click')
+            return True
+            
         elif event.key == pygame.K_g:
             # Toggle debug mode for all components
             new_debug_state = not self.game.laser.debug
@@ -69,6 +95,7 @@ class KeyboardHandler:
                         break
             
             self.game.right_panel.add_debug_message("New session started - challenges reset")
+            self.game.sound_manager.play('notification')
             return True
             
         # Test functions
@@ -94,6 +121,7 @@ class KeyboardHandler:
                 self.game.right_panel.toggle_help()
                 mode = "Help" if self.game.right_panel.show_help else "Debug"
                 self.game.right_panel.add_debug_message(f"Right panel switched to {mode} mode")
+                self.game.sound_manager.play('panel_open')
             else:
                 # Regular H shows help
                 self._show_help()
@@ -111,6 +139,9 @@ class KeyboardHandler:
         print("  L = Toggle leaderboard display")
         print("  G = Toggle debug mode for all components")
         print("  O = Toggle OPD display")
+        print("  Shift+S = Toggle sound on/off")
+        print("  Shift+V = Increase volume")
+        print("  Ctrl+Shift+V = Decrease volume")
         print("  Shift+N = New session (reset score and challenges)")
         print("  Shift+H = Toggle help/debug panel")
         print("  H = Show this help")
@@ -129,3 +160,9 @@ class KeyboardHandler:
         print("  - Gold fields award bonus points based on beam intensity")
         print("  - Completed challenges turn gold and award points only once per session")
         print("  - Use Shift+Click on 'Clear All' to reset completed challenges")
+        print("")
+        print("Sound controls:")
+        print("  - Shift+S toggles all sound effects on/off")
+        print("  - Shift+V increases volume by 10%")
+        print("  - Ctrl+Shift+V decreases volume by 10%")
+        print("  - Current volume: {}%".format(int(self.game.sound_manager.master_volume * 100)))
