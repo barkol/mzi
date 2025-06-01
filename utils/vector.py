@@ -17,6 +17,14 @@ class Vector2:
     def __mul__(self, scalar):
         return Vector2(self.x * scalar, self.y * scalar)
     
+    def __str__(self):
+        """String representation for debugging."""
+        return f"({self.x:.1f}, {self.y:.1f})"
+    
+    def __repr__(self):
+        """Representation for debugging."""
+        return f"Vector2({self.x:.1f}, {self.y:.1f})"
+    
     def magnitude(self):
         return math.sqrt(self.x**2 + self.y**2)
     

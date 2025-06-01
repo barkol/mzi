@@ -74,6 +74,7 @@ class SoundManager:
         # Special handling for continuous sounds
         self.continuous_sounds = {'ambient_hum', 'detector_hit'}
         self.detector_channels: Dict[int, pygame.mixer.Channel] = {}  # Track detector sounds by ID
+        self.active_detectors: set = set()  # Track which detectors are active
         
         # Report initialization status
         print(f"Sound Manager initialized: {len(self.sounds)} sounds loaded")
@@ -249,6 +250,7 @@ class SoundManager:
             pass
         self.active_channels.clear()
         self.detector_channels.clear()
+        self.active_detectors.clear()
     
     def set_volume(self, volume: float):
         """Set the master volume.
@@ -281,8 +283,14 @@ class SoundManager:
         if not self.enabled:
             return
         
-        # Stop sound if intensity is too low
-        if intensity < 0.01:
+        # Track active detectors
+        if intensity > 0.01:
+            self.active_detectors.add(detector_id)
+        else:
+            self.active_detectors.discard(detector_id)
+        
+        # Stop sound if intensity is too low or detector was removed
+        if intensity < 0.01 or detector_id not in self.active_detectors:
             if detector_id in self.detector_channels:
                 channel = self.detector_channels[detector_id]
                 try:
@@ -293,10 +301,14 @@ class SoundManager:
                 del self.detector_channels[detector_id]
             return
         
+        # Scale volume with intensity
+        # Use a non-linear scaling for better audio feel
+        # Square root makes quiet sounds more audible
+        volume = min(1.0, intensity ** 0.5 * 0.7)  # Max 70% volume
+        
         # Play or update detector sound
         if detector_id not in self.detector_channels or not self.detector_channels[detector_id].get_busy():
             # Start new sound
-            volume = min(1.0, intensity * 0.5)  # Scale volume with intensity
             channel = self.play('detector_hit', volume=volume, loops=-1)
             if channel:
                 self.detector_channels[detector_id] = channel
@@ -304,10 +316,30 @@ class SoundManager:
             # Update existing sound volume
             try:
                 channel = self.detector_channels[detector_id]
-                volume = min(1.0, intensity * 0.5)
                 channel.set_volume(volume * self.master_volume)
             except:
                 pass
+    
+    def cleanup_detector_sounds(self, active_detector_ids: set):
+        """Clean up sounds for removed detectors.
+        
+        Args:
+            active_detector_ids: Set of currently active detector IDs
+        """
+        # Find detectors that were removed
+        removed_detectors = set(self.detector_channels.keys()) - active_detector_ids
+        
+        # Stop sounds for removed detectors
+        for detector_id in removed_detectors:
+            if detector_id in self.detector_channels:
+                channel = self.detector_channels[detector_id]
+                try:
+                    if channel.get_busy():
+                        channel.fadeout(200)  # Fade out over 200ms
+                except:
+                    pass
+                del self.detector_channels[detector_id]
+                self.active_detectors.discard(detector_id)
     
     def play_interference_sound(self, constructive: bool):
         """Play interference sound based on type.

@@ -350,7 +350,7 @@ class Game:
         if hasattr(self.beam_tracer, 'gold_field_hits') and hasattr(self.controls, 'set_gold_bonus'):
             total_bonus = 0
             for position, intensity in self.beam_tracer.gold_field_hits.items():
-                bonus = int(intensity * 100)
+                bonus = round(intensity * 100)
                 total_bonus += bonus
             self.controls.set_gold_bonus(total_bonus)
         
@@ -510,7 +510,7 @@ class Game:
         detectors = [c for c in self.component_manager.components
                     if c.component_type == 'detector']
         total_power = sum(d.intensity for d in detectors)
-        detector_score = int(total_power * 1000)
+        detector_score = round(total_power * 1000)
         
         # Draw detector power info
         if detector_score > 0 or len(detectors) > 0:

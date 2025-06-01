@@ -4,6 +4,7 @@ Main entry point for the application
 """
 import pygame
 import sys
+import platform
 from core.game import Game
 from config.settings import WINDOW_WIDTH, WINDOW_HEIGHT, FPS
 
@@ -18,6 +19,7 @@ def get_display_mode():
     
     print(f"Screen resolution: {screen_width}x{screen_height}")
     print(f"Default game resolution: {WINDOW_WIDTH}x{WINDOW_HEIGHT}")
+    print(f"Platform: {platform.system()}")
     
     # Check if we should use fullscreen or windowed mode
     if screen_width < WINDOW_WIDTH or screen_height < WINDOW_HEIGHT:
@@ -55,6 +57,82 @@ def get_display_mode():
         print("Using default windowed mode")
         return (WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE
 
+def toggle_fullscreen_safe(screen, game, is_fullscreen):
+    """Safely toggle fullscreen mode, especially on macOS."""
+    try:
+        if platform.system() == 'Darwin':  # macOS
+            # On macOS, we need to be more careful with fullscreen transitions
+            if is_fullscreen:
+                # Exit fullscreen to windowed
+                pygame.display.quit()
+                pygame.display.init()
+                screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
+                game.screen = screen
+                # Force refresh of assets
+                if hasattr(game, 'assets_loader'):
+                    game.assets_loader.images.clear()  # Clear image cache
+                return screen, False, 1.0, 0, 0, None
+            else:
+                # Enter fullscreen
+                info = pygame.display.Info()
+                pygame.display.quit()
+                pygame.display.init()
+                screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
+                
+                # Calculate scaling
+                scale_x = info.current_w / WINDOW_WIDTH
+                scale_y = info.current_h / WINDOW_HEIGHT
+                scale = min(scale_x, scale_y)
+                
+                # Create game surface
+                game_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+                
+                # Calculate offsets
+                scaled_width = int(WINDOW_WIDTH * scale)
+                scaled_height = int(WINDOW_HEIGHT * scale)
+                x_offset = (info.current_w - scaled_width) // 2
+                y_offset = (info.current_h - scaled_height) // 2
+                
+                game.screen = game_surface
+                # Force refresh of assets
+                if hasattr(game, 'assets_loader'):
+                    game.assets_loader.images.clear()  # Clear image cache
+                
+                return screen, True, scale, x_offset, y_offset, game_surface
+        else:
+            # Non-macOS systems can use the regular method
+            if is_fullscreen:
+                # Exit fullscreen
+                screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
+                game.screen = screen
+                return screen, False, 1.0, 0, 0, None
+            else:
+                # Enter fullscreen
+                info = pygame.display.Info()
+                screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
+                
+                scale_x = info.current_w / WINDOW_WIDTH
+                scale_y = info.current_h / WINDOW_HEIGHT
+                scale = min(scale_x, scale_y)
+                
+                game_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+                scaled_width = int(WINDOW_WIDTH * scale)
+                scaled_height = int(WINDOW_HEIGHT * scale)
+                x_offset = (info.current_w - scaled_width) // 2
+                y_offset = (info.current_h - scaled_height) // 2
+                
+                game.screen = game_surface
+                return screen, True, scale, x_offset, y_offset, game_surface
+                
+    except Exception as e:
+        print(f"Error toggling fullscreen: {e}")
+        # Fallback to windowed mode
+        pygame.display.quit()
+        pygame.display.init()
+        screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
+        game.screen = screen
+        return screen, False, 1.0, 0, 0, None
+
 def main():
     """Initialize and run the game."""
     # Get display mode
@@ -63,8 +141,11 @@ def main():
     pygame.init()
     pygame.display.set_caption("Photon Path: Mach-Zehnder Interferometer")
     
+    # Track fullscreen state
+    is_fullscreen = (display_flags == pygame.FULLSCREEN)
+    
     # Create display with appropriate flags
-    if display_flags == pygame.FULLSCREEN:
+    if is_fullscreen:
         # For fullscreen, create at full resolution
         screen = pygame.display.set_mode(display_size, display_flags)
         
@@ -114,37 +195,23 @@ def main():
                 running = False
             elif event.type == pygame.KEYDOWN:
                 # Allow ESC to exit fullscreen
-                if event.key == pygame.K_ESCAPE and display_flags == pygame.FULLSCREEN:
-                    running = False
-                # Allow F11 to toggle fullscreen (when not already fullscreen)
-                elif event.key == pygame.K_F11 and display_flags != pygame.FULLSCREEN:
-                    # Toggle fullscreen
-                    info = pygame.display.Info()
-                    if screen.get_flags() & pygame.FULLSCREEN:
-                        # Switch to windowed
-                        screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
-                        game_surface = None
-                        scale = 1.0
-                        x_offset = 0
-                        y_offset = 0
-                        game.screen = screen
-                    else:
-                        # Switch to fullscreen
-                        screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
-                        scale_x = info.current_w / WINDOW_WIDTH
-                        scale_y = info.current_h / WINDOW_HEIGHT
-                        scale = min(scale_x, scale_y)
-                        game_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
-                        scaled_width = int(WINDOW_WIDTH * scale)
-                        scaled_height = int(WINDOW_HEIGHT * scale)
-                        x_offset = (info.current_w - scaled_width) // 2
-                        y_offset = (info.current_h - scaled_height) // 2
-                        game.screen = game_surface
+                if event.key == pygame.K_ESCAPE and is_fullscreen:
+                    # Use safe fullscreen toggle
+                    screen, is_fullscreen, scale, x_offset, y_offset, game_surface = \
+                        toggle_fullscreen_safe(screen, game, is_fullscreen)
+                    print("Switched to windowed mode")
                     continue
-            elif event.type == pygame.VIDEORESIZE and display_flags == pygame.RESIZABLE:
+                # Allow F11 to toggle fullscreen
+                elif event.key == pygame.K_F11:
+                    # Use safe fullscreen toggle
+                    screen, is_fullscreen, scale, x_offset, y_offset, game_surface = \
+                        toggle_fullscreen_safe(screen, game, is_fullscreen)
+                    mode = "fullscreen" if is_fullscreen else "windowed"
+                    print(f"Switched to {mode} mode")
+                    continue
+            elif event.type == pygame.VIDEORESIZE and not is_fullscreen:
                 # Handle window resize
                 screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
-                # Optionally implement scaling here for windowed mode
                 # For now, just use the screen directly
                 game.screen = screen
                 
@@ -213,8 +280,13 @@ if __name__ == "__main__":
     print("  python main.py --fullscreen - Run in fullscreen mode")
     print("  python main.py --scale      - Run in scaled windowed mode (90% of screen)")
     print("\nControls:")
-    print("  F11 - Toggle fullscreen (in windowed mode)")
+    print("  F11 - Toggle fullscreen")
     print("  ESC - Exit fullscreen")
     print()
+    
+    # macOS warning
+    if platform.system() == 'Darwin':
+        print("Note: On macOS, fullscreen transitions may take a moment.")
+        print()
     
     main()

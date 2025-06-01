@@ -9,6 +9,8 @@ class AssetsLoader:
     def __init__(self):
         self.assets_path = "assets"
         self.images = {}
+        self._cached_banner = None  # Cache the resized banner
+        self._cached_banner_size = None  # Track the size it was cached for
         self._ensure_assets_folder()
     
     def _ensure_assets_folder(self):
@@ -67,9 +69,24 @@ class AssetsLoader:
     
     def get_banner(self):
         """Get the banner image, resized to fill entire game window."""
-        raw_image = self.load_image("banner.png")
+        # Check if we need to reload/resize the banner
+        current_size = (WINDOW_WIDTH, WINDOW_HEIGHT)
         
-        # Resize the banner to fill the entire game window
-        resized_banner = pygame.transform.smoothscale(raw_image, (WINDOW_WIDTH, WINDOW_HEIGHT))
+        if self._cached_banner is None or self._cached_banner_size != current_size:
+            # Load or reload the banner
+            raw_image = self.load_image("banner.png")
+            
+            # Resize the banner to fill the entire game window
+            self._cached_banner = pygame.transform.smoothscale(raw_image, current_size)
+            self._cached_banner_size = current_size
+            
+            print(f"Banner resized to: {current_size}")
         
-        return resized_banner
+        return self._cached_banner
+    
+    def clear_cache(self):
+        """Clear the image cache. Useful when changing display modes."""
+        self.images.clear()
+        self._cached_banner = None
+        self._cached_banner_size = None
+        print("Asset cache cleared")

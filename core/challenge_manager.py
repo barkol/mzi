@@ -413,7 +413,7 @@ class ChallengeManager:
         # Calculate base score from detector power
         detectors = [c for c in components if c.component_type == 'detector']
         total_detector_power = sum(d.intensity for d in detectors)
-        base_score = int(total_detector_power * 1000)
+        base_score = round(total_detector_power * 1000)  # FIXED: Use round() instead of int()
         
         # Start with base score instead of challenge points
         points = base_score
@@ -546,8 +546,8 @@ class ChallengeManager:
         """Calculate bonus points from gold field hits."""
         total_bonus = 0
         for position, intensity in gold_field_hits.items():
-            # 100 points per unit of intensity
-            bonus = int(intensity * 100)
+            # 100 points per unit of intensity - use round() for proper rounding
+            bonus = round(intensity * 100)  # FIXED: Use round() instead of int()
             total_bonus += bonus
         return total_bonus
     

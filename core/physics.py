@@ -242,10 +242,10 @@ class BeamTracer:
             if comp.component_type == "detector" and hasattr(comp, 'finalize_frame'):
                 comp.finalize_frame()
                 
-                if self.debug and (comp.intensity > 0 or len(comp.incoming_amplitudes) > 0):
+                if self.debug and (comp.intensity > 0 or len(comp.incoming_beams) > 0):
                     print(f"\nDetector at {comp.position}:")
                     print(f"  Intensity: {comp.intensity*100:.1f}%")
-                    print(f"  Beams: {len(comp.incoming_amplitudes)}")
+                    print(f"  Beams: {len(comp.incoming_beams)}")
         
         return all_traced_paths
     
