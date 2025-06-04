@@ -1,6 +1,7 @@
 """Challenge configuration and blocked/gold field management with improved interference detection."""
 import json
 import os
+import glob
 from utils.vector import Vector2
 from config.settings import CANVAS_OFFSET_X, CANVAS_OFFSET_Y, GRID_SIZE
 
@@ -12,6 +13,7 @@ class ChallengeManager:
         self.blocked_positions = []
         self.gold_positions = []  # New: Gold field positions
         self.current_challenge = None
+        self.current_field_config = "default"  # Track current field configuration
         self.load_challenges()
     
     def load_challenges(self):
@@ -275,6 +277,141 @@ class ChallengeManager:
                 print(f"Skipped {skipped_conflicts} gold fields due to conflicts with blocked fields")
         except Exception as e:
             print(f"Error loading gold fields: {e}")
+    
+    def get_available_field_configs(self):
+        """Get list of available field configuration files."""
+        configs = []
+        
+        # Default configuration
+        configs.append({
+            'name': 'default',
+            'display_name': 'Default Fields',
+            'blocked_file': 'config/blocked_fields.txt',
+            'gold_file': 'config/gold_fields.txt'
+        })
+        
+        # Look for other field configuration files in config directory
+        # Find all blocked field files
+        blocked_files = glob.glob('config/blocked_fields_*.txt')
+        for blocked_file in blocked_files:
+            # Extract name from filename
+            name = blocked_file.replace('config/blocked_fields_', '').replace('.txt', '')
+            display_name = name.replace('_', ' ').title()
+            
+            # Check if corresponding gold file exists
+            gold_file = f'config/gold_fields_{name}.txt'
+            if not os.path.exists(gold_file):
+                gold_file = 'config/gold_fields.txt'  # Use default gold fields
+            
+            configs.append({
+                'name': name,
+                'display_name': display_name,
+                'blocked_file': blocked_file,
+                'gold_file': gold_file
+            })
+        
+        # Find all gold field files without corresponding blocked files
+        gold_files = glob.glob('config/gold_fields_*.txt')
+        for gold_file in gold_files:
+            name = gold_file.replace('config/gold_fields_', '').replace('.txt', '')
+            # Skip if we already have this config from blocked files
+            if any(c['name'] == name for c in configs):
+                continue
+                
+            display_name = name.replace('_', ' ').title()
+            configs.append({
+                'name': name,
+                'display_name': display_name,
+                'blocked_file': 'config/blocked_fields.txt',  # Use default blocked fields
+                'gold_file': gold_file
+            })
+        
+        # Add example configurations if they exist
+        example_configs = [
+            {
+                'name': 'example',
+                'display_name': 'Example Layout',
+                'blocked_file': 'config/example_blocked_fields.txt',
+                'gold_file': 'config/example_gold_fields.txt'
+            },
+            {
+                'name': 'maze',
+                'display_name': 'Beam Maze',
+                'blocked_file': 'config/blocked_fields_maze.txt',
+                'gold_file': 'config/gold_fields.txt'
+            },
+            {
+                'name': 'treasure',
+                'display_name': 'Treasure Hunt',
+                'blocked_file': 'config/blocked_fields.txt',
+                'gold_file': 'config/gold_fields_treasure.txt'
+            }
+        ]
+        
+        for config in example_configs:
+            # Only add if files exist and not already in list
+            if (os.path.exists(config['blocked_file']) or os.path.exists(config['gold_file'])) \
+               and not any(c['name'] == config['name'] for c in configs):
+                # Use default files if specific ones don't exist
+                if not os.path.exists(config['blocked_file']):
+                    config['blocked_file'] = 'config/blocked_fields.txt'
+                if not os.path.exists(config['gold_file']):
+                    config['gold_file'] = 'config/gold_fields.txt'
+                configs.append(config)
+        
+        return configs
+    
+    def load_field_config(self, config_name):
+        """Load a specific field configuration by name."""
+        configs = self.get_available_field_configs()
+        
+        # Find the requested configuration
+        config = None
+        for c in configs:
+            if c['name'] == config_name:
+                config = c
+                break
+        
+        if not config:
+            print(f"Field configuration '{config_name}' not found")
+            return False
+        
+        try:
+            # Clear existing field positions
+            self.blocked_positions.clear()
+            self.gold_positions.clear()
+            
+            # Load new field configurations
+            print(f"\nLoading field configuration: {config['display_name']}")
+            
+            # Load gold fields first (so blocked fields can override)
+            if os.path.exists(config['gold_file']):
+                self.load_gold_fields(config['gold_file'])
+            else:
+                print(f"Gold fields file not found: {config['gold_file']}")
+            
+            # Load blocked fields second
+            if os.path.exists(config['blocked_file']):
+                self.load_blocked_fields(config['blocked_file'])
+            else:
+                print(f"Blocked fields file not found: {config['blocked_file']}")
+            
+            # Validate the configuration
+            self.validate_field_configurations()
+            
+            # Update current configuration
+            self.current_field_config = config_name
+            
+            print(f"Successfully loaded field configuration: {config['display_name']}")
+            return True
+            
+        except Exception as e:
+            print(f"Error loading field configuration: {e}")
+            # Restore default configuration on error
+            self.load_blocked_fields()
+            self.load_gold_fields()
+            self.current_field_config = "default"
+            return False
     
     def create_blocked_fields_template(self):
         """Create a template blocked fields file."""

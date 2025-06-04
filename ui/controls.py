@@ -17,7 +17,8 @@ class ControlPanel:
             {'name': 'Clear All', 'rect': pygame.Rect(self.rect.x + 20, self.rect.y + 20, 100, 40)},
             {'name': 'Check Setup', 'rect': pygame.Rect(self.rect.x + 130, self.rect.y + 20, 110, 40)},
             {'name': 'Toggle Laser', 'rect': pygame.Rect(self.rect.x + 250, self.rect.y + 20, 110, 40)},
-            {'name': 'Load Challenge', 'rect': pygame.Rect(self.rect.x + 370, self.rect.y + 20, 115, 40)}
+            {'name': 'Load Challenge', 'rect': pygame.Rect(self.rect.x + 370, self.rect.y + 20, 115, 40)},
+            {'name': 'Load Fields', 'rect': pygame.Rect(self.rect.x + 495, self.rect.y + 20, 95, 40)}
         ]
         
         self.score = 0
@@ -26,6 +27,7 @@ class ControlPanel:
         self.challenge_completed = False
         self.gold_bonus = 0
         self.sound_manager = sound_manager
+        self.current_field_config = "Default Fields"  # Track current field configuration
         
         # Track hover state for buttons
         self.hover_button = None
@@ -72,6 +74,10 @@ class ControlPanel:
     def set_gold_bonus(self, bonus):
         """Set the current gold bonus value."""
         self.gold_bonus = bonus
+    
+    def set_field_config(self, config_name):
+        """Set the current field configuration name."""
+        self.current_field_config = config_name
     
     def draw(self, screen):
         """Draw control panel."""
@@ -121,6 +127,9 @@ class ControlPanel:
         
         # Score
         self._draw_score(screen)
+        
+        # Field configuration indicator
+        self._draw_field_config(screen)
     
     def _draw_score(self, screen):
         """Draw score display."""
@@ -191,3 +200,17 @@ class ControlPanel:
             pygame.draw.rect(screen, GOLD, win_bg_rect, 1, border_radius=5)
             
             screen.blit(win_text, win_rect)
+    
+    def _draw_field_config(self, screen):
+        """Draw current field configuration name."""
+        font = pygame.font.Font(None, 16)
+        config_text = font.render(f"Fields: {self.current_field_config}", True, PURPLE)
+        config_rect = config_text.get_rect(left=self.rect.x + 20, bottom=self.rect.bottom - 5)
+        
+        # Background for better readability
+        bg_rect = config_rect.inflate(10, 4)
+        s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+        s.fill((0, 0, 0, 150))
+        screen.blit(s, bg_rect.topleft)
+        
+        screen.blit(config_text, config_rect)

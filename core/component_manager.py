@@ -108,6 +108,10 @@ class ComponentManager:
     
     def clear_all(self, laser):
         """Clear all components."""
+        # Clean up any detector sounds first
+        if self.sound_manager and hasattr(self.sound_manager, 'detector_channels'):
+            self.sound_manager.cleanup_detector_sounds(set())
+        
         self.components.clear()
         # Keep the laser but move it back to default position
         if laser:
@@ -119,7 +123,7 @@ class ComponentManager:
             self.sound_manager.play('remove_component')
         
         # No score returned - scoring is based on detector power
-    
+
     def set_debug_mode(self, debug_state):
         """Set debug mode for all components."""
         for comp in self.components:

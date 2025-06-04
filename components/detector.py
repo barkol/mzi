@@ -62,17 +62,23 @@ class Detector(Component):
             self.total_path_length = 0
             return
         
-        # Calculate total intensity as sum of individual beam intensities
-        # Intensity = |amplitude|² for each beam
-        total_intensity = 0
+        # Calculate intensity using coherent superposition
+        # For coherent beams: E_total = Σ(A_i * e^(iφ_i))
+        # Intensity = |E_total|²
+        
+        complex_sum = 0j
+        
         for beam in self.incoming_beams:
-            beam_intensity = beam['amplitude'] ** 2
-            total_intensity += beam_intensity
+            # Add complex amplitudes
+            phase = beam['phase']
+            complex_amplitude = beam['amplitude'] * cmath.exp(1j * phase)
+            complex_sum += complex_amplitude
             
             if self.debug:
-                print(f"    Beam intensity: {beam_intensity:.3f} (amplitude: {beam['amplitude']:.3f})")
+                print(f"    Beam amplitude: {beam['amplitude']:.3f}, phase: {phase*180/math.pi:.1f}°")
         
-        self.intensity = total_intensity
+        # Calculate intensity as magnitude squared
+        self.intensity = abs(complex_sum) ** 2
         
         # Calculate average path length for display
         if self.incoming_beams:
@@ -82,7 +88,7 @@ class Detector(Component):
             print(f"\n  Detector at {self.position} - intensity calculation:")
             print(f"    Number of beams: {len(self.incoming_beams)}")
             print(f"    Total intensity: {self.intensity:.3f} = {self.intensity*100:.0f}%")
-            print(f"    (Sum of individual beam intensities)")
+            print(f"    (Coherent sum of amplitudes)")
     
     def draw(self, screen):
         """Draw detector with intensity visualization."""
@@ -117,7 +123,7 @@ class Detector(Component):
             # Display percentage
             # For simple intensity addition, 100% = 1 full beam
             # Multiple beams can exceed 100%
-            display_percent = int(self.intensity * 100)
+            display_percent = round(self.intensity * 100)  # FIXED: Use round() instead of int()
             font = pygame.font.Font(None, 20)
             
             # Color changes based on intensity
