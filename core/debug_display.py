@@ -124,8 +124,10 @@ class DebugDisplay:
     
     def draw_banner(self):
         """Draw the banner image as full window background."""
-        if self.assets_loader:
-            banner = self.assets_loader.get_banner()
+        if self.assets_loader and self.screen:
+            # Get the actual current screen size
+            screen_size = self.screen.get_size()
+            banner = self.assets_loader.get_banner(screen_size)
             # Draw at (0, 0) to fill entire window
             self.screen.blit(banner, (0, 0))
     

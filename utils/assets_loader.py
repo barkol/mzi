@@ -67,10 +67,13 @@ class AssetsLoader:
             placeholder.fill((255, 0, 255))  # Magenta for missing images
             return placeholder
     
-    def get_banner(self):
+    def get_banner(self, screen_size=None):
         """Get the banner image, resized to fill entire game window."""
-        # Check if we need to reload/resize the banner
-        current_size = (WINDOW_WIDTH, WINDOW_HEIGHT)
+        # Use provided screen size or fall back to window settings
+        if screen_size:
+            current_size = screen_size
+        else:
+            current_size = (WINDOW_WIDTH, WINDOW_HEIGHT)
         
         if self._cached_banner is None or self._cached_banner_size != current_size:
             # Load or reload the banner

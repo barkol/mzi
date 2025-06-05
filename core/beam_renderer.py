@@ -16,6 +16,11 @@ class BeamRenderer:
     
     def draw_beams(self, beam_tracer, laser, components, phase_value=0, blocked_positions=None):
         """Trace and draw all laser beams."""
+        # Ensure we have a valid screen reference
+        if not self.screen:
+            print("WARNING: BeamRenderer has no screen reference!")
+            return
+            
         beam_tracer.reset()
         
         # Pass blocked positions to beam tracer

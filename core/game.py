@@ -41,8 +41,8 @@ class Game:
         # Helper modules
         self.effects = EffectsManager()
         self.component_manager = ComponentManager(self.effects, self.sound_manager)
-        self.beam_renderer = BeamRenderer(screen)
-        self.debug_display = DebugDisplay(screen)
+        self.beam_renderer = BeamRenderer(self.screen)  # Use self.screen instead of screen parameter
+        self.debug_display = DebugDisplay(self.screen)  # Use self.screen for consistency
         self.debug_display.set_assets_loader(self.assets_loader)
         self.challenge_manager = ChallengeManager()
         
@@ -94,9 +94,15 @@ class Game:
         # Validate configuration
         self.challenge_manager.validate_field_configurations()
         
+        # Set initial field configuration in controls
+        self.controls.set_field_config("Default Fields")
+        
         # Create template if it doesn't exist
         if not os.path.exists("config/blocked_fields_template.txt"):
             self.challenge_manager.create_blocked_fields_template()
+        
+        # Create example field configurations
+        self.challenge_manager.create_example_field_configs()
         
         # Load default challenge
         challenges = self.challenge_manager.get_challenge_list()
@@ -115,6 +121,27 @@ class Game:
         
         # Show scoring formula
         self.controls.set_status("Score = Detector Power × 1000 + Gold Bonus")
+    
+    def update_screen_references(self, new_screen):
+        """Update all screen references when display mode changes."""
+        self.screen = new_screen
+        
+        # Update beam renderer
+        if hasattr(self, 'beam_renderer'):
+            self.beam_renderer.screen = new_screen
+            print(f"Updated beam renderer screen to: {new_screen}")
+        
+        # Update debug display
+        if hasattr(self, 'debug_display'):
+            self.debug_display.screen = new_screen
+            print(f"Updated debug display screen to: {new_screen}")
+        
+        # Clear asset cache
+        if hasattr(self, 'assets_loader'):
+            self.assets_loader.clear_cache()
+            print("Cleared asset cache")
+        
+        print(f"All screen references updated to: {new_screen.get_size()}")
     
     def handle_event(self, event):
         """Handle game events."""
@@ -308,6 +335,58 @@ class Game:
                 self.sound_manager.play('panel_open')
                 print(f"Loaded challenge: {challenge_title}")
                 self.right_panel.add_debug_message(f"Loaded challenge: {challenge_title}")
+                
+        elif action == 'Load Fields':
+            # Cycle through field configurations
+            field_configs = self.challenge_manager.get_available_field_configs()
+            print(f"Available field configurations: {len(field_configs)}")
+            for config in field_configs:
+                print(f"  - {config['name']}: {config['display_name']}")
+            
+            if field_configs:
+                # Find current configuration
+                current_idx = -1
+                current_config = self.challenge_manager.current_field_config
+                for i, config in enumerate(field_configs):
+                    if config['name'] == current_config:
+                        current_idx = i
+                        break
+                
+                # Go to next configuration
+                next_idx = (current_idx + 1) % len(field_configs)
+                next_config = field_configs[next_idx]
+                
+                print(f"Switching from '{current_config}' to '{next_config['name']}'")
+                
+                # Clear components before loading new field configuration
+                # (since blocked positions might change)
+                self.component_manager.clear_all(self.laser)
+                
+                # Load the new field configuration
+                success = self.challenge_manager.load_field_config(next_config['name'])
+                
+                if success:
+                    # Update UI
+                    self.controls.set_field_config(next_config['display_name'])
+                    self.sound_manager.play('panel_open')
+                    self.right_panel.add_debug_message(f"Loaded fields: {next_config['display_name']}")
+                    
+                    # Clear score when changing field configuration
+                    self.score = 0
+                    self.controls.score = self.score
+                    if hasattr(self.controls, 'set_gold_bonus'):
+                        self.controls.set_gold_bonus(0)
+                    
+                    # Show status message
+                    self.controls.set_status(f"Loaded: {next_config['display_name']}")
+                else:
+                    self.controls.set_status("Failed to load field configuration!")
+                    self.sound_manager.play('error')
+                    self.right_panel.add_debug_message("Error loading field configuration")
+            else:
+                print("No field configurations available!")
+                self.controls.set_status("No field configurations available!")
+                self.sound_manager.play('error')
     
     def _update_score(self, points):
         """Update game score."""
@@ -391,6 +470,11 @@ class Game:
         if self.laser and self.laser.enabled:
             # Set gold positions on beam tracer
             self.beam_tracer.set_gold_positions(self.challenge_manager.get_gold_positions())
+            
+            # Ensure beam renderer has correct screen reference
+            if self.beam_renderer.screen != self.screen:
+                print(f"WARNING: Beam renderer screen mismatch! Updating...")
+                self.beam_renderer.screen = self.screen
             
             self.beam_renderer.draw_beams(self.beam_tracer, self.laser,
                                         self.component_manager.components,

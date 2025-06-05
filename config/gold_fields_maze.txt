@@ -1,0 +1,21 @@
+# Gold fields for the maze challenge
+# Format: grid_x,grid_y
+
+# Reward for taking the upper path
+7,3
+8,3
+9,3
+10,3
+11,3
+12,3
+
+# Reward for taking the lower path
+7,11
+8,11
+9,11
+10,11
+11,11
+12,11
+
+# Bonus for reaching the end
+16,7

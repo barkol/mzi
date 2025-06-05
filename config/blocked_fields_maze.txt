@@ -1,0 +1,44 @@
+# Beam Maze Challenge - A challenging puzzle using beam-blocking obstacles
+# Format: grid_x,grid_y
+
+# This creates a maze that beams must navigate through
+
+# First barrier - forces initial routing decision
+4,5
+4,6
+4,7
+4,8
+4,9
+
+# Upper path obstacles
+6,3
+7,3
+8,3
+9,4
+10,4
+
+# Lower path obstacles
+6,11
+7,11
+8,11
+9,10
+10,10
+
+# Central diamond obstacle
+9,7
+10,6
+10,8
+11,7
+
+# Narrow passages
+13,5
+13,6
+# Gap at 13,7
+13,8
+13,9
+
+# Final barriers before detector area
+15,4
+15,5
+15,10
+15,11

@@ -68,9 +68,15 @@ def toggle_fullscreen_safe(screen, game, is_fullscreen):
                 pygame.display.init()
                 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
                 game.screen = screen
+                
+                # Update debug display screen reference
+                if hasattr(game, 'debug_display'):
+                    game.debug_display.screen = screen
+                
                 # Force refresh of assets
                 if hasattr(game, 'assets_loader'):
-                    game.assets_loader.images.clear()  # Clear image cache
+                    game.assets_loader.clear_cache()
+                
                 return screen, False, 1.0, 0, 0, None
             else:
                 # Enter fullscreen
@@ -94,9 +100,14 @@ def toggle_fullscreen_safe(screen, game, is_fullscreen):
                 y_offset = (info.current_h - scaled_height) // 2
                 
                 game.screen = game_surface
+                
+                # Update beam renderer screen reference
+                if hasattr(game, 'beam_renderer'):
+                    game.beam_renderer.screen = game_surface
+                
                 # Force refresh of assets
                 if hasattr(game, 'assets_loader'):
-                    game.assets_loader.images.clear()  # Clear image cache
+                    game.assets_loader.clear_cache()
                 
                 return screen, True, scale, x_offset, y_offset, game_surface
         else:
@@ -105,6 +116,19 @@ def toggle_fullscreen_safe(screen, game, is_fullscreen):
                 # Exit fullscreen
                 screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
                 game.screen = screen
+                
+                # Update beam renderer screen reference
+                if hasattr(game, 'beam_renderer'):
+                    game.beam_renderer.screen = screen
+                
+                # Update debug display screen reference
+                if hasattr(game, 'debug_display'):
+                    game.debug_display.screen = screen
+                
+                # Force refresh of assets
+                if hasattr(game, 'assets_loader'):
+                    game.assets_loader.clear_cache()
+                
                 return screen, False, 1.0, 0, 0, None
             else:
                 # Enter fullscreen
@@ -122,6 +146,15 @@ def toggle_fullscreen_safe(screen, game, is_fullscreen):
                 y_offset = (info.current_h - scaled_height) // 2
                 
                 game.screen = game_surface
+                
+                # Update beam renderer screen reference
+                if hasattr(game, 'beam_renderer'):
+                    game.beam_renderer.screen = game_surface
+                
+                # Force refresh of assets
+                if hasattr(game, 'assets_loader'):
+                    game.assets_loader.clear_cache()
+                
                 return screen, True, scale, x_offset, y_offset, game_surface
                 
     except Exception as e:
@@ -131,6 +164,15 @@ def toggle_fullscreen_safe(screen, game, is_fullscreen):
         pygame.display.init()
         screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
         game.screen = screen
+        
+        # Update beam renderer screen reference
+        if hasattr(game, 'beam_renderer'):
+            game.beam_renderer.screen = screen
+            
+        # Force refresh of assets
+        if hasattr(game, 'assets_loader'):
+            game.assets_loader.clear_cache()
+            
         return screen, False, 1.0, 0, 0, None
 
 def main():
@@ -212,8 +254,9 @@ def main():
             elif event.type == pygame.VIDEORESIZE and not is_fullscreen:
                 # Handle window resize
                 screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
-                # For now, just use the screen directly
-                game.screen = screen
+                
+                # Update all screen references
+                game.update_screen_references(screen)
                 
             # Adjust mouse position for fullscreen scaling
             if game_surface and event.type in [pygame.MOUSEMOTION, pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP]:

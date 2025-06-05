@@ -717,6 +717,145 @@ class ChallengeManager:
         
         return len(conflicts) == 0
     
+    def create_example_field_configs(self):
+        """Create example field configuration files if they don't exist."""
+        # Example 1: Maze configuration
+        maze_blocked = """# Beam Maze Challenge - A challenging puzzle using beam-blocking obstacles
+# Format: grid_x,grid_y
+
+# This creates a maze that beams must navigate through
+
+# First barrier - forces initial routing decision
+4,5
+4,6
+4,7
+4,8
+4,9
+
+# Upper path obstacles
+6,3
+7,3
+8,3
+9,4
+10,4
+
+# Lower path obstacles
+6,11
+7,11
+8,11
+9,10
+10,10
+
+# Central diamond obstacle
+9,7
+10,6
+10,8
+11,7
+
+# Narrow passages
+13,5
+13,6
+# Gap at 13,7
+13,8
+13,9
+
+# Final barriers before detector area
+15,4
+15,5
+15,10
+15,11
+"""
+        
+        maze_gold = """# Gold fields for the maze challenge
+# Format: grid_x,grid_y
+
+# Reward for taking the upper path
+7,3
+8,3
+9,3
+10,3
+11,3
+12,3
+
+# Reward for taking the lower path
+7,11
+8,11
+9,11
+10,11
+11,11
+12,11
+
+# Bonus for reaching the end
+16,7
+"""
+        
+        # Example 2: Treasure Hunt configuration
+        treasure_gold = """# Treasure Hunt - Maximize your score by hitting gold fields!
+# Format: grid_x,grid_y
+
+# Central treasure vault
+9,6
+9,7
+9,8
+10,6
+10,7
+10,8
+11,6
+11,7
+11,8
+
+# Corner treasures
+2,2
+3,2
+2,3
+
+17,2
+16,2
+17,3
+
+2,11
+3,11
+2,12
+
+17,11
+16,11
+17,12
+
+# Path bonuses
+5,7
+6,7
+7,7
+8,7
+
+12,7
+13,7
+14,7
+15,7
+"""
+        
+        files_to_create = [
+            ("config/blocked_fields_maze.txt", maze_blocked),
+            ("config/gold_fields_maze.txt", maze_gold),
+            ("config/gold_fields_treasure.txt", treasure_gold)
+        ]
+        
+        created_count = 0
+        for filename, content in files_to_create:
+            if not os.path.exists(filename):
+                try:
+                    os.makedirs(os.path.dirname(filename), exist_ok=True)
+                    with open(filename, 'w') as f:
+                        f.write(content)
+                    print(f"Created example field configuration: {filename}")
+                    created_count += 1
+                except Exception as e:
+                    print(f"Error creating {filename}: {e}")
+        
+        if created_count > 0:
+            print(f"Created {created_count} example field configurations")
+        
+        return created_count > 0
+    
     def get_challenge_list(self):
         """Get list of available challenges."""
         return [(name, info['name']) for name, info in self.challenges.items()]
