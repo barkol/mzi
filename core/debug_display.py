@@ -9,6 +9,7 @@ class DebugDisplay:
     def __init__(self, screen):
         self.screen = screen
         self.assets_loader = None  # Will be set by the game
+        self._actual_screen_size = None  # Store actual screen size for fullscreen
     
     def set_assets_loader(self, assets_loader):
         """Set the assets loader instance."""
@@ -125,11 +126,24 @@ class DebugDisplay:
     def draw_banner(self):
         """Draw the banner image as full window background."""
         if self.assets_loader and self.screen:
-            # Get the actual current screen size
-            screen_size = self.screen.get_size()
-            banner = self.assets_loader.get_banner(screen_size)
-            # Draw at (0, 0) to fill entire window
-            self.screen.blit(banner, (0, 0))
+            try:
+                # Get screen size - prefer stored actual screen size
+                if hasattr(self, '_actual_screen_size') and self._actual_screen_size:
+                    screen_size = self._actual_screen_size
+                elif hasattr(self.screen, 'get_size'):
+                    screen_size = self.screen.get_size()
+                else:
+                    # Fallback to window settings if screen is invalid
+                    from config.settings import WINDOW_WIDTH, WINDOW_HEIGHT
+                    screen_size = (WINDOW_WIDTH, WINDOW_HEIGHT)
+                
+                banner = self.assets_loader.get_banner(screen_size)
+                # Draw at (0, 0) to fill entire window
+                self.screen.blit(banner, (0, 0))
+            except pygame.error as e:
+                # Handle the case where screen is temporarily invalid
+                print(f"Banner draw skipped during display transition: {e}")
+                pass
     
     def draw_info_text(self):
         """Draw small info text in bottom right."""

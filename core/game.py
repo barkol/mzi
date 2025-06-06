@@ -1,4 +1,4 @@
-"""Main game logic and state management with sound effects."""
+"""Main game logic and state management with sound effects and energy monitoring."""
 import pygame
 import os
 import math
@@ -22,7 +22,7 @@ from utils.assets_loader import AssetsLoader
 from config.settings import *
 
 class Game:
-    """Main game class with sound support."""
+    """Main game class with sound support and energy monitoring."""
     
     def __init__(self, screen):
         self.screen = screen
@@ -122,18 +122,32 @@ class Game:
         # Show scoring formula
         self.controls.set_status("Score = Detector Power × 1000 + Gold Bonus")
     
-    def update_screen_references(self, new_screen):
-        """Update all screen references when display mode changes."""
+    def update_screen_references(self, new_screen, actual_screen=None):
+        """Update all screen references when display mode changes.
+        
+        Args:
+            new_screen: The surface to draw on (might be game_surface in fullscreen)
+            actual_screen: The actual display surface (for getting real screen size)
+        """
         self.screen = new_screen
+        self._actual_screen = actual_screen or new_screen  # Store actual screen reference
         
         # Update beam renderer
         if hasattr(self, 'beam_renderer'):
             self.beam_renderer.screen = new_screen
             print(f"Updated beam renderer screen to: {new_screen}")
         
-        # Update debug display
+        # Update debug display with both references
         if hasattr(self, 'debug_display'):
             self.debug_display.screen = new_screen
+            # Add method to store actual screen size
+            if hasattr(actual_screen, 'get_size'):
+                self.debug_display._actual_screen_size = actual_screen.get_size()
+            elif hasattr(new_screen, 'get_size'):
+                self.debug_display._actual_screen_size = new_screen.get_size()
+            else:
+                from config.settings import WINDOW_WIDTH, WINDOW_HEIGHT
+                self.debug_display._actual_screen_size = (WINDOW_WIDTH, WINDOW_HEIGHT)
             print(f"Updated debug display screen to: {new_screen}")
         
         # Clear asset cache
@@ -141,7 +155,7 @@ class Game:
             self.assets_loader.clear_cache()
             print("Cleared asset cache")
         
-        print(f"All screen references updated to: {new_screen.get_size()}")
+        print(f"All screen references updated")
     
     def handle_event(self, event):
         """Handle game events."""
@@ -401,6 +415,9 @@ class Game:
         """Update game state."""
         self.effects.update(dt)
         
+        # Update keyboard handler (for energy monitor)
+        self.keyboard_handler.update()
+        
         # Update detector sounds
         detectors = [c for c in self.component_manager.components if c.component_type == 'detector']
         for i, detector in enumerate(detectors):
@@ -508,6 +525,9 @@ class Game:
         
         # Draw leaderboard if visible
         self.leaderboard_display.draw(self.screen)
+        
+        # Draw keyboard handler overlays (energy monitor)
+        self.keyboard_handler.draw(self.screen)
     
     def _draw_challenge_name(self):
         """Draw the current challenge name above the grid."""

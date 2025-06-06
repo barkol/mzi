@@ -3,6 +3,7 @@ import pygame
 import math
 import cmath
 from core.test_utilities import TestUtilities
+from utils.energy_checker import check_energy_conservation, EnergyMonitor
 
 class KeyboardHandler:
     """Handles keyboard shortcuts and debug commands."""
@@ -10,6 +11,7 @@ class KeyboardHandler:
     def __init__(self, game):
         self.game = game
         self.tests = TestUtilities()
+        self.energy_monitor = EnergyMonitor()
     
     def handle_key(self, event):
         """Handle keyboard event and return True if handled."""
@@ -67,6 +69,23 @@ class KeyboardHandler:
             self.game.right_panel.add_debug_message(f"Debug mode: {'ON' if new_debug_state else 'OFF'}")
             if new_debug_state:
                 self.game.right_panel.add_debug_message("Switch to Debug view with Shift+H")
+            return True
+            
+        # Energy conservation check
+        elif event.key == pygame.K_e:
+            if pygame.key.get_mods() & pygame.KMOD_SHIFT:
+                # Shift+E - Toggle energy monitor overlay
+                enabled = self.energy_monitor.toggle()
+                print(f"Energy monitor: {'ON' if enabled else 'OFF'}")
+                self.game.right_panel.add_debug_message(f"Energy monitor: {'ON' if enabled else 'OFF'}")
+            else:
+                # E - Run detailed energy conservation analysis
+                check_energy_conservation(
+                    self.game.component_manager.components,
+                    self.game.laser,
+                    self.game.beam_tracer
+                )
+                self.game.right_panel.add_debug_message("Energy conservation analysis (see console)")
             return True
             
         # New session
@@ -129,6 +148,21 @@ class KeyboardHandler:
             
         return False
     
+    def update(self):
+        """Update keyboard handler components."""
+        # Update energy monitor if enabled
+        if self.energy_monitor.enabled:
+            self.energy_monitor.update(
+                self.game.component_manager.components,
+                self.game.laser,
+                self.game.beam_tracer
+            )
+    
+    def draw(self, screen):
+        """Draw keyboard handler overlays."""
+        # Draw energy monitor if enabled
+        self.energy_monitor.draw(screen)
+    
     def _show_help(self):
         """Show coordinate system help."""
         print("\n=== CONTROLS & HELP ===")
@@ -139,6 +173,8 @@ class KeyboardHandler:
         print("  L = Toggle leaderboard display")
         print("  G = Toggle debug mode for all components")
         print("  O = Toggle OPD display")
+        print("  E = Energy conservation analysis")
+        print("  Shift+E = Toggle energy monitor overlay")
         print("  Shift+S = Toggle sound on/off")
         print("  Shift+V = Increase volume")
         print("  Ctrl+Shift+V = Decrease volume")
@@ -160,6 +196,12 @@ class KeyboardHandler:
         print("  - Gold fields award bonus points based on beam intensity")
         print("  - Completed challenges turn gold and award points only once per session")
         print("  - Use Shift+Click on 'Clear All' to reset completed challenges")
+        print("")
+        print("Energy Conservation:")
+        print("  - Press 'E' for detailed energy analysis in console")
+        print("  - Press 'Shift+E' to toggle on-screen energy monitor")
+        print("  - Local energy at detectors varies with interference")
+        print("  - Global energy across all detectors should equal input")
         print("")
         print("Sound controls:")
         print("  - Shift+S toggles all sound effects on/off")

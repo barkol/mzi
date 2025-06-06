@@ -1,4 +1,4 @@
-"""Asset loading utility."""
+"""Asset loading utility with better size handling."""
 import pygame
 import os
 from config.settings import CANVAS_OFFSET_X, CANVAS_WIDTH, WINDOW_WIDTH, WINDOW_HEIGHT
@@ -45,8 +45,11 @@ class AssetsLoader:
             # Add border
             pygame.draw.rect(banner, (0, 255, 255), banner.get_rect(), 3)
             
-            pygame.image.save(banner, banner_path)
-            print(f"Created placeholder banner at: {banner_path}")
+            try:
+                pygame.image.save(banner, banner_path)
+                print(f"Created placeholder banner at: {banner_path}")
+            except Exception as e:
+                print(f"Could not save placeholder banner: {e}")
     
     def load_image(self, filename):
         """Load an image from the assets folder."""
@@ -75,15 +78,27 @@ class AssetsLoader:
         else:
             current_size = (WINDOW_WIDTH, WINDOW_HEIGHT)
         
+        # Validate size
+        if current_size[0] <= 0 or current_size[1] <= 0:
+            print(f"Invalid screen size for banner: {current_size}, using default")
+            current_size = (WINDOW_WIDTH, WINDOW_HEIGHT)
+        
         if self._cached_banner is None or self._cached_banner_size != current_size:
-            # Load or reload the banner
-            raw_image = self.load_image("banner.png")
-            
-            # Resize the banner to fill the entire game window
-            self._cached_banner = pygame.transform.smoothscale(raw_image, current_size)
-            self._cached_banner_size = current_size
-            
-            print(f"Banner resized to: {current_size}")
+            try:
+                # Load or reload the banner
+                raw_image = self.load_image("banner.png")
+                
+                # Resize the banner to fill the entire game window
+                self._cached_banner = pygame.transform.smoothscale(raw_image, current_size)
+                self._cached_banner_size = current_size
+                
+                print(f"Banner resized to: {current_size}")
+            except Exception as e:
+                print(f"Error resizing banner: {e}")
+                # Create a simple colored surface as fallback
+                self._cached_banner = pygame.Surface(current_size)
+                self._cached_banner.fill((0, 50, 75))  # Dark blue-ish
+                self._cached_banner_size = current_size
         
         return self._cached_banner
     
