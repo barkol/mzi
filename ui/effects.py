@@ -1,11 +1,11 @@
-"""Visual effects for the game."""
+"""Visual effects for the game with scaling support."""
 import pygame
 import math
 import time
-from config.settings import CYAN, WHITE, BLACK  # Added BLACK import
+from config.settings import CYAN, WHITE, BLACK, scale, scale_font
 
 class EffectsManager:
-    """Manages visual effects like placement animations."""
+    """Manages visual effects like placement animations with scaling."""
     
     def __init__(self):
         self.active_effects = []
@@ -57,20 +57,21 @@ class EffectsManager:
                 self._draw_info_message(screen, effect)
     
     def _draw_placement_effect(self, screen, effect):
-        """Draw placement ring effect."""
+        """Draw placement ring effect with scaling."""
         progress = (time.time() - effect['start_time']) / effect['duration']
         if progress >= 1:
             return
         
         alpha = int((1 - progress) * 128)
-        radius = int(20 + progress * 30)
+        radius = int(scale(20) + progress * scale(30))
         
         s = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-        pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (radius, radius), radius, 2)
+        pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha), 
+                         (radius, radius), radius, scale(2))
         screen.blit(s, (effect['x'] - radius, effect['y'] - radius))
     
     def _draw_success_message(self, screen, effect):
-        """Draw success message."""
+        """Draw success message with scaling."""
         progress = (time.time() - effect['start_time']) / effect['duration']
         
         # Fade in/out
@@ -85,8 +86,8 @@ class EffectsManager:
         alpha = max(0, min(255, alpha))
         
         # Create message surface
-        font_title = pygame.font.Font(None, 48)
-        font_text = pygame.font.Font(None, 24)
+        font_title = pygame.font.Font(None, scale_font(48))
+        font_text = pygame.font.Font(None, scale_font(24))
         
         title = font_title.render("Interferometer Complete!", True, CYAN)
         text = font_text.render("Adjust the phase shift to see interference patterns",
@@ -94,20 +95,22 @@ class EffectsManager:
         
         # Position
         title_rect = title.get_rect(center=(screen.get_width() // 2,
-                                          screen.get_height() // 2 - 50))
+                                          screen.get_height() // 2 - scale(50)))
         text_rect = text.get_rect(center=(screen.get_width() // 2,
-                                         screen.get_height() // 2 + 20))
+                                         screen.get_height() // 2 + scale(20)))
         
         # Background
-        bg_rect = title_rect.union(text_rect).inflate(60, 40)
+        bg_rect = title_rect.union(text_rect).inflate(scale(60), scale(40))
         s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
         
         # Draw background with proper alpha handling
         bg_alpha = max(0, min(255, alpha // 2))
         border_alpha = max(0, min(255, alpha // 3))
         
-        pygame.draw.rect(s, (BLACK[0], BLACK[1], BLACK[2], bg_alpha), s.get_rect(), border_radius=20)
-        pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], border_alpha), s.get_rect(), 2, border_radius=20)
+        pygame.draw.rect(s, (BLACK[0], BLACK[1], BLACK[2], bg_alpha), 
+                        s.get_rect(), border_radius=scale(20))
+        pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], border_alpha), 
+                        s.get_rect(), scale(2), border_radius=scale(20))
         screen.blit(s, bg_rect.topleft)
         
         # Draw text with alpha blending
@@ -123,7 +126,7 @@ class EffectsManager:
         screen.blit(text_surface, text_rect)
     
     def _draw_info_message(self, screen, effect):
-        """Draw informational message."""
+        """Draw informational message with scaling."""
         progress = (time.time() - effect['start_time']) / effect['duration']
         
         # Fade in/out
@@ -138,28 +141,30 @@ class EffectsManager:
         alpha = max(0, min(255, alpha))
         
         # Create message surface
-        font_title = pygame.font.Font(None, 36)
-        font_text = pygame.font.Font(None, 20)
+        font_title = pygame.font.Font(None, scale_font(36))
+        font_text = pygame.font.Font(None, scale_font(20))
         
         title = font_title.render(f"[OK] {effect['title']}", True, (255, 200, 100))  # Orange-ish color
         text = font_text.render(effect['subtitle'], True, WHITE)
         
         # Position
         title_rect = title.get_rect(center=(screen.get_width() // 2,
-                                          screen.get_height() // 2 - 40))
+                                          screen.get_height() // 2 - scale(40)))
         text_rect = text.get_rect(center=(screen.get_width() // 2,
                                          screen.get_height() // 2))
         
         # Background
-        bg_rect = title_rect.union(text_rect).inflate(50, 30)
+        bg_rect = title_rect.union(text_rect).inflate(scale(50), scale(30))
         s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
         
         # Draw background with proper alpha handling
         bg_alpha = max(0, min(255, alpha // 2))
         border_alpha = max(0, min(255, alpha // 3))
         
-        pygame.draw.rect(s, (BLACK[0], BLACK[1], BLACK[2], bg_alpha), s.get_rect(), border_radius=15)
-        pygame.draw.rect(s, (255, 200, 100, border_alpha), s.get_rect(), 2, border_radius=15)
+        pygame.draw.rect(s, (BLACK[0], BLACK[1], BLACK[2], bg_alpha), 
+                        s.get_rect(), border_radius=scale(15))
+        pygame.draw.rect(s, (255, 200, 100, border_alpha), 
+                        s.get_rect(), scale(2), border_radius=scale(15))
         screen.blit(s, bg_rect.topleft)
         
         # Draw text with alpha blending

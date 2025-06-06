@@ -1,6 +1,6 @@
-"""Energy conservation checker for the interferometer system."""
+"""Energy conservation checker for the interferometer system with scaling support."""
 import pygame
-from config.settings import scale, scale_font
+from config.settings import scale, scale_font, CYAN, WHITE, BLACK
 
 def check_energy_conservation(components, laser, beam_tracer):
     """
@@ -180,11 +180,11 @@ class EnergyMonitor:
         panel_surface = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
         panel_surface.fill((0, 0, 0, 200))
         screen.blit(panel_surface, panel_rect.topleft)
-        pygame.draw.rect(screen, (0, 255, 255), panel_rect, scale(2))
+        pygame.draw.rect(screen, CYAN, panel_rect, scale(2))
         
         # Draw title
         font_title = pygame.font.Font(None, scale_font(20))
-        title = font_title.render("ENERGY CONSERVATION", True, (0, 255, 255))
+        title = font_title.render("ENERGY CONSERVATION", True, CYAN)
         screen.blit(title, (panel_rect.x + scale(10), panel_rect.y + scale(10)))
         
         # Draw data
@@ -192,7 +192,7 @@ class EnergyMonitor:
         y_offset = scale(40)
         
         # Input power
-        text = font_data.render("Input Power: 1.000", True, (255, 255, 255))
+        text = font_data.render("Input Power: 1.000", True, WHITE)
         screen.blit(text, (panel_rect.x + scale(10), panel_rect.y + y_offset))
         y_offset += scale(20)
         

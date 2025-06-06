@@ -64,7 +64,7 @@ BASE_BEAM_WIDTH = 5
 COMPONENT_RADIUS = BASE_COMPONENT_RADIUS
 BEAM_WIDTH = BASE_BEAM_WIDTH
 
-# Physics settings (don't scale these - they affect gameplay)
+# Physics settings
 WAVELENGTH = 30
 SPEED_OF_LIGHT = 300
 

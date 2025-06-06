@@ -1,11 +1,11 @@
-"""Physics engine for beam propagation."""
+"""Physics engine for beam propagation with scaling support."""
 import math
 import cmath
 from utils.vector import Vector2
-from config.settings import WAVELENGTH, IDEAL_COMPONENTS, GRID_SIZE, CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT
+from config.settings import WAVELENGTH, IDEAL_COMPONENTS, GRID_SIZE, CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT, scale
 
 class BeamTracer:
-    """Traces beam paths through optical components."""
+    """Traces beam paths through optical components with scaling."""
     
     def __init__(self):
         self.active_beams = []

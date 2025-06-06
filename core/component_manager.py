@@ -7,7 +7,7 @@ from utils.vector import Vector2
 from config.settings import GRID_SIZE, CANVAS_OFFSET_X, CANVAS_OFFSET_Y
 
 class ComponentManager:
-    """Manages game components - adding, removing, and tracking."""
+    """Manages game components - adding, removing, and tracking with scaling support."""
     
     def __init__(self, effects_manager, sound_manager=None):
         self.components = []
@@ -130,8 +130,8 @@ class ComponentManager:
         # Keep the laser but move it back to default position
         if laser:
             # Use current scaled values
-            from config.settings import CANVAS_OFFSET_X, CANVAS_OFFSET_Y, GRID_SIZE
-            laser.position = Vector2(CANVAS_OFFSET_X + GRID_SIZE, CANVAS_OFFSET_Y + 7 * GRID_SIZE)
+            laser.position = Vector2(CANVAS_OFFSET_X + GRID_SIZE, 
+                                   CANVAS_OFFSET_Y + 7 * GRID_SIZE)
         
         # Play clear sound
         if self.sound_manager:
@@ -153,8 +153,6 @@ class ComponentManager:
     
     def update_component_positions(self):
         """Update all component positions based on their grid positions and current scale."""
-        from config.settings import CANVAS_OFFSET_X, CANVAS_OFFSET_Y, GRID_SIZE
-        
         print(f"Updating {len(self.components)} component positions with scale")
         print(f"Canvas offset: ({CANVAS_OFFSET_X}, {CANVAS_OFFSET_Y}), Grid size: {GRID_SIZE}")
         

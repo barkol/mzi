@@ -125,119 +125,33 @@ class Game:
         # Show scoring formula
         self.controls.set_status("Score = Detector Power × 1000 + Gold Bonus")
     
+
+    # Add these methods to the Game class in core/game.py:
+
     def update_scale(self, new_scale_factor):
-        """Update the scale factor and all dependent values while preserving component positions."""
-        print(f"\n=== SCALE UPDATE: {self.scale_factor:.2f} -> {new_scale_factor:.2f} ===")
-        
-        # Store old scale values for conversion
-        old_scale_factor = self.scale_factor
-        old_canvas_offset_x = CANVAS_OFFSET_X
-        old_canvas_offset_y = CANVAS_OFFSET_Y
-        old_grid_size = GRID_SIZE
-        
-        # Store component positions in grid coordinates
-        component_grid_positions = []
-        for comp in self.component_manager.components:
-            # Convert pixel position to grid coordinates using OLD scale
-            grid_x = round((comp.position.x - old_canvas_offset_x) / old_grid_size)
-            grid_y = round((comp.position.y - old_canvas_offset_y) / old_grid_size)
-            component_grid_positions.append({
-                'type': comp.component_type,
-                'grid_x': grid_x,
-                'grid_y': grid_y,
-                'mirror_type': getattr(comp, 'mirror_type', None)  # For mirrors
-            })
-            print(f"  Stored {comp.component_type} at grid ({grid_x}, {grid_y})")
-        
-        # Store laser grid position
-        laser_grid_x = round((self.laser.position.x - old_canvas_offset_x) / old_grid_size)
-        laser_grid_y = round((self.laser.position.y - old_canvas_offset_y) / old_grid_size)
-        print(f"  Stored laser at grid ({laser_grid_x}, {laser_grid_y})")
-        
-        # Update scale factor
+        """Update the scale factor and all dependent values."""
         self.scale_factor = new_scale_factor
         
-        # Update global scaled values
-        from config.settings import update_scaled_values
-        update_scaled_values(new_scale_factor)
+        # Update laser position
+        laser_x = scale(BASE_CANVAS_OFFSET_X + BASE_GRID_SIZE)
+        laser_y = scale(BASE_CANVAS_OFFSET_Y + 7 * BASE_GRID_SIZE)
+        self.laser.position = Vector2(laser_x, laser_y)
         
-        # Re-import the updated values
-        from config.settings import CANVAS_OFFSET_X, CANVAS_OFFSET_Y, GRID_SIZE
+        # Clear components to avoid scaling issues
+        self.component_manager.clear_all(self.laser)
         
-        # Update laser position with NEW scale
-        new_laser_x = CANVAS_OFFSET_X + laser_grid_x * GRID_SIZE
-        new_laser_y = CANVAS_OFFSET_Y + laser_grid_y * GRID_SIZE
-        self.laser.position = Vector2(new_laser_x, new_laser_y)
-        print(f"  Moved laser to pixel ({new_laser_x}, {new_laser_y})")
-        
-        # Clear components (we'll re-add them at new positions)
-        self.component_manager.components.clear()
-        
-        # Re-add components at their grid positions with NEW scale
-        for comp_data in component_grid_positions:
-            # Convert grid coordinates to pixel coordinates using NEW scale
-            new_x = CANVAS_OFFSET_X + comp_data['grid_x'] * GRID_SIZE
-            new_y = CANVAS_OFFSET_Y + comp_data['grid_y'] * GRID_SIZE
-            
-            # Create component at new position
-            if comp_data['type'] == 'beamsplitter':
-                from components.beam_splitter import BeamSplitter
-                comp = BeamSplitter(new_x, new_y)
-            elif comp_data['type'] == 'mirror':
-                from components.mirror import Mirror
-                comp = Mirror(new_x, new_y, comp_data['mirror_type'])
-            elif comp_data['type'] == 'detector':
-                from components.detector import Detector
-                comp = Detector(new_x, new_y)
-            else:
-                continue  # Skip unknown types
-            
-            self.component_manager.components.append(comp)
-            print(f"  Restored {comp_data['type']} at pixel ({new_x}, {new_y})")
-        
-        # Recreate UI components with new scale
+        # Update UI components
         self.grid = Grid()
         self.sidebar = Sidebar(self.sound_manager)
         self.controls = ControlPanel(self.sound_manager)
         self.right_panel = RightPanel(self.sound_manager)
         
-        # Update leaderboard display scale
+        # Update leaderboard display position
         self.leaderboard_display.update_scale()
         
-        # Re-setup callbacks
-        self.sidebar.set_can_add_callback(self._can_add_component)
-        
-        # Restore UI state
-        if self.current_challenge_display_name:
-            self.controls.set_challenge(self.current_challenge_display_name)
-        self.controls.score = self.score
-        if hasattr(self.controls, 'set_gold_bonus'):
-            self.controls.set_gold_bonus(0)
-        
-        # Restore field config display
-        field_configs = self.challenge_manager.get_available_field_configs()
-        current_config = self.challenge_manager.current_field_config
-        for config in field_configs:
-            if config['name'] == current_config:
-                self.controls.set_field_config(config['display_name'])
-                break
-        
-        # Clear asset cache to reload scaled assets
+        # Clear asset cache
         self.assets_loader.clear_cache()
-        
-        # Reset detectors (they need to recalculate with new positions)
-        for comp in self.component_manager.components:
-            if hasattr(comp, 'reset_frame'):
-                comp.reset_frame()
-        
-        # Debug info
-        print(f"\nScale update complete:")
-        print(f"  New canvas offset: ({CANVAS_OFFSET_X}, {CANVAS_OFFSET_Y})")
-        print(f"  New grid size: {GRID_SIZE}")
-        print(f"  Window size: {WINDOW_WIDTH}x{WINDOW_HEIGHT}")
-        print(f"  Components restored: {len(self.component_manager.components)}")
-        print("=" * 50)
-    
+
     def update_screen_references(self, new_screen, actual_screen=None):
         """Update all screen references when display mode changes."""
         self.screen = new_screen
@@ -246,9 +160,8 @@ class Game:
         # Update beam renderer
         if hasattr(self, 'beam_renderer'):
             self.beam_renderer.screen = new_screen
-            print(f"Updated beam renderer screen to: {new_screen}")
         
-        # Update debug display with both references
+        # Update debug display
         if hasattr(self, 'debug_display'):
             self.debug_display.screen = new_screen
             if hasattr(actual_screen, 'get_size'):
@@ -257,14 +170,11 @@ class Game:
                 self.debug_display._actual_screen_size = new_screen.get_size()
             else:
                 self.debug_display._actual_screen_size = (WINDOW_WIDTH, WINDOW_HEIGHT)
-            print(f"Updated debug display screen to: {new_screen}")
         
         # Clear asset cache
         if hasattr(self, 'assets_loader'):
             self.assets_loader.clear_cache()
-            print("Cleared asset cache")
-        
-        print(f"All screen references updated")
+
     
     def handle_event(self, event):
         """Handle game events."""

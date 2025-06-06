@@ -1,11 +1,12 @@
-"""Emoji support utility for pygame."""
+"""Emoji support utility for pygame with scaling support."""
 import pygame
 import platform
 import os
 import math
+from config.settings import scale, scale_font
 
 class EmojiSupport:
-    """Provides emoji rendering support across different platforms."""
+    """Provides emoji rendering support across different platforms with scaling."""
     
     _emoji_font = None
     _fallback_font = None
@@ -14,7 +15,8 @@ class EmojiSupport:
     @classmethod
     def get_emoji_font(cls, size=20):
         """Get a font that supports emoji for the current platform."""
-        if cls._emoji_font and cls._emoji_font.get_height() == size:
+        scaled_size = scale_font(size)
+        if cls._emoji_font and cls._emoji_font.get_height() == scaled_size:
             return cls._emoji_font
         
         # Platform-specific emoji fonts
@@ -33,7 +35,7 @@ class EmojiSupport:
         # Try to load each font
         for font_name in font_list:
             try:
-                cls._emoji_font = pygame.font.SysFont(font_name, size)
+                cls._emoji_font = pygame.font.SysFont(font_name, scaled_size)
                 # Test if it can render emojis by checking if it renders differently than default
                 test_surface = cls._emoji_font.render("🏆", True, (255, 255, 255))
                 if test_surface.get_width() > 5:  # Basic check if something was rendered
@@ -42,7 +44,7 @@ class EmojiSupport:
                 continue
         
         # If no emoji font found, return default font
-        cls._emoji_font = pygame.font.Font(None, size)
+        cls._emoji_font = pygame.font.Font(None, scaled_size)
         return cls._emoji_font
     
     @classmethod
@@ -53,7 +55,7 @@ class EmojiSupport:
         Args:
             text: The emoji or text to render
             emoji_replacement: Text to use if emoji rendering fails
-            size: Font size
+            size: Font size (will be scaled)
             color: Text color
             use_emoji: Whether to attempt emoji rendering
         
@@ -61,7 +63,7 @@ class EmojiSupport:
             pygame.Surface with rendered text
         """
         if not use_emoji:
-            font = pygame.font.Font(None, size)
+            font = pygame.font.Font(None, scale_font(size))
             return font.render(emoji_replacement, True, color)
         
         # Try emoji font
@@ -71,7 +73,7 @@ class EmojiSupport:
         # Check if emoji was rendered properly (very basic check)
         if surface.get_width() < 5 or surface.get_height() < 5:
             # Fallback to text
-            font = pygame.font.Font(None, size)
+            font = pygame.font.Font(None, scale_font(size))
             return font.render(emoji_replacement, True, color)
         
         return surface
@@ -85,46 +87,50 @@ class EmojiSupport:
     def get_checkmark_surface(cls, size=24, color=(255, 215, 0)):
         """Get a surface with checkmark symbol."""
         # Checkmark usually works better than emoji
-        font = pygame.font.Font(None, size)
+        font = pygame.font.Font(None, scale_font(size))
         return font.render("✓", True, color)
     
     @classmethod
     def get_star_surface(cls, size=20, color=(255, 215, 0)):
         """Get a surface with star symbol."""
         # Star character usually works in most fonts
-        font = pygame.font.Font(None, size)
+        font = pygame.font.Font(None, scale_font(size))
         return font.render("★", True, color)
     
     @classmethod
     def draw_trophy_icon(cls, screen, x, y, size=20, color=(255, 215, 0)):
         """Draw a trophy icon using shapes if emoji not available."""
+        # Scale all dimensions
+        scaled_size = scale(size)
+        
         # Draw a simple trophy shape
         # Cup part
-        cup_rect = pygame.Rect(x - size//2, y - size//2, size, int(size * 0.7))
-        pygame.draw.rect(screen, color, cup_rect, 0, border_radius=5)
+        cup_rect = pygame.Rect(x - scaled_size//2, y - scaled_size//2, 
+                              scaled_size, int(scaled_size * 0.7))
+        pygame.draw.rect(screen, color, cup_rect, 0, border_radius=scale(5))
         
         # Handles
-        handle_width = size // 4
+        handle_width = scaled_size // 4
         # Left handle
         pygame.draw.arc(screen, color,
-                       pygame.Rect(x - size//2 - handle_width//2, y - size//2,
-                                  handle_width, size//2),
-                       -1.57, 1.57, 2)
+                       pygame.Rect(x - scaled_size//2 - handle_width//2, y - scaled_size//2,
+                                  handle_width, scaled_size//2),
+                       -1.57, 1.57, scale(2))
         # Right handle
         pygame.draw.arc(screen, color,
-                       pygame.Rect(x + size//2 - handle_width//2, y - size//2,
-                                  handle_width, size//2),
-                       1.57, 4.71, 2)
+                       pygame.Rect(x + scaled_size//2 - handle_width//2, y - scaled_size//2,
+                                  handle_width, scaled_size//2),
+                       1.57, 4.71, scale(2))
         
         # Base
-        base_width = int(size * 0.6)
-        base_rect = pygame.Rect(x - base_width//2, y + int(size * 0.15),
-                               base_width, int(size * 0.2))
+        base_width = int(scaled_size * 0.6)
+        base_rect = pygame.Rect(x - base_width//2, y + int(scaled_size * 0.15),
+                               base_width, int(scaled_size * 0.2))
         pygame.draw.rect(screen, color, base_rect)
         
         # Star on trophy
-        star_size = size // 3
-        star_y = y - size//4
+        star_size = scaled_size // 3
+        star_y = y - scaled_size//4
         # Simple star shape
         points = []
         for i in range(5):

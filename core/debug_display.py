@@ -1,10 +1,10 @@
-"""Debug display module for showing OPD and physics information."""
+"""Debug display module for showing OPD and physics information with scaling."""
 import pygame
 import math
-from config.settings import CYAN, WHITE, GREEN, CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_HEIGHT, CANVAS_WIDTH, WAVELENGTH, GRID_SIZE, IDEAL_COMPONENTS
+from config.settings import CYAN, WHITE, GREEN, CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_HEIGHT, CANVAS_WIDTH, WAVELENGTH, GRID_SIZE, IDEAL_COMPONENTS, scale, scale_font
 
 class DebugDisplay:
-    """Handles display of debug information and optical path differences."""
+    """Handles display of debug information and optical path differences with scaling."""
     
     def __init__(self, screen):
         self.screen = screen
@@ -35,7 +35,7 @@ class DebugDisplay:
             self._draw_detector_opd(components)
     
     def _draw_beamsplitter_opd(self, beam_splitter, components):
-        """Draw OPD info from beam splitter interference."""
+        """Draw OPD info from beam splitter interference with scaling."""
         # Get OPD from the beam splitter where interference happened
         opd = beam_splitter.last_opd
         phase_diff = beam_splitter.last_phase_diff
@@ -47,14 +47,14 @@ class DebugDisplay:
         detectors = [c for c in components if c.component_type == 'detector' and c.intensity > 0.01]
         
         # Draw info box
-        font = pygame.font.Font(None, 18)
-        info_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT - 120
+        font = pygame.font.Font(None, scale_font(18))
+        info_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT - scale(120)
         
         # Background
-        bg_rect = pygame.Rect(CANVAS_OFFSET_X + 10, info_y, 360, 110)
+        bg_rect = pygame.Rect(CANVAS_OFFSET_X + scale(10), info_y, scale(360), scale(110))
         s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
         s.fill((0, 0, 0, 200))
-        pygame.draw.rect(s, CYAN, s.get_rect(), 1)
+        pygame.draw.rect(s, CYAN, s.get_rect(), scale(1))
         self.screen.blit(s, bg_rect.topleft)
         
         # Text
@@ -64,19 +64,19 @@ class DebugDisplay:
         phase_opd_text = font.render(f"Phase from path difference: {phase_from_opd*180/math.pi:.1f}°", True, WHITE)
         phase_text = font.render(f"Total phase difference (including components): {phase_diff*180/math.pi:.1f}°", True, GREEN)
         
-        self.screen.blit(title_text, (bg_rect.x + 10, bg_rect.y + 5))
-        self.screen.blit(opd_text, (bg_rect.x + 10, bg_rect.y + 25))
-        self.screen.blit(phase_opd_text, (bg_rect.x + 10, bg_rect.y + 45))
-        self.screen.blit(phase_text, (bg_rect.x + 10, bg_rect.y + 65))
+        self.screen.blit(title_text, (bg_rect.x + scale(10), bg_rect.y + scale(5)))
+        self.screen.blit(opd_text, (bg_rect.x + scale(10), bg_rect.y + scale(25)))
+        self.screen.blit(phase_opd_text, (bg_rect.x + scale(10), bg_rect.y + scale(45)))
+        self.screen.blit(phase_text, (bg_rect.x + scale(10), bg_rect.y + scale(65)))
         
         # Show detector intensities if available
         if len(detectors) >= 2:
             total_intensity = sum(d.intensity for d in detectors)
             detector_text = font.render(f"Detector Intensities: {detectors[0].intensity*100:.0f}% + {detectors[1].intensity*100:.0f}% = {total_intensity*100:.0f}%", True, CYAN)
-            self.screen.blit(detector_text, (bg_rect.x + 10, bg_rect.y + 85))
+            self.screen.blit(detector_text, (bg_rect.x + scale(10), bg_rect.y + scale(85)))
     
     def _draw_detector_opd(self, components):
-        """Draw OPD based on detector readings."""
+        """Draw OPD based on detector readings with scaling."""
         # Fallback: Show detector-based OPD if available
         active_detectors = [c for c in components
                           if c.component_type == 'detector' and c.intensity > 0.01]
@@ -91,32 +91,32 @@ class DebugDisplay:
             phase_from_opd = (opd * 2 * math.pi / WAVELENGTH) % (2 * math.pi)
             
             # Draw info box
-            font = pygame.font.Font(None, 18)
-            info_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT - 60
+            font = pygame.font.Font(None, scale_font(18))
+            info_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT - scale(60)
             
             # Background
-            bg_rect = pygame.Rect(CANVAS_OFFSET_X + 10, info_y, 280, 50)
+            bg_rect = pygame.Rect(CANVAS_OFFSET_X + scale(10), info_y, scale(280), scale(50))
             s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
             s.fill((0, 0, 0, 200))
-            pygame.draw.rect(s, CYAN, s.get_rect(), 1)
+            pygame.draw.rect(s, CYAN, s.get_rect(), scale(1))
             self.screen.blit(s, bg_rect.topleft)
             
             # Text
             opd_text = font.render(f"Optical Path Difference: {opd:.1f} px", True, CYAN)
             phase_text = font.render(f"Phase from OPD: {phase_from_opd*180/math.pi:.1f}° ({opd/WAVELENGTH:.2f}λ)", True, WHITE)
             
-            self.screen.blit(opd_text, (bg_rect.x + 10, bg_rect.y + 5))
-            self.screen.blit(phase_text, (bg_rect.x + 10, bg_rect.y + 25))
+            self.screen.blit(opd_text, (bg_rect.x + scale(10), bg_rect.y + scale(5)))
+            self.screen.blit(phase_text, (bg_rect.x + scale(10), bg_rect.y + scale(25)))
         else:
             # Show hint if no interference yet
-            font = pygame.font.Font(None, 16)
+            font = pygame.font.Font(None, scale_font(16))
             hint_text = f"Tip: Create asymmetric paths for non-zero OPD (λ={WAVELENGTH}px ≠ grid={GRID_SIZE}px)"
             hint = font.render(hint_text, True, WHITE)
             hint_rect = hint.get_rect(center=(CANVAS_OFFSET_X + CANVAS_WIDTH // 2,
-                                             CANVAS_OFFSET_Y + CANVAS_HEIGHT - 20))
+                                             CANVAS_OFFSET_Y + CANVAS_HEIGHT - scale(20)))
             
             # Background for hint
-            bg_rect = hint_rect.inflate(20, 10)
+            bg_rect = hint_rect.inflate(scale(20), scale(10))
             s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
             s.fill((0, 0, 0, 150))
             self.screen.blit(s, bg_rect.topleft)
@@ -146,20 +146,20 @@ class DebugDisplay:
                 pass
     
     def draw_info_text(self):
-        """Draw small info text in bottom right."""
+        """Draw small info text in bottom right with scaling."""
         # Show if using ideal components
-        info_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT - 45
-        info_x = CANVAS_OFFSET_X + CANVAS_WIDTH - 20
+        info_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT - scale(45)
+        info_x = CANVAS_OFFSET_X + CANVAS_WIDTH - scale(20)
         
         if IDEAL_COMPONENTS:
-            ideal_font = pygame.font.Font(None, 14)
+            ideal_font = pygame.font.Font(None, scale_font(14))
             ideal_text = ideal_font.render("IDEAL COMPONENTS", True, GREEN)
             ideal_rect = ideal_text.get_rect(right=info_x, y=info_y)
             self.screen.blit(ideal_text, ideal_rect)
-            info_y += 20
+            info_y += scale(20)
         
         # Show physics model info
-        physics_font = pygame.font.Font(None, 12)
+        physics_font = pygame.font.Font(None, scale_font(12))
         physics_text = physics_font.render("BS +90° | Mirror +180°", True, CYAN)
         physics_rect = physics_text.get_rect(right=info_x, y=info_y)
         self.screen.blit(physics_text, physics_rect)

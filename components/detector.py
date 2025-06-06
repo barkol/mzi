@@ -38,7 +38,7 @@ class Detector(Component):
                 'amplitude': beam['amplitude'],
                 'phase': beam.get('accumulated_phase', beam['phase']),
                 'path_length': beam.get('total_path_length', 0),
-                'source': beam.get('source_type', 'unknown')
+                'source_type': beam.get('source_type', 'unknown')
             })
             
             # Track individual beam power for energy conservation check
