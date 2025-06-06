@@ -1,25 +1,42 @@
-"""Control panel UI with sound support."""
+"""Control panel UI with sound support and scaling."""
 import pygame
 from config.settings import *
 
 class ControlPanel:
-    """Bottom control panel with buttons and sound effects."""
+    """Bottom control panel with buttons, sound effects, and scaling."""
     
     def __init__(self, sound_manager=None):
         self.rect = pygame.Rect(
             CANVAS_OFFSET_X,
-            CANVAS_OFFSET_Y + CANVAS_HEIGHT + 20,
+            CANVAS_OFFSET_Y + CANVAS_HEIGHT + scale(20),
             CANVAS_WIDTH,
-            80
+            scale(80)
         )
         
-        self.buttons = [
-            {'name': 'Clear All', 'rect': pygame.Rect(self.rect.x + 20, self.rect.y + 20, 100, 40)},
-            {'name': 'Check Setup', 'rect': pygame.Rect(self.rect.x + 130, self.rect.y + 20, 110, 40)},
-            {'name': 'Toggle Laser', 'rect': pygame.Rect(self.rect.x + 250, self.rect.y + 20, 110, 40)},
-            {'name': 'Load Challenge', 'rect': pygame.Rect(self.rect.x + 370, self.rect.y + 20, 115, 40)},
-            {'name': 'Load Fields', 'rect': pygame.Rect(self.rect.x + 495, self.rect.y + 20, 95, 40)}
+        # Scale button dimensions
+        button_width = scale(110)
+        button_height = scale(40)
+        button_spacing = scale(10)
+        button_y = self.rect.y + scale(20)
+        start_x = self.rect.x + scale(20)
+        
+        # Calculate button positions
+        self.buttons = []
+        button_configs = [
+            ('Clear All', scale(100)),
+            ('Check Setup', scale(110)),
+            ('Toggle Laser', scale(110)),
+            ('Load Challenge', scale(115)),
+            ('Load Fields', scale(95))
         ]
+        
+        current_x = start_x
+        for name, width in button_configs:
+            self.buttons.append({
+                'name': name,
+                'rect': pygame.Rect(current_x, button_y, width, button_height)
+            })
+            current_x += width + button_spacing
         
         self.score = 0
         self.current_challenge = None
@@ -27,7 +44,7 @@ class ControlPanel:
         self.challenge_completed = False
         self.gold_bonus = 0
         self.sound_manager = sound_manager
-        self.current_field_config = "Default Fields"  # Track current field configuration
+        self.current_field_config = "Default Fields"
         
         # Track hover state for buttons
         self.hover_button = None
@@ -83,22 +100,23 @@ class ControlPanel:
         """Draw control panel."""
         # Background
         s = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
-        pygame.draw.rect(s, (DARK_PURPLE[0], DARK_PURPLE[1], DARK_PURPLE[2], 180), s.get_rect(), border_radius=10)
+        pygame.draw.rect(s, (DARK_PURPLE[0], DARK_PURPLE[1], DARK_PURPLE[2], 180), 
+                        s.get_rect(), border_radius=scale(10))
         screen.blit(s, self.rect.topleft)
         
         # Border
         border_color = (PURPLE[0], PURPLE[1], PURPLE[2], 100)
         s2 = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
-        pygame.draw.rect(s2, border_color, s2.get_rect(), 2, border_radius=10)
+        pygame.draw.rect(s2, border_color, s2.get_rect(), scale(2), border_radius=scale(10))
         screen.blit(s2, self.rect.topleft)
         
         # Buttons
-        font = pygame.font.Font(None, 18)
+        font = pygame.font.Font(None, scale_font(18))
         for button in self.buttons:
             # Button background with hover effect
             if button['name'] == self.hover_button:
                 # Highlighted button
-                pygame.draw.rect(screen, CYAN, button['rect'], border_radius=20)
+                pygame.draw.rect(screen, CYAN, button['rect'], border_radius=scale(20))
                 
                 # Brighter gradient for hover
                 s = pygame.Surface((button['rect'].width, button['rect'].height), pygame.SRCALPHA)
@@ -109,7 +127,7 @@ class ControlPanel:
                 screen.blit(s, button['rect'].topleft)
             else:
                 # Normal button
-                pygame.draw.rect(screen, PURPLE, button['rect'], border_radius=20)
+                pygame.draw.rect(screen, PURPLE, button['rect'], border_radius=scale(20))
                 
                 # Gradient effect
                 s = pygame.Surface((button['rect'].width, button['rect'].height), pygame.SRCALPHA)
@@ -134,81 +152,83 @@ class ControlPanel:
     def _draw_score(self, screen):
         """Draw score display."""
         # Use gold color if challenge is completed, cyan otherwise
-        GOLD = (255, 215, 0)
         score_color = GOLD if self.challenge_completed else CYAN
         
-        font = pygame.font.Font(None, 24)
+        font = pygame.font.Font(None, scale_font(24))
         score_text = font.render(f"Score: {self.score}", True, score_color)
-        score_rect = score_text.get_rect(right=self.rect.right - 20,
-                                        centery=self.rect.centery + 10)
+        score_rect = score_text.get_rect(right=self.rect.right - scale(20),
+                                        centery=self.rect.centery + scale(10))
         
         # Draw gold bonus above score if present
         if self.gold_bonus > 0:
-            bonus_font = pygame.font.Font(None, 18)
+            bonus_font = pygame.font.Font(None, scale_font(18))
             bonus_text = bonus_font.render(f"Gold Bonus: +{self.gold_bonus}", True, GOLD)
-            bonus_rect = bonus_text.get_rect(right=self.rect.right - 20,
-                                            bottom=score_rect.top - 5)
+            bonus_rect = bonus_text.get_rect(right=self.rect.right - scale(20),
+                                            bottom=score_rect.top - scale(5))
             
             # Background for gold bonus
-            bonus_bg_rect = bonus_rect.inflate(16, 6)
+            bonus_bg_rect = bonus_rect.inflate(scale(16), scale(6))
             
             # Glow effect for gold bonus
-            glow_surf = pygame.Surface((bonus_bg_rect.width + 8, bonus_bg_rect.height + 8), pygame.SRCALPHA)
+            glow_surf = pygame.Surface((bonus_bg_rect.width + scale(8), 
+                                      bonus_bg_rect.height + scale(8)), pygame.SRCALPHA)
             pygame.draw.rect(glow_surf, (GOLD[0], GOLD[1], GOLD[2], 25),
-                           glow_surf.get_rect(), border_radius=10)
-            screen.blit(glow_surf, (bonus_bg_rect.x - 4, bonus_bg_rect.y - 4))
+                           glow_surf.get_rect(), border_radius=scale(10))
+            screen.blit(glow_surf, (bonus_bg_rect.x - scale(4), bonus_bg_rect.y - scale(4)))
             
             # Background
             s = pygame.Surface((bonus_bg_rect.width, bonus_bg_rect.height), pygame.SRCALPHA)
             pygame.draw.rect(s, (GOLD[0]//4, GOLD[1]//4, GOLD[2]//4, 200),
-                           s.get_rect(), border_radius=10)
+                           s.get_rect(), border_radius=scale(10))
             screen.blit(s, bonus_bg_rect.topleft)
-            pygame.draw.rect(screen, GOLD, bonus_bg_rect, 1, border_radius=10)
+            pygame.draw.rect(screen, GOLD, bonus_bg_rect, scale(1), border_radius=scale(10))
             
             screen.blit(bonus_text, bonus_rect)
         
         # Background with glow effect for score
-        bg_rect = score_rect.inflate(20, 10)
+        bg_rect = score_rect.inflate(scale(20), scale(10))
         
         # Glow
-        glow_surf = pygame.Surface((bg_rect.width + 10, bg_rect.height + 10), pygame.SRCALPHA)
+        glow_surf = pygame.Surface((bg_rect.width + scale(10), bg_rect.height + scale(10)), 
+                                 pygame.SRCALPHA)
         pygame.draw.rect(glow_surf, (score_color[0], score_color[1], score_color[2], 20),
-                        glow_surf.get_rect(), border_radius=15)
-        screen.blit(glow_surf, (bg_rect.x - 5, bg_rect.y - 5))
+                        glow_surf.get_rect(), border_radius=scale(15))
+        screen.blit(glow_surf, (bg_rect.x - scale(5), bg_rect.y - scale(5)))
         
         # Background
         s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
         pygame.draw.rect(s, (score_color[0], score_color[1], score_color[2], 30),
-                        s.get_rect(), border_radius=15)
+                        s.get_rect(), border_radius=scale(15))
         screen.blit(s, bg_rect.topleft)
-        pygame.draw.rect(screen, score_color, bg_rect, 1, border_radius=15)
+        pygame.draw.rect(screen, score_color, bg_rect, scale(1), border_radius=scale(15))
         
         screen.blit(score_text, score_rect)
         
         # Add "WIN!" text if challenge is completed
         if self.challenge_completed:
-            win_font = pygame.font.Font(None, 18)
+            win_font = pygame.font.Font(None, scale_font(18))
             win_text = win_font.render("WIN!", True, GOLD)
-            win_rect = win_text.get_rect(right=bg_rect.left - 10, centery=bg_rect.centery)
+            win_rect = win_text.get_rect(right=bg_rect.left - scale(10), centery=bg_rect.centery)
             
             # Background for WIN text
-            win_bg_rect = win_rect.inflate(8, 4)
+            win_bg_rect = win_rect.inflate(scale(8), scale(4))
             s = pygame.Surface((win_bg_rect.width, win_bg_rect.height), pygame.SRCALPHA)
             pygame.draw.rect(s, (GOLD[0]//4, GOLD[1]//4, GOLD[2]//4, 200),
-                           s.get_rect(), border_radius=5)
+                           s.get_rect(), border_radius=scale(5))
             screen.blit(s, win_bg_rect.topleft)
-            pygame.draw.rect(screen, GOLD, win_bg_rect, 1, border_radius=5)
+            pygame.draw.rect(screen, GOLD, win_bg_rect, scale(1), border_radius=scale(5))
             
             screen.blit(win_text, win_rect)
     
     def _draw_field_config(self, screen):
         """Draw current field configuration name."""
-        font = pygame.font.Font(None, 16)
+        font = pygame.font.Font(None, scale_font(16))
         config_text = font.render(f"Fields: {self.current_field_config}", True, PURPLE)
-        config_rect = config_text.get_rect(left=self.rect.x + 20, bottom=self.rect.bottom - 5)
+        config_rect = config_text.get_rect(left=self.rect.x + scale(20), 
+                                         bottom=self.rect.bottom - scale(5))
         
         # Background for better readability
-        bg_rect = config_rect.inflate(10, 4)
+        bg_rect = config_rect.inflate(scale(10), scale(4))
         s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
         s.fill((0, 0, 0, 150))
         screen.blit(s, bg_rect.topleft)

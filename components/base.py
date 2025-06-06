@@ -1,16 +1,16 @@
-"""Base component class."""
+"""Base component class with scaling support."""
 import pygame
 from utils.vector import Vector2
 from config.settings import COMPONENT_RADIUS
 
 class Component:
-    """Base class for all optical components."""
+    """Base class for all optical components with scaling."""
     
     def __init__(self, x, y, component_type):
         self.position = Vector2(x, y)
         self.component_type = component_type
         self.rotation = 0
-        self.radius = COMPONENT_RADIUS
+        self.radius = COMPONENT_RADIUS  # Uses scaled value from settings
         self.placed_time = pygame.time.get_ticks()
     
     def draw(self, screen):

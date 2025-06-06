@@ -1,11 +1,11 @@
-"""Mirror component - special case of tunable beam splitter with no transmission."""
+"""Mirror component with scaling support."""
 import pygame
 import numpy as np
 from components.tunable_beamsplitter import TunableBeamSplitter
-from config.settings import CYAN, MIRROR_LOSS
+from config.settings import CYAN, MIRROR_LOSS, scale, scale_font
 
 class Mirror(TunableBeamSplitter):
-    """Perfect mirror - a tunable beam splitter with t=0, r=-1."""
+    """Perfect mirror - a tunable beam splitter with t=0, r=-1, with scaling."""
     
     def __init__(self, x, y, mirror_type='/'):
         """
@@ -46,72 +46,75 @@ class Mirror(TunableBeamSplitter):
             ], dtype=complex)
     
     def draw(self, screen):
-        """Draw mirror with custom appearance."""
-        # Mirror surface
+        """Draw mirror with custom appearance and scaling."""
+        # Mirror surface - scaled size
+        size = scale(40)
+        half_size = size // 2
+        
         if self.mirror_type == '/':
-            start = (self.position.x - 20, self.position.y + 20)
-            end = (self.position.x + 20, self.position.y - 20)
+            start = (self.position.x - half_size, self.position.y + half_size)
+            end = (self.position.x + half_size, self.position.y - half_size)
         else:  # '\'
-            start = (self.position.x - 20, self.position.y - 20)
-            end = (self.position.x + 20, self.position.y + 20)
+            start = (self.position.x - half_size, self.position.y - half_size)
+            end = (self.position.x + half_size, self.position.y + half_size)
         
         # Draw thick mirror line - CYAN color like beam splitter
-        pygame.draw.line(screen, CYAN, start, end, 6)
+        pygame.draw.line(screen, CYAN, start, end, scale(6))
         
         # Draw reflection indicators (dimmed)
-        s = pygame.Surface((60, 60), pygame.SRCALPHA)
-        s_center = (30, 30)
+        s = pygame.Surface((scale(60), scale(60)), pygame.SRCALPHA)
+        s_center = (scale(30), scale(30))
         if self.mirror_type == '/':
             pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], 100),
-                           (s_center[0] - 20, s_center[1] + 20),
-                           (s_center[0] + 20, s_center[1] - 20), 2)
+                           (s_center[0] - scale(20), s_center[1] + scale(20)),
+                           (s_center[0] + scale(20), s_center[1] - scale(20)), scale(2))
         else:
             pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], 100),
-                           (s_center[0] - 20, s_center[1] - 20),
-                           (s_center[0] + 20, s_center[1] + 20), 2)
-        screen.blit(s, (self.position.x - 30, self.position.y - 30))
+                           (s_center[0] - scale(20), s_center[1] - scale(20)),
+                           (s_center[0] + scale(20), s_center[1] + scale(20)), scale(2))
+        screen.blit(s, (self.position.x - scale(30), self.position.y - scale(30)))
         
         # Add direction hints
         if self.mirror_type == '/':
             # '/' mirror reflects: left↔top, bottom↔right
             # Show left→top reflection
             points = [
-                (self.position.x - 20, self.position.y),
-                (self.position.x - 10, self.position.y),
-                (self.position.x - 10, self.position.y - 10)
+                (self.position.x - scale(20), self.position.y),
+                (self.position.x - scale(10), self.position.y),
+                (self.position.x - scale(10), self.position.y - scale(10))
             ]
-            pygame.draw.lines(screen, CYAN, False, points, 1)
+            pygame.draw.lines(screen, CYAN, False, points, scale(1))
             # Show bottom→right reflection
             points2 = [
-                (self.position.x, self.position.y + 20),
-                (self.position.x, self.position.y + 10),
-                (self.position.x + 10, self.position.y + 10)
+                (self.position.x, self.position.y + scale(20)),
+                (self.position.x, self.position.y + scale(10)),
+                (self.position.x + scale(10), self.position.y + scale(10))
             ]
-            pygame.draw.lines(screen, CYAN, False, points2, 1)
+            pygame.draw.lines(screen, CYAN, False, points2, scale(1))
         else:  # '\'
             # '\' mirror reflects: left↔bottom, top↔right
             # Show left→bottom reflection
             points = [
-                (self.position.x - 20, self.position.y),
-                (self.position.x - 10, self.position.y),
-                (self.position.x - 10, self.position.y + 10)
+                (self.position.x - scale(20), self.position.y),
+                (self.position.x - scale(10), self.position.y),
+                (self.position.x - scale(10), self.position.y + scale(10))
             ]
-            pygame.draw.lines(screen, CYAN, False, points, 1)
+            pygame.draw.lines(screen, CYAN, False, points, scale(1))
             # Show top→right reflection
             points2 = [
-                (self.position.x, self.position.y - 20),
-                (self.position.x, self.position.y - 10),
-                (self.position.x + 10, self.position.y - 10)
+                (self.position.x, self.position.y - scale(20)),
+                (self.position.x, self.position.y - scale(10)),
+                (self.position.x + scale(10), self.position.y - scale(10))
             ]
-            pygame.draw.lines(screen, CYAN, False, points2, 1)
+            pygame.draw.lines(screen, CYAN, False, points2, scale(1))
         
         # Show debug info
         if self.debug:
-            font = pygame.font.Font(None, 10)
+            font = pygame.font.Font(None, scale_font(10))
             # Show mirror type and phase shift
             info_text = f"Mirror {self.mirror_type}: r={self.r:.0f} (π shift)"
             info_surface = font.render(info_text, True, CYAN)
-            screen.blit(info_surface, (self.position.x - 30, self.position.y + 25))
+            screen.blit(info_surface, (self.position.x - scale(30), self.position.y + scale(25)))
             
             # Show active ports if available
             if self._last_v_in is not None and self._last_v_out is not None:
@@ -123,7 +126,8 @@ class Mirror(TunableBeamSplitter):
                             if abs(self._last_v_out[j]) > 0.001:
                                 reflection_text = f"{port_names[i]}→{port_names[j]}"
                                 refl_surface = font.render(reflection_text, True, CYAN)
-                                screen.blit(refl_surface, (self.position.x - 20, self.position.y + 35))
+                                screen.blit(refl_surface, (self.position.x - scale(20), 
+                                                         self.position.y + scale(35)))
                                 break
                         break
             
@@ -133,7 +137,8 @@ class Mirror(TunableBeamSplitter):
                 if total_beams > 0:
                     beam_text = f"Beams: {total_beams}"
                     beam_surface = font.render(beam_text, True, CYAN)
-                    screen.blit(beam_surface, (self.position.x - 20, self.position.y + 45))
+                    screen.blit(beam_surface, (self.position.x - scale(20), 
+                                             self.position.y + scale(45)))
                     
                     # Show which ports have beams
                     ports_with_beams = []
@@ -143,4 +148,5 @@ class Mirror(TunableBeamSplitter):
                     if ports_with_beams:
                         ports_text = f"Ports: {','.join(ports_with_beams)}"
                         ports_surface = font.render(ports_text, True, CYAN)
-                        screen.blit(ports_surface, (self.position.x - 20, self.position.y + 55))
+                        screen.blit(ports_surface, (self.position.x - scale(20), 
+                                                  self.position.y + scale(55)))

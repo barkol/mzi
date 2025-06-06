@@ -1,13 +1,13 @@
-"""Beam splitter component - special case of tunable beam splitter."""
+"""Beam splitter component with scaling support."""
 import pygame
 import numpy as np
 import math
 import cmath
 from components.tunable_beamsplitter import TunableBeamSplitter
-from config.settings import CYAN, BEAM_SPLITTER_LOSS
+from config.settings import CYAN, BEAM_SPLITTER_LOSS, scale, scale_font
 
 class BeamSplitter(TunableBeamSplitter):
-    """50/50 beam splitter - uses standard symmetric beam splitter matrix."""
+    """50/50 beam splitter with scaling support."""
     
     def __init__(self, x, y):
         """Initialize 50/50 beam splitter."""
@@ -23,13 +23,6 @@ class BeamSplitter(TunableBeamSplitter):
         self.component_type = "beamsplitter"
         
         # Override with explicit symmetric 50/50 beam splitter matrix
-        # This is the standard matrix for a symmetric beam splitter
-        #
-        # For '\' orientation:
-        # - A (left) → C (right) transmitted, B (down) reflected with i phase
-        # - B (bottom) → D (up) transmitted, A (left) reflected with i phase
-        # - C (right) → A (left) transmitted, D (up) reflected with i phase
-        # - D (top) → B (down) transmitted, C (right) reflected with i phase
         if self.orientation == '\\':
             # Backslash orientation
             self.S = np.array([
@@ -59,48 +52,50 @@ class BeamSplitter(TunableBeamSplitter):
         self.last_phase_diff = None
     
     def draw(self, screen):
-        """Draw beam splitter with custom appearance."""
-        # Main square
+        """Draw beam splitter with custom appearance and scaling."""
+        # Main square - scaled size
+        size = scale(40)
+        half_size = size // 2
         rect = pygame.Rect(
-            self.position.x - 20,
-            self.position.y - 20,
-            40, 40
+            self.position.x - half_size,
+            self.position.y - half_size,
+            size, size
         )
         
         # Fill
-        s = pygame.Surface((40, 40), pygame.SRCALPHA)
-        pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], 40), pygame.Rect(0, 0, 40, 40))
+        s = pygame.Surface((size, size), pygame.SRCALPHA)
+        pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], 40), pygame.Rect(0, 0, size, size))
         screen.blit(s, rect.topleft)
         
         # Border
-        pygame.draw.rect(screen, CYAN, rect, 3)
+        pygame.draw.rect(screen, CYAN, rect, scale(3))
         
         # Diagonal line (\ orientation)
         pygame.draw.line(screen, CYAN,
-                        (self.position.x - 20, self.position.y - 20),
-                        (self.position.x + 20, self.position.y + 20), 2)
+                        (self.position.x - half_size, self.position.y - half_size),
+                        (self.position.x + half_size, self.position.y + half_size), scale(2))
         
         # Show port labels in debug mode
         if self.debug:
-            font = pygame.font.Font(None, 12)
+            font = pygame.font.Font(None, scale_font(12))
             # Port A (left)
             text_a = font.render("A", True, CYAN)
-            screen.blit(text_a, (self.position.x - 35, self.position.y - 5))
+            screen.blit(text_a, (self.position.x - scale(35), self.position.y - scale(5)))
             # Port B (bottom)
             text_b = font.render("B", True, CYAN)
-            screen.blit(text_b, (self.position.x - 5, self.position.y + 25))
+            screen.blit(text_b, (self.position.x - scale(5), self.position.y + scale(25)))
             # Port C (right)
             text_c = font.render("C", True, CYAN)
-            screen.blit(text_c, (self.position.x + 25, self.position.y - 5))
+            screen.blit(text_c, (self.position.x + scale(25), self.position.y - scale(5)))
             # Port D (top)
             text_d = font.render("D", True, CYAN)
-            screen.blit(text_d, (self.position.x - 5, self.position.y - 35))
+            screen.blit(text_d, (self.position.x - scale(5), self.position.y - scale(35)))
             
             # Show coefficients
-            coeff_font = pygame.font.Font(None, 10)
+            coeff_font = pygame.font.Font(None, scale_font(10))
             coeff_text = f"t={abs(self.t):.2f}, r={abs(self.r):.2f}∠{cmath.phase(self.r)*180/math.pi:.0f}°"
             coeff_surface = coeff_font.render(coeff_text, True, CYAN)
-            screen.blit(coeff_surface, (self.position.x - 40, self.position.y + 50))
+            screen.blit(coeff_surface, (self.position.x - scale(40), self.position.y + scale(50)))
             
             # Show input/output vectors if available
             if self._last_v_in is not None and self._last_v_out is not None:
@@ -112,12 +107,12 @@ class BeamSplitter(TunableBeamSplitter):
                 
                 if active_ports:
                     port_names = ['A', 'B', 'C', 'D']
-                    y_offset = 65
+                    y_offset = scale(65)
                     for port_idx in active_ports[:2]:  # Show max 2 to avoid clutter
                         port_text = f"{port_names[port_idx]}: {self._last_v_in[port_idx]:.2f} → {self._last_v_out[port_idx]:.2f}"
                         port_surface = coeff_font.render(port_text, True, CYAN)
-                        screen.blit(port_surface, (self.position.x - 40, self.position.y + y_offset))
-                        y_offset += 10
+                        screen.blit(port_surface, (self.position.x - scale(40), self.position.y + y_offset))
+                        y_offset += scale(10)
     
     def finalize_frame(self):
         """Process beams and calculate OPD for display."""

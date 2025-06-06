@@ -1,13 +1,13 @@
-"""Sidebar UI for component selection with sound support."""
+"""Sidebar UI for component selection with sound support and scaling."""
 import pygame
 import math
 from config.settings import *
 
 class Sidebar:
-    """Component selection sidebar with sound effects."""
+    """Component selection sidebar with sound effects and scaling."""
     
     def __init__(self, sound_manager=None):
-        self.rect = pygame.Rect(0, 0, CANVAS_OFFSET_X - 50, WINDOW_HEIGHT)
+        self.rect = pygame.Rect(0, 0, CANVAS_OFFSET_X - scale(50), WINDOW_HEIGHT)
         self.components = [
             {'type': 'laser', 'name': 'Laser Source', 'desc': 'Move the laser'},
             {'type': 'beamsplitter', 'name': 'Beam Splitter', 'desc': '50/50 split'},
@@ -17,7 +17,7 @@ class Sidebar:
         ]
         self.selected = None
         self.hover_index = -1
-        self.last_hover_index = -1  # Track for hover sound
+        self.last_hover_index = -1
         self.dragging = False
         self.drag_offset = (0, 0)
         self.last_dragged = None
@@ -62,7 +62,6 @@ class Sidebar:
         elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
             was_dragging = self.dragging
             self.dragging = False
-            # Don't clear selected immediately - let game handle it first
             return was_dragging
         
         return False
@@ -87,9 +86,14 @@ class Sidebar:
         if not self.rect.collidepoint(pos):
             return -1
         
-        y_offset = 120
+        y_offset = scale(120)
+        component_height = scale(70)
+        component_spacing = scale(90)
+        margin = scale(20)
+        
         for i, comp in enumerate(self.components):
-            comp_rect = pygame.Rect(20, y_offset + i * 90, self.rect.width - 40, 70)
+            comp_rect = pygame.Rect(margin, y_offset + i * component_spacing, 
+                                  self.rect.width - margin * 2, component_height)
             if comp_rect.collidepoint(pos):
                 return i
         
@@ -97,8 +101,12 @@ class Sidebar:
     
     def _get_component_rect(self, index):
         """Get rectangle for component at index."""
-        y_offset = 120
-        return pygame.Rect(20, y_offset + index * 90, self.rect.width - 40, 70)
+        y_offset = scale(120)
+        component_height = scale(70)
+        component_spacing = scale(90)
+        margin = scale(20)
+        return pygame.Rect(margin, y_offset + index * component_spacing, 
+                          self.rect.width - margin * 2, component_height)
     
     def get_drag_info(self):
         """Get current drag information."""
@@ -114,22 +122,22 @@ class Sidebar:
         # Border
         pygame.draw.line(screen, PURPLE,
                         (self.rect.right, 0),
-                        (self.rect.right, WINDOW_HEIGHT), 2)
+                        (self.rect.right, WINDOW_HEIGHT), scale(2))
         
         # Title
-        font_title = pygame.font.Font(None, 28)
+        font_title = pygame.font.Font(None, scale_font(28))
         title = font_title.render("Components", True, CYAN)
-        title_rect = title.get_rect(centerx=self.rect.centerx, y=50)
+        title_rect = title.get_rect(centerx=self.rect.centerx, y=scale(50))
         screen.blit(title, title_rect)
         
         # Component cards
-        y_offset = 120
-        font_name = pygame.font.Font(None, 20)
-        font_desc = pygame.font.Font(None, 16)
+        y_offset = scale(120)
+        font_name = pygame.font.Font(None, scale_font(20))
+        font_desc = pygame.font.Font(None, scale_font(16))
         
         for i, comp in enumerate(self.components):
             # Card rectangle
-            card_rect = pygame.Rect(20, y_offset + i * 90, self.rect.width - 40, 70)
+            card_rect = self._get_component_rect(i)
             
             # Check if component can be added (laser always allowed)
             can_add = comp['type'] == 'laser' or self._can_add_component()
@@ -137,17 +145,17 @@ class Sidebar:
             # Hover/selected effect
             if i == self.hover_index and can_add:
                 color = CYAN if comp['type'] == self.selected else PURPLE
-                pygame.draw.rect(screen, color, card_rect, 2)
+                pygame.draw.rect(screen, color, card_rect, scale(2))
                 
                 # Glow effect
-                s = pygame.Surface((card_rect.width + 10, card_rect.height + 10), pygame.SRCALPHA)
-                pygame.draw.rect(s, (color[0], color[1], color[2], 30), s.get_rect(), border_radius=5)
-                screen.blit(s, (card_rect.x - 5, card_rect.y - 5))
+                s = pygame.Surface((card_rect.width + scale(10), card_rect.height + scale(10)), pygame.SRCALPHA)
+                pygame.draw.rect(s, (color[0], color[1], color[2], 30), s.get_rect(), border_radius=scale(5))
+                screen.blit(s, (card_rect.x - scale(5), card_rect.y - scale(5)))
             else:
                 # Draw a faint border
                 s = pygame.Surface((card_rect.width, card_rect.height), pygame.SRCALPHA)
                 border_color = (100, 100, 100) if not can_add else PURPLE
-                pygame.draw.rect(s, (border_color[0], border_color[1], border_color[2], 100), s.get_rect(), 1)
+                pygame.draw.rect(s, (border_color[0], border_color[1], border_color[2], 100), s.get_rect(), scale(1))
                 screen.blit(s, card_rect.topleft)
             
             # Fill
@@ -157,7 +165,7 @@ class Sidebar:
             screen.blit(s, card_rect.topleft)
             
             # Component icon (simplified)
-            icon_center = (card_rect.x + 35, card_rect.centery)
+            icon_center = (card_rect.x + scale(35), card_rect.centery)
             icon_color = (100, 100, 100) if not can_add and comp['type'] != 'laser' else None
             self._draw_component_icon(screen, comp['type'], icon_center, icon_color)
             
@@ -168,14 +176,15 @@ class Sidebar:
             name = font_name.render(comp['name'], True, text_color)
             desc = font_desc.render(comp['desc'], True, desc_color)
             
-            screen.blit(name, (card_rect.x + 65, card_rect.y + 15))
-            screen.blit(desc, (card_rect.x + 65, card_rect.y + 40))
+            screen.blit(name, (card_rect.x + scale(65), card_rect.y + scale(15)))
+            screen.blit(desc, (card_rect.x + scale(65), card_rect.y + scale(40)))
             
             # Show "LIMIT REACHED" for disabled components
             if not can_add and comp['type'] != 'laser':
-                limit_font = pygame.font.Font(None, 12)
+                limit_font = pygame.font.Font(None, scale_font(12))
                 limit_text = limit_font.render("LIMIT", True, (255, 100, 100))
-                limit_rect = limit_text.get_rect(right=card_rect.right - 5, bottom=card_rect.bottom - 5)
+                limit_rect = limit_text.get_rect(right=card_rect.right - scale(5), 
+                                               bottom=card_rect.bottom - scale(5))
                 screen.blit(limit_text, limit_rect)
     
     def _draw_component_icon(self, screen, comp_type, center, override_color=None):
@@ -184,29 +193,35 @@ class Sidebar:
         
         if comp_type == 'laser':
             # Laser icon - circle with rays (always turquoise)
-            pygame.draw.circle(screen, CYAN, center, 12)
+            radius = scale(12)
+            pygame.draw.circle(screen, CYAN, center, radius)
             # Rays
             for angle in range(0, 360, 45):
                 rad = math.radians(angle)
-                start_x = center[0] + 12 * math.cos(rad)
-                start_y = center[1] + 12 * math.sin(rad)
-                end_x = center[0] + 18 * math.cos(rad)
-                end_y = center[1] + 18 * math.sin(rad)
-                pygame.draw.line(screen, CYAN, (start_x, start_y), (end_x, end_y), 2)
+                start_x = center[0] + radius * math.cos(rad)
+                start_y = center[1] + radius * math.sin(rad)
+                end_x = center[0] + scale(18) * math.cos(rad)
+                end_y = center[1] + scale(18) * math.sin(rad)
+                pygame.draw.line(screen, CYAN, (start_x, start_y), (end_x, end_y), scale(2))
         elif comp_type == 'beamsplitter':
-            rect = pygame.Rect(center[0] - 15, center[1] - 15, 30, 30)
-            pygame.draw.rect(screen, color, rect, 2)
-            pygame.draw.line(screen, color, rect.topleft, rect.bottomright, 2)
+            size = scale(30)
+            half_size = size // 2
+            rect = pygame.Rect(center[0] - half_size, center[1] - half_size, size, size)
+            pygame.draw.rect(screen, color, rect, scale(2))
+            pygame.draw.line(screen, color, rect.topleft, rect.bottomright, scale(2))
         elif comp_type.startswith('mirror'):
             # Mirror icons
+            size = scale(30)
+            half_size = size // 2
             if '/' in comp_type:
                 pygame.draw.line(screen, color,
-                               (center[0] - 15, center[1] + 15),
-                               (center[0] + 15, center[1] - 15), 4)
+                               (center[0] - half_size, center[1] + half_size),
+                               (center[0] + half_size, center[1] - half_size), scale(4))
             else:
                 pygame.draw.line(screen, color,
-                               (center[0] - 15, center[1] - 15),
-                               (center[0] + 15, center[1] + 15), 4)
+                               (center[0] - half_size, center[1] - half_size),
+                               (center[0] + half_size, center[1] + half_size), scale(4))
         elif comp_type == 'detector':
-            pygame.draw.circle(screen, color, center, 15, 2)
-            pygame.draw.circle(screen, color, center, 5)
+            radius = scale(15)
+            pygame.draw.circle(screen, color, center, radius, scale(2))
+            pygame.draw.circle(screen, color, center, scale(5))

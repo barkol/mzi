@@ -1,15 +1,16 @@
-"""Right panel for help and debug information with sound support."""
+"""Right panel for help and debug information with sound support and scaling."""
 import pygame
 from config.settings import *
 
 class RightPanel:
-    """Right panel displaying help and debug information."""
+    """Right panel displaying help and debug information with scaling."""
     
     def __init__(self, sound_manager=None):
+        panel_x = CANVAS_OFFSET_X + CANVAS_WIDTH + scale(50)
         self.rect = pygame.Rect(
-            CANVAS_OFFSET_X + CANVAS_WIDTH + 50,
+            panel_x,
             0,
-            WINDOW_WIDTH - (CANVAS_OFFSET_X + CANVAS_WIDTH + 50),
+            WINDOW_WIDTH - panel_x,
             WINDOW_HEIGHT
         )
         self.debug_messages = []
@@ -38,7 +39,7 @@ class RightPanel:
         """Handle scroll events."""
         if event.type == pygame.MOUSEWHEEL:
             if self.rect.collidepoint(pygame.mouse.get_pos()):
-                self.scroll_offset += event.y * 20
+                self.scroll_offset += event.y * scale(20)
                 self.scroll_offset = max(0, self.scroll_offset)
                 return True
         return False
@@ -53,17 +54,17 @@ class RightPanel:
         # Border
         pygame.draw.line(screen, PURPLE,
                         (self.rect.left, 0),
-                        (self.rect.left, WINDOW_HEIGHT), 2)
+                        (self.rect.left, WINDOW_HEIGHT), scale(2))
         
         # Title
-        font_title = pygame.font.Font(None, 24)
+        font_title = pygame.font.Font(None, scale_font(24))
         title_text = "Photon Path: Help" if self.show_help else "Photon Path: Debug Log"
         title = font_title.render(title_text, True, CYAN)
-        title_rect = title.get_rect(centerx=self.rect.centerx, y=20)
+        title_rect = title.get_rect(centerx=self.rect.centerx, y=scale(20))
         screen.blit(title, title_rect)
         
         # Content area
-        content_y = 60
+        content_y = scale(60)
         
         if self.show_help:
             self._draw_help_content(screen, content_y)
@@ -72,18 +73,18 @@ class RightPanel:
     
     def _draw_help_content(self, screen, start_y):
         """Draw help information."""
-        font_header = pygame.font.Font(None, 20)
-        font_text = pygame.font.Font(None, 16)
+        font_header = pygame.font.Font(None, scale_font(20))
+        font_text = pygame.font.Font(None, scale_font(16))
         
         y = start_y - self.scroll_offset
-        x_margin = self.rect.x + 10
-        line_height = 20
+        x_margin = self.rect.x + scale(10)
+        line_height = scale_font(20)
         
         # Controls section
         if y > 0:
             header = font_header.render("CONTROLS", True, CYAN)
             screen.blit(header, (x_margin, y))
-        y += line_height + 5
+        y += line_height + scale(5)
         
         controls = [
             ("Drag & Drop", "Place components"),
@@ -120,13 +121,13 @@ class RightPanel:
                 if y > 0 and y < self.rect.height:
                     text = font_header.render(key, True, CYAN)
                     screen.blit(text, (x_margin, y))
-                y += line_height + 5
+                y += line_height + scale(5)
             else:
                 if y > 0 and y < self.rect.height:
                     key_surface = font_text.render(f"{key:13}", True, WHITE)
                     desc_surface = font_text.render(desc, True, (200, 200, 200))
                     screen.blit(key_surface, (x_margin, y))
-                    screen.blit(desc_surface, (x_margin + 90, y))
+                    screen.blit(desc_surface, (x_margin + scale(90), y))
                 y += line_height
         
         # Physics info
@@ -134,11 +135,11 @@ class RightPanel:
         if y > 0 and y < self.rect.height:
             physics_header = font_header.render("PHYSICS", True, CYAN)
             screen.blit(physics_header, (x_margin, y))
-        y += line_height + 5
+        y += line_height + scale(5)
         
         physics_info = [
             f"Wavelength: {WAVELENGTH}px",
-            f"Grid size: {GRID_SIZE}px",
+            f"Grid size: {GRID_SIZE}px (scaled)",
             "BS: +90° phase on reflection",
             "Mirror: +180° phase",
             "Ideal components: " + ("ON" if IDEAL_COMPONENTS else "OFF"),
@@ -155,7 +156,7 @@ class RightPanel:
         if y > 0 and y < self.rect.height:
             score_header = font_header.render("SCORING", True, CYAN)
             screen.blit(score_header, (x_margin, y))
-        y += line_height + 5
+        y += line_height + scale(5)
         
         scoring_info = [
             "Base: Detector Power × 1000",
@@ -177,7 +178,7 @@ class RightPanel:
         if y > 0 and y < self.rect.height:
             tips_header = font_header.render("TIPS", True, CYAN)
             screen.blit(tips_header, (x_margin, y))
-        y += line_height + 5
+        y += line_height + scale(5)
         
         tips = [
             "• Build a Mach-Zehnder",
@@ -206,26 +207,27 @@ class RightPanel:
     
     def _draw_debug_content(self, screen, start_y):
         """Draw debug log messages."""
-        font = pygame.font.Font(None, 14)
+        font = pygame.font.Font(None, scale_font(14))
         y = start_y
-        x_margin = self.rect.x + 10
-        line_height = 16
+        x_margin = self.rect.x + scale(10)
+        line_height = scale_font(16)
         
         if not self.debug_messages:
             no_msg = font.render("No debug messages", True, (150, 150, 150))
             screen.blit(no_msg, (x_margin, y))
             hint = font.render("Press G to enable debug mode", True, (100, 100, 100))
-            screen.blit(hint, (x_margin, y + 20))
+            screen.blit(hint, (x_margin, y + scale(20)))
             return
         
         # Draw messages from bottom to top (newest first)
         for i, message in enumerate(reversed(self.debug_messages)):
-            if y > self.rect.height - 20:
+            if y > self.rect.height - scale(20):
                 break
                 
             # Truncate long messages
-            if len(message) > 40:
-                message = message[:37] + "..."
+            max_chars = int(40 * SCALE_FACTOR)
+            if len(message) > max_chars:
+                message = message[:max_chars-3] + "..."
             
             # Color code messages
             color = WHITE
@@ -245,4 +247,4 @@ class RightPanel:
         # Show message count
         count_text = font.render(f"Messages: {len(self.debug_messages)}/{self.max_debug_messages}",
                                True, (150, 150, 150))
-        screen.blit(count_text, (x_margin, self.rect.height - 30))
+        screen.blit(count_text, (x_margin, self.rect.height - scale(30)))

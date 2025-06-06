@@ -1,4 +1,4 @@
-"""Main game logic and state management with sound effects and energy monitoring."""
+"""Main game logic and state management with sound effects, energy monitoring, and scaling support."""
 import pygame
 import os
 import math
@@ -22,27 +22,30 @@ from utils.assets_loader import AssetsLoader
 from config.settings import *
 
 class Game:
-    """Main game class with sound support and energy monitoring."""
+    """Main game class with sound support, energy monitoring, and scaling."""
     
-    def __init__(self, screen):
+    def __init__(self, screen, scale_factor=1.0):
         self.screen = screen
         self.clock = pygame.time.Clock()
+        self.scale_factor = scale_factor
         
         # Initialize sound manager first
         self.sound_manager = SoundManager(volume=0.7)
-        self.sound_manager.start_ambient()  # Start ambient sound
+        self.sound_manager.start_ambient()
         
         # Load assets
         self.assets_loader = AssetsLoader()
         
-        # Game components
-        self.laser = Laser(CANVAS_OFFSET_X + GRID_SIZE, CANVAS_OFFSET_Y + 7 * GRID_SIZE)
+        # Game components - use scaled positions
+        laser_x = CANVAS_OFFSET_X + GRID_SIZE
+        laser_y = CANVAS_OFFSET_Y + 7 * GRID_SIZE
+        self.laser = Laser(laser_x, laser_y)
         
         # Helper modules
         self.effects = EffectsManager()
         self.component_manager = ComponentManager(self.effects, self.sound_manager)
-        self.beam_renderer = BeamRenderer(self.screen)  # Use self.screen instead of screen parameter
-        self.debug_display = DebugDisplay(self.screen)  # Use self.screen for consistency
+        self.beam_renderer = BeamRenderer(self.screen)
+        self.debug_display = DebugDisplay(self.screen)
         self.debug_display.set_assets_loader(self.assets_loader)
         self.challenge_manager = ChallengeManager()
         
@@ -122,15 +125,41 @@ class Game:
         # Show scoring formula
         self.controls.set_status("Score = Detector Power × 1000 + Gold Bonus")
     
-    def update_screen_references(self, new_screen, actual_screen=None):
-        """Update all screen references when display mode changes.
+    def update_scale(self, new_scale_factor):
+        """Update the scale factor and all dependent values."""
+        self.scale_factor = new_scale_factor
         
-        Args:
-            new_screen: The surface to draw on (might be game_surface in fullscreen)
-            actual_screen: The actual display surface (for getting real screen size)
-        """
+        # Update laser position
+        laser_x = CANVAS_OFFSET_X + GRID_SIZE
+        laser_y = CANVAS_OFFSET_Y + 7 * GRID_SIZE
+        self.laser.position = Vector2(laser_x, laser_y)
+        
+        # Clear components to avoid scaling issues
+        self.component_manager.clear_all(self.laser)
+        
+        # Recreate UI components with new scale
+        self.grid = Grid()
+        self.sidebar = Sidebar(self.sound_manager)
+        self.controls = ControlPanel(self.sound_manager)
+        self.right_panel = RightPanel(self.sound_manager)
+        self.leaderboard_display = LeaderboardDisplay(self.leaderboard_manager, self.sound_manager)
+        
+        # Re-setup callbacks
+        self.sidebar.set_can_add_callback(self._can_add_component)
+        
+        # Restore UI state
+        if self.current_challenge_display_name:
+            self.controls.set_challenge(self.current_challenge_display_name)
+        self.controls.score = self.score
+        self.controls.set_field_config("Default Fields")
+        
+        # Clear asset cache
+        self.assets_loader.clear_cache()
+    
+    def update_screen_references(self, new_screen, actual_screen=None):
+        """Update all screen references when display mode changes."""
         self.screen = new_screen
-        self._actual_screen = actual_screen or new_screen  # Store actual screen reference
+        self._actual_screen = actual_screen or new_screen
         
         # Update beam renderer
         if hasattr(self, 'beam_renderer'):
@@ -140,13 +169,11 @@ class Game:
         # Update debug display with both references
         if hasattr(self, 'debug_display'):
             self.debug_display.screen = new_screen
-            # Add method to store actual screen size
             if hasattr(actual_screen, 'get_size'):
                 self.debug_display._actual_screen_size = actual_screen.get_size()
             elif hasattr(new_screen, 'get_size'):
                 self.debug_display._actual_screen_size = new_screen.get_size()
             else:
-                from config.settings import WINDOW_WIDTH, WINDOW_HEIGHT
                 self.debug_display._actual_screen_size = (WINDOW_WIDTH, WINDOW_HEIGHT)
             print(f"Updated debug display screen to: {new_screen}")
         
@@ -373,7 +400,6 @@ class Game:
                 print(f"Switching from '{current_config}' to '{next_config['name']}'")
                 
                 # Clear components before loading new field configuration
-                # (since blocked positions might change)
                 self.component_manager.clear_all(self.laser)
                 
                 # Load the new field configuration
@@ -467,7 +493,7 @@ class Game:
         s = pygame.Surface((CANVAS_WIDTH, CANVAS_HEIGHT), pygame.SRCALPHA)
         s.fill((BLACK[0], BLACK[1], BLACK[2], 60))
         self.screen.blit(s, canvas_rect.topleft)
-        pygame.draw.rect(self.screen, PURPLE, canvas_rect, 2, border_radius=15)
+        pygame.draw.rect(self.screen, PURPLE, canvas_rect, scale(2), border_radius=scale(15))
         
         # Draw grid
         laser_pos = self.laser.position.tuple() if self.laser else None
@@ -537,69 +563,68 @@ class Game:
                           self.challenge_manager.current_challenge in self.completed_challenges)
             
             # Use gold color if completed, cyan otherwise
-            GOLD = (255, 215, 0)
             color = GOLD if is_completed else CYAN
             
-            font = pygame.font.Font(None, 32)
+            font = pygame.font.Font(None, scale_font(32))
             text = font.render(self.current_challenge_display_name, True, color)
             text_rect = text.get_rect(centerx=CANVAS_OFFSET_X + CANVAS_WIDTH // 2,
-                                     y=CANVAS_OFFSET_Y - 65)
+                                     y=CANVAS_OFFSET_Y - scale(65))
             
             # Background with glow effect
-            bg_rect = text_rect.inflate(40, 12)
+            bg_rect = text_rect.inflate(scale(40), scale(12))
             
             # Glow effect
-            glow_surf = pygame.Surface((bg_rect.width + 20, bg_rect.height + 20), pygame.SRCALPHA)
+            glow_surf = pygame.Surface((bg_rect.width + scale(20), bg_rect.height + scale(20)), pygame.SRCALPHA)
             pygame.draw.rect(glow_surf, (color[0], color[1], color[2], 20),
-                           glow_surf.get_rect(), border_radius=20)
-            self.screen.blit(glow_surf, (bg_rect.x - 10, bg_rect.y - 10))
+                           glow_surf.get_rect(), border_radius=scale(20))
+            self.screen.blit(glow_surf, (bg_rect.x - scale(10), bg_rect.y - scale(10)))
             
             # Background
             s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            pygame.draw.rect(s, (0, 0, 0, 200), s.get_rect(), border_radius=15)
+            pygame.draw.rect(s, (0, 0, 0, 200), s.get_rect(), border_radius=scale(15))
             self.screen.blit(s, bg_rect.topleft)
-            pygame.draw.rect(self.screen, color, bg_rect, 2, border_radius=15)
+            pygame.draw.rect(self.screen, color, bg_rect, scale(2), border_radius=scale(15))
             
             # Draw the text
             self.screen.blit(text, text_rect)
             
             # Add decorative elements
             # Left decoration
-            deco_left = pygame.Rect(bg_rect.left - 50, bg_rect.centery - 1, 40, 2)
+            deco_left = pygame.Rect(bg_rect.left - scale(50), bg_rect.centery - scale(1), scale(40), scale(2))
             pygame.draw.rect(self.screen, color, deco_left)
-            pygame.draw.circle(self.screen, color, (deco_left.left, deco_left.centery), 3)
+            pygame.draw.circle(self.screen, color, (deco_left.left, deco_left.centery), scale(3))
             
             # Right decoration
-            deco_right = pygame.Rect(bg_rect.right + 10, bg_rect.centery - 1, 40, 2)
+            deco_right = pygame.Rect(bg_rect.right + scale(10), bg_rect.centery - scale(1), scale(40), scale(2))
             pygame.draw.rect(self.screen, color, deco_right)
-            pygame.draw.circle(self.screen, color, (deco_right.right, deco_right.centery), 3)
+            pygame.draw.circle(self.screen, color, (deco_right.right, deco_right.centery), scale(3))
             
             # Add completed indicator if applicable
             if is_completed:
-                # Draw "DONE" text for better compatibility
-                done_font = pygame.font.Font(None, 20)
+                # Draw "DONE" text
+                done_font = pygame.font.Font(None, scale_font(20))
                 done_text = done_font.render("DONE", True, GOLD)
-                done_rect = done_text.get_rect(left=bg_rect.right + 10, centery=bg_rect.centery)
+                done_rect = done_text.get_rect(left=bg_rect.right + scale(10), centery=bg_rect.centery)
                 
                 # Background for DONE text
-                done_bg_rect = done_rect.inflate(8, 4)
+                done_bg_rect = done_rect.inflate(scale(8), scale(4))
                 s = pygame.Surface((done_bg_rect.width, done_bg_rect.height), pygame.SRCALPHA)
                 pygame.draw.rect(s, (GOLD[0]//4, GOLD[1]//4, GOLD[2]//4, 200),
-                               s.get_rect(), border_radius=5)
+                               s.get_rect(), border_radius=scale(5))
                 self.screen.blit(s, done_bg_rect.topleft)
-                pygame.draw.rect(self.screen, GOLD, done_bg_rect, 1, border_radius=5)
+                pygame.draw.rect(self.screen, GOLD, done_bg_rect, scale(1), border_radius=scale(5))
                 
                 self.screen.blit(done_text, done_rect)
     
     def _draw_session_high_score(self):
         """Draw session high score indicator."""
         if self.session_high_score > 0:
-            font = pygame.font.Font(None, 18)
+            font = pygame.font.Font(None, scale_font(18))
             text = font.render(f"Session Best: {self.session_high_score}", True, GREEN)
-            text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - 20, y=70)
+            text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - scale(20), y=scale(70))
             
             # Background
-            bg_rect = text_rect.inflate(10, 4)
+            bg_rect = text_rect.inflate(scale(10), scale(4))
             s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
             s.fill((0, 0, 0, 150))
             self.screen.blit(s, bg_rect.topleft)
@@ -608,7 +633,7 @@ class Game:
     
     def _draw_game_info_top(self):
         """Draw detector power above the canvas."""
-        info_y = CANVAS_OFFSET_Y - 35
+        info_y = CANVAS_OFFSET_Y - scale(35)
         
         # Calculate total detector power
         detectors = [c for c in self.component_manager.components
@@ -618,17 +643,17 @@ class Game:
         
         # Draw detector power info
         if detector_score > 0 or len(detectors) > 0:
-            font = pygame.font.Font(None, 20)
+            font = pygame.font.Font(None, scale_font(20))
             text = font.render(f"Detector Power: {total_power:.2f} = {detector_score} pts",
                              True, CYAN)
-            text_rect = text.get_rect(left=CANVAS_OFFSET_X + 20, centery=info_y)
+            text_rect = text.get_rect(left=CANVAS_OFFSET_X + scale(20), centery=info_y)
             
             # Background
-            bg_rect = text_rect.inflate(20, 8)
+            bg_rect = text_rect.inflate(scale(20), scale(8))
             s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            pygame.draw.rect(s, (0, 0, 0, 180), s.get_rect(), border_radius=8)
+            pygame.draw.rect(s, (0, 0, 0, 180), s.get_rect(), border_radius=scale(8))
             self.screen.blit(s, bg_rect.topleft)
-            pygame.draw.rect(self.screen, CYAN, bg_rect, 1, border_radius=8)
+            pygame.draw.rect(self.screen, CYAN, bg_rect, scale(1), border_radius=scale(8))
             
             self.screen.blit(text, text_rect)
     
@@ -646,11 +671,11 @@ class Game:
                 max_components = challenge.get('max_components', float('inf'))
         
         # Position
-        counter_x = 20
-        counter_y = WINDOW_HEIGHT - 60
+        counter_x = scale(20)
+        counter_y = WINDOW_HEIGHT - scale(60)
         
         # Draw counter
-        font = pygame.font.Font(None, 24)
+        font = pygame.font.Font(None, scale_font(24))
         if max_components == float('inf'):
             text = f"Components: {current_count}"
         else:
@@ -668,32 +693,32 @@ class Game:
         counter_rect = counter_text.get_rect(left=counter_x, centery=counter_y)
         
         # Background
-        bg_rect = counter_rect.inflate(20, 10)
+        bg_rect = counter_rect.inflate(scale(20), scale(10))
         s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-        pygame.draw.rect(s, (0, 0, 0, 180), s.get_rect(), border_radius=10)
+        pygame.draw.rect(s, (0, 0, 0, 180), s.get_rect(), border_radius=scale(10))
         self.screen.blit(s, bg_rect.topleft)
-        pygame.draw.rect(self.screen, color, bg_rect, 1, border_radius=10)
+        pygame.draw.rect(self.screen, color, bg_rect, scale(1), border_radius=scale(10))
         
         self.screen.blit(counter_text, counter_rect)
         
         # Show min requirement if not met
         if current_count < min_components:
-            hint_font = pygame.font.Font(None, 16)
+            hint_font = pygame.font.Font(None, scale_font(16))
             hint_text = hint_font.render(f"Need at least {min_components}", True, (200, 200, 200))
-            hint_rect = hint_text.get_rect(left=counter_x + 10, top=counter_rect.bottom + 5)
+            hint_rect = hint_text.get_rect(left=counter_x + scale(10), top=counter_rect.bottom + scale(5))
             self.screen.blit(hint_text, hint_rect)
     
     def _draw_challenge_status(self):
         """Draw indicator if current challenge is already completed."""
         if (self.challenge_manager.current_challenge and
             self.challenge_manager.current_challenge in self.completed_challenges):
-            font = pygame.font.Font(None, 16)
+            font = pygame.font.Font(None, scale_font(16))
             text = font.render("[DONE] Challenge Completed", True, GREEN)
-            text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - 20,
-                                     y=CANVAS_OFFSET_Y + CANVAS_HEIGHT - 15)
+            text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - scale(20),
+                                     y=CANVAS_OFFSET_Y + CANVAS_HEIGHT - scale(15))
             
             # Background
-            bg_rect = text_rect.inflate(10, 4)
+            bg_rect = text_rect.inflate(scale(10), scale(4))
             s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
             s.fill((0, 0, 0, 150))
             self.screen.blit(s, bg_rect.topleft)
@@ -710,35 +735,47 @@ class Game:
         
         if comp_type == 'laser':
             # Draw laser preview (turquoise)
-            s = pygame.Surface((60, 60), pygame.SRCALPHA)
-            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (30, 30), 15)
+            radius = scale(15)
+            s = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (radius, radius), radius)
             # Glow effect
             for i in range(3, 0, -1):
-                pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha // (i + 1)), (30, 30), 15 + i * 3)
-            self.screen.blit(s, (x - 30, y - 30))
+                glow_radius = radius + scale(i * 3)
+                s2 = pygame.Surface((glow_radius * 2, glow_radius * 2), pygame.SRCALPHA)
+                pygame.draw.circle(s2, (CYAN[0], CYAN[1], CYAN[2], alpha // (i + 1)), 
+                                 (glow_radius, glow_radius), glow_radius)
+                self.screen.blit(s2, (x - glow_radius, y - glow_radius))
+            self.screen.blit(s, (x - radius, y - radius))
             
         elif comp_type == 'beamsplitter':
             # Draw beam splitter preview
-            rect = pygame.Rect(x - 20, y - 20, 40, 40)
-            s = pygame.Surface((40, 40), pygame.SRCALPHA)
-            pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], alpha // 2), pygame.Rect(0, 0, 40, 40))
-            pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], alpha), pygame.Rect(0, 0, 40, 40), 3)
-            pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (0, 0), (40, 40), 2)
+            size = scale(40)
+            half_size = size // 2
+            rect = pygame.Rect(x - half_size, y - half_size, size, size)
+            s = pygame.Surface((size, size), pygame.SRCALPHA)
+            pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], alpha // 2), pygame.Rect(0, 0, size, size))
+            pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], alpha), pygame.Rect(0, 0, size, size), scale(3))
+            pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (0, 0), (size, size), scale(2))
             self.screen.blit(s, rect.topleft)
             
         elif comp_type.startswith('mirror'):
             # Mirror icons
-            s = pygame.Surface((50, 50), pygame.SRCALPHA)
+            size = scale(50)
+            half_size = size // 2
+            s = pygame.Surface((size, size), pygame.SRCALPHA)
             if '/' in comp_type:
-                pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (5, 45), (45, 5), 6)
+                pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), 
+                               (scale(5), size - scale(5)), (size - scale(5), scale(5)), scale(6))
             else:
-                pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (5, 5), (45, 45), 6)
-            self.screen.blit(s, (x - 25, y - 25))
+                pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), 
+                               (scale(5), scale(5)), (size - scale(5), size - scale(5)), scale(6))
+            self.screen.blit(s, (x - half_size, y - half_size))
             
         elif comp_type == 'detector':
             # Draw detector preview (turquoise)
-            s = pygame.Surface((60, 60), pygame.SRCALPHA)
-            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha // 2), (30, 30), 25)
-            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (30, 30), 25, 3)
-            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (30, 30), 10)
-            self.screen.blit(s, (x - 30, y - 30))
+            radius = scale(25)
+            s = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha // 2), (radius, radius), radius)
+            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (radius, radius), radius, scale(3))
+            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (radius, radius), scale(10))
+            self.screen.blit(s, (x - radius, y - radius))

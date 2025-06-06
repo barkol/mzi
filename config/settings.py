@@ -1,17 +1,43 @@
-"""Game configuration and constants."""
+"""Game configuration and constants with scaling support."""
 import pygame
 
-# Window settings
-WINDOW_WIDTH = 1600  # Increased for right panel
-WINDOW_HEIGHT = 810  # 16:9 ratio
+# Base design resolution (what the game was designed for)
+DESIGN_WIDTH = 1600
+DESIGN_HEIGHT = 810
+
+# Window settings (will be overridden by scaling)
+WINDOW_WIDTH = DESIGN_WIDTH
+WINDOW_HEIGHT = DESIGN_HEIGHT
 FPS = 60
 
-# Grid settings
-GRID_SIZE = 40  # Grid spacing in pixels
-CANVAS_WIDTH = 800
-CANVAS_HEIGHT = 600
-CANVAS_OFFSET_X = 320  # Centered: (1600 - 800) / 2 = 400 - 80 for sidebar
-CANVAS_OFFSET_Y = 100
+# Scaling variables (will be set at runtime)
+SCALE_FACTOR = 1.0
+FONT_SCALE = 1.0
+
+# Function to scale values
+def scale(value):
+    """Scale a value based on current scale factor."""
+    if isinstance(value, (list, tuple)):
+        return type(value)(int(v * SCALE_FACTOR) for v in value)
+    return int(value * SCALE_FACTOR)
+
+def scale_font(size):
+    """Scale font size."""
+    return max(8, int(size * FONT_SCALE))  # Minimum font size of 8
+
+# Grid settings (base values)
+BASE_GRID_SIZE = 40
+BASE_CANVAS_WIDTH = 800
+BASE_CANVAS_HEIGHT = 600
+BASE_CANVAS_OFFSET_X = 320
+BASE_CANVAS_OFFSET_Y = 100
+
+# These will be updated at runtime
+GRID_SIZE = BASE_GRID_SIZE
+CANVAS_WIDTH = BASE_CANVAS_WIDTH
+CANVAS_HEIGHT = BASE_CANVAS_HEIGHT
+CANVAS_OFFSET_X = BASE_CANVAS_OFFSET_X
+CANVAS_OFFSET_Y = BASE_CANVAS_OFFSET_Y
 
 # Colors (RGB)
 BLACK = (10, 10, 10)
@@ -19,9 +45,10 @@ WHITE = (255, 255, 255)
 PURPLE = (138, 43, 226)
 CYAN = (0, 255, 255)
 MAGENTA = (255, 0, 255)
-RED = (255, 0, 0)  # Used for UI elements like close buttons
-GREEN = (0, 255, 0)  # Used for both laser and detector for visual consistency
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
 DARK_PURPLE = (26, 10, 46)
+GOLD = (255, 215, 0)
 
 # UI Colors (RGBA)
 GRID_COLOR = (138, 43, 226, 40)
@@ -29,34 +56,51 @@ GRID_MAJOR_COLOR = (138, 43, 226, 80)
 HOVER_VALID_COLOR = (0, 255, 255, 80)
 HOVER_INVALID_COLOR = (255, 0, 0, 80)
 
-# Component settings
-COMPONENT_RADIUS = 25
-BEAM_WIDTH = 5  # Increased from 3 to 12 (4x wider)
+# Component settings (base values)
+BASE_COMPONENT_RADIUS = 25
+BASE_BEAM_WIDTH = 5
 
-# Physics settings
-WAVELENGTH = 30  # Wavelength in pixels (λ = 30px) - not a multiple of grid size
-SPEED_OF_LIGHT = 300  # pixels per second (arbitrary units)
+# These will be updated at runtime
+COMPONENT_RADIUS = BASE_COMPONENT_RADIUS
+BEAM_WIDTH = BASE_BEAM_WIDTH
 
-# Component losses (0.0 = no loss, 1.0 = complete loss)
-MIRROR_LOSS = 0.05  # 5% loss at each mirror (95% transmission)
-BEAM_SPLITTER_LOSS = 0.0  # No loss at beam splitters
-DETECTOR_DECAY_RATE = 0.95  # How fast detector readings decay (visual effect only)
+# Physics settings (don't scale these - they affect gameplay)
+WAVELENGTH = 30
+SPEED_OF_LIGHT = 300
 
-# Set to True for ideal components (no losses)
-# When True, all components have 100% efficiency
-IDEAL_COMPONENTS = True  # Change to True for perfect components
+# Component losses
+MIRROR_LOSS = 0.05
+BEAM_SPLITTER_LOSS = 0.0
+DETECTOR_DECAY_RATE = 0.95
 
-# Beam splitter model
-# Set to True for realistic beam splitter with π/2 phase shift on reflection
-# Set to False for simplified model with no phase shifts
-REALISTIC_BEAM_SPLITTER = False  # Change to True for realistic phase behavior
-
-# If you want custom losses, set IDEAL_COMPONENTS = False and adjust the values above
-# Examples:
-# MIRROR_LOSS = 0.0  # Perfect mirrors
-# MIRROR_LOSS = 0.02  # 2% loss (98% reflectivity) - high quality mirrors
-# MIRROR_LOSS = 0.10  # 10% loss (90% reflectivity) - standard mirrors
+# Component behavior settings
+IDEAL_COMPONENTS = True
+REALISTIC_BEAM_SPLITTER = False
 
 # Scoring
 PLACEMENT_SCORE = 10
 COMPLETION_SCORE = 100
+
+def update_scaled_values(scale_factor):
+    """Update all scaled values based on new scale factor."""
+    global SCALE_FACTOR, FONT_SCALE
+    global GRID_SIZE, CANVAS_WIDTH, CANVAS_HEIGHT, CANVAS_OFFSET_X, CANVAS_OFFSET_Y
+    global COMPONENT_RADIUS, BEAM_WIDTH
+    global WINDOW_WIDTH, WINDOW_HEIGHT
+    
+    SCALE_FACTOR = scale_factor
+    FONT_SCALE = min(2.0, max(0.5, scale_factor))  # Limit font scaling
+    
+    # Update all scaled values
+    GRID_SIZE = scale(BASE_GRID_SIZE)
+    CANVAS_WIDTH = scale(BASE_CANVAS_WIDTH)
+    CANVAS_HEIGHT = scale(BASE_CANVAS_HEIGHT)
+    CANVAS_OFFSET_X = scale(BASE_CANVAS_OFFSET_X)
+    CANVAS_OFFSET_Y = scale(BASE_CANVAS_OFFSET_Y)
+    
+    COMPONENT_RADIUS = scale(BASE_COMPONENT_RADIUS)
+    BEAM_WIDTH = scale(BASE_BEAM_WIDTH)
+    
+    # Update window size
+    WINDOW_WIDTH = int(DESIGN_WIDTH * scale_factor)
+    WINDOW_HEIGHT = int(DESIGN_HEIGHT * scale_factor)
