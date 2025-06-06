@@ -1,20 +1,44 @@
-"""Control panel UI with sound support and scaling."""
+"""Control panel UI with sound support and fixed scaling."""
 import pygame
 from config.settings import *
 
 class ControlPanel:
-    """Bottom control panel with buttons, sound effects, and scaling."""
+    """Bottom control panel with buttons, sound effects, and proper scaling."""
     
     def __init__(self, sound_manager=None):
+        self.sound_manager = sound_manager
+        self.score = 0
+        self.current_challenge = None
+        self.challenge_status = ""
+        self.challenge_completed = False
+        self.gold_bonus = 0
+        self.current_field_config = "Default Fields"
+        
+        # Track hover state for buttons
+        self.hover_button = None
+        self.last_hover_button = None
+        
+        # Initialize dimensions and buttons
+        self._update_dimensions()
+    
+    def _update_dimensions(self):
+        """Update control panel dimensions and button positions based on current scale."""
+        # Control panel position - below the canvas
+        panel_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT + scale(20)
+        panel_height = scale(80)
+        
+        # Make sure panel doesn't go off screen
+        if panel_y + panel_height > WINDOW_HEIGHT:
+            panel_y = WINDOW_HEIGHT - panel_height - scale(10)
+        
         self.rect = pygame.Rect(
             CANVAS_OFFSET_X,
-            CANVAS_OFFSET_Y + CANVAS_HEIGHT + scale(20),
+            panel_y,
             CANVAS_WIDTH,
-            scale(80)
+            panel_height
         )
         
         # Scale button dimensions
-        button_width = scale(110)
         button_height = scale(40)
         button_spacing = scale(10)
         button_y = self.rect.y + scale(20)
@@ -32,23 +56,15 @@ class ControlPanel:
         
         current_x = start_x
         for name, width in button_configs:
+            # Make sure buttons fit within panel
+            if current_x + width > self.rect.right - scale(150):  # Leave space for score
+                break
+            
             self.buttons.append({
                 'name': name,
                 'rect': pygame.Rect(current_x, button_y, width, button_height)
             })
             current_x += width + button_spacing
-        
-        self.score = 0
-        self.current_challenge = None
-        self.challenge_status = ""
-        self.challenge_completed = False
-        self.gold_bonus = 0
-        self.sound_manager = sound_manager
-        self.current_field_config = "Default Fields"
-        
-        # Track hover state for buttons
-        self.hover_button = None
-        self.last_hover_button = None
     
     def handle_event(self, event):
         """Handle control events."""
@@ -98,6 +114,9 @@ class ControlPanel:
     
     def draw(self, screen):
         """Draw control panel."""
+        # Update dimensions in case scale changed
+        self._update_dimensions()
+        
         # Background
         s = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
         pygame.draw.rect(s, (DARK_PURPLE[0], DARK_PURPLE[1], DARK_PURPLE[2], 180), 

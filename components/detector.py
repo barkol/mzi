@@ -136,22 +136,22 @@ class Detector(Component):
         }
     
     def draw(self, screen):
-        """Draw detector with intensity visualization and scaling."""
-        # Base circle
+        """Draw detector with intensity visualization and full scaling support."""
+        # Base circle - uses inherited radius from Component base class
         s = pygame.Surface((self.radius * 4, self.radius * 4), pygame.SRCALPHA)
         pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], 40), 
                          (self.radius * 2, self.radius * 2), self.radius)
         screen.blit(s, (self.position.x - self.radius * 2, self.position.y - self.radius * 2))
         
-        # Border
+        # Border - scaled thickness
         pygame.draw.circle(screen, CYAN, self.position.tuple(), self.radius, scale(3))
         
-        # Inner detection area
+        # Inner detection area - scaled size
         pygame.draw.circle(screen, CYAN, self.position.tuple(), scale(10))
         
         # Intensity visualization
         if self.intensity > 0:
-            # Glow effect based on intensity
+            # Glow effect based on intensity - all scaled
             # Scale the glow for intensities up to 2.0 (200%)
             glow_radius = int(scale(35) + min(self.intensity, 2.0) * scale(15))
             alpha = int(min(255, self.intensity * 64))
@@ -160,7 +160,7 @@ class Detector(Component):
                              (glow_radius, glow_radius), glow_radius)
             screen.blit(s, (self.position.x - glow_radius, self.position.y - glow_radius))
             
-            # Intensity ring
+            # Intensity ring - scaled
             ring_alpha = int(min(255, 128 + self.intensity * 64))
             ring_color = (CYAN[0], CYAN[1], CYAN[2], ring_alpha)
             s2 = pygame.Surface((glow_radius * 2 + scale(10), glow_radius * 2 + scale(10)), 
@@ -171,7 +171,7 @@ class Detector(Component):
             screen.blit(s2, (self.position.x - glow_radius - scale(5), 
                            self.position.y - glow_radius - scale(5)))
             
-            # Display percentage
+            # Display percentage - scaled font
             display_percent = round(self.intensity * 100)
             font = pygame.font.Font(None, scale_font(20))
             
@@ -188,7 +188,7 @@ class Detector(Component):
             text = font.render(f"{display_percent}%", True, text_color)
             text_rect = text.get_rect(center=(self.position.x, self.position.y + scale(50)))
             
-            # Background for text
+            # Background for text - scaled padding
             bg_rect = text_rect.inflate(scale(10), scale(5))
             s3 = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
             s3.fill((0, 0, 0, 180))
@@ -196,7 +196,7 @@ class Detector(Component):
             
             screen.blit(text, text_rect)
             
-            # Show beam count and energy info in debug mode
+            # Show beam count and energy info in debug mode - all scaled
             if self.debug and len(self.incoming_beams) > 0:
                 debug_font = pygame.font.Font(None, scale_font(12))
                 
@@ -214,12 +214,12 @@ class Detector(Component):
                                                             self.position.y + scale(85)))
                     screen.blit(ratio_text, ratio_rect)
         else:
-            # Show 0% when no intensity
+            # Show 0% when no intensity - scaled font and positioning
             font = pygame.font.Font(None, scale_font(20))
             text = font.render("0%", True, (100, 100, 100))
             text_rect = text.get_rect(center=(self.position.x, self.position.y + scale(50)))
             
-            # Background for text
+            # Background for text - scaled padding
             bg_rect = text_rect.inflate(scale(10), scale(5))
             s3 = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
             s3.fill((0, 0, 0, 180))

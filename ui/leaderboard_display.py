@@ -21,7 +21,7 @@ class LeaderboardDisplay:
         self.pending_components = 0
     
     def update_scale(self):
-        """Update scaled dimensions."""
+        """Update scaled dimensions - call this when scale factor changes."""
         self.rect = pygame.Rect(
             CANVAS_OFFSET_X + scale(100),
             CANVAS_OFFSET_Y + scale(50),

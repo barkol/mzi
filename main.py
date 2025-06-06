@@ -1,6 +1,6 @@
 """
 Mach-Zehnder Interferometer Game
-Main entry point for the application with scaling support
+Main entry point for the application with fixed scaling support
 """
 import pygame
 import sys
@@ -42,7 +42,7 @@ def get_display_mode():
         else:
             scale_factor = min(scale_x, scale_y) * 0.9
     
-    # Update all scaled values
+    # Update all scaled values BEFORE creating any UI
     update_scaled_values(scale_factor)
     
     if fullscreen:
@@ -89,22 +89,29 @@ def main():
                 if event.key == pygame.K_ESCAPE and is_fullscreen:
                     # Exit fullscreen
                     is_fullscreen = False
-                    scale_factor = min(1.0, min(pygame.display.Info().current_w / DESIGN_WIDTH,
-                                              pygame.display.Info().current_h / DESIGN_HEIGHT) * 0.9)
+                    info = pygame.display.Info()
+                    scale_factor = min(1.0, min(info.current_w / DESIGN_WIDTH,
+                                              info.current_h / DESIGN_HEIGHT) * 0.9)
+                    # Update scaled values FIRST
                     update_scaled_values(scale_factor)
+                    # Then set display mode
                     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
+                    # Then update game
                     game.update_scale(scale_factor)
                     game.update_screen_references(screen, screen)
-                    print("Switched to windowed mode")
+                    print(f"Switched to windowed mode, scale: {scale_factor:.2f}")
                     continue
                 elif event.key == pygame.K_F11:
                     # Toggle fullscreen
                     if is_fullscreen:
                         # Exit fullscreen
                         is_fullscreen = False
-                        scale_factor = min(1.0, min(pygame.display.Info().current_w / DESIGN_WIDTH,
-                                                  pygame.display.Info().current_h / DESIGN_HEIGHT) * 0.9)
+                        info = pygame.display.Info()
+                        scale_factor = min(1.0, min(info.current_w / DESIGN_WIDTH,
+                                                  info.current_h / DESIGN_HEIGHT) * 0.9)
+                        # Update scaled values FIRST
                         update_scaled_values(scale_factor)
+                        # Then set display mode
                         screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
                     else:
                         # Enter fullscreen
@@ -113,24 +120,38 @@ def main():
                         scale_x = info.current_w / DESIGN_WIDTH
                         scale_y = info.current_h / DESIGN_HEIGHT
                         scale_factor = min(scale_x, scale_y)
+                        # Update scaled values FIRST
                         update_scaled_values(scale_factor)
+                        # Then set display mode
                         screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
                     
+                    # Update game after display mode change
                     game.update_scale(scale_factor)
                     game.update_screen_references(screen, screen)
                     mode = "fullscreen" if is_fullscreen else "windowed"
                     print(f"Switched to {mode} mode with scale: {scale_factor:.2f}")
+                    print(f"Window size: {WINDOW_WIDTH}x{WINDOW_HEIGHT}")
+                    print(f"Canvas offset: ({CANVAS_OFFSET_X}, {CANVAS_OFFSET_Y})")
                     continue
             elif event.type == pygame.VIDEORESIZE and not is_fullscreen:
                 # Handle window resize
                 new_scale_x = event.w / DESIGN_WIDTH
                 new_scale_y = event.h / DESIGN_HEIGHT
                 scale_factor = min(new_scale_x, new_scale_y)
+                
+                # Update scaled values FIRST
                 update_scaled_values(scale_factor)
+                
+                # Then resize the display
                 screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+                
+                # Finally update the game
                 game.update_scale(scale_factor)
                 game.update_screen_references(screen, screen)
-                print(f"Window resized, new scale: {scale_factor:.2f}")
+                
+                print(f"Window resized to {event.w}x{event.h}, new scale: {scale_factor:.2f}")
+                print(f"Canvas offset: ({CANVAS_OFFSET_X}, {CANVAS_OFFSET_Y})")
+                print(f"Canvas size: {CANVAS_WIDTH}x{CANVAS_HEIGHT}")
             
             game.handle_event(event)
         

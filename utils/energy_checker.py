@@ -1,5 +1,6 @@
 """Energy conservation checker for the interferometer system."""
 import pygame
+from config.settings import scale, scale_font
 
 def check_energy_conservation(components, laser, beam_tracer):
     """
@@ -148,7 +149,7 @@ def trace_beam_paths(components, beam_tracer):
 
 
 class EnergyMonitor:
-    """Visual energy monitor overlay for the game."""
+    """Visual energy monitor overlay for the game with scaling support."""
     
     def __init__(self):
         self.enabled = False
@@ -165,50 +166,55 @@ class EnergyMonitor:
             self.last_report = check_energy_conservation(components, laser, beam_tracer)
     
     def draw(self, screen):
-        """Draw energy conservation info on screen."""
+        """Draw energy conservation info on screen with scaling."""
         if not self.enabled or not self.last_report:
             return
         
-        # Draw background panel
-        panel_rect = pygame.Rect(10, 100, 300, 150)
+        # Draw background panel - scaled dimensions
+        panel_width = scale(300)
+        panel_height = scale(150)
+        panel_x = scale(10)
+        panel_y = scale(100)
+        panel_rect = pygame.Rect(panel_x, panel_y, panel_width, panel_height)
+        
         panel_surface = pygame.Surface((panel_rect.width, panel_rect.height), pygame.SRCALPHA)
         panel_surface.fill((0, 0, 0, 200))
         screen.blit(panel_surface, panel_rect.topleft)
-        pygame.draw.rect(screen, (0, 255, 255), panel_rect, 2)
+        pygame.draw.rect(screen, (0, 255, 255), panel_rect, scale(2))
         
         # Draw title
-        font_title = pygame.font.Font(None, 20)
+        font_title = pygame.font.Font(None, scale_font(20))
         title = font_title.render("ENERGY CONSERVATION", True, (0, 255, 255))
-        screen.blit(title, (panel_rect.x + 10, panel_rect.y + 10))
+        screen.blit(title, (panel_rect.x + scale(10), panel_rect.y + scale(10)))
         
         # Draw data
-        font_data = pygame.font.Font(None, 16)
-        y_offset = 40
+        font_data = pygame.font.Font(None, scale_font(16))
+        y_offset = scale(40)
         
         # Input power
         text = font_data.render("Input Power: 1.000", True, (255, 255, 255))
-        screen.blit(text, (panel_rect.x + 10, panel_rect.y + y_offset))
-        y_offset += 20
+        screen.blit(text, (panel_rect.x + scale(10), panel_rect.y + y_offset))
+        y_offset += scale(20)
         
         # Total detector power
         detector_power = self.last_report['total_detector_power']
         color = (0, 255, 0) if self.last_report['conserved'] else (255, 0, 0)
         text = font_data.render(f"Total Detector Power: {detector_power:.3f}", True, color)
-        screen.blit(text, (panel_rect.x + 10, panel_rect.y + y_offset))
-        y_offset += 20
+        screen.blit(text, (panel_rect.x + scale(10), panel_rect.y + y_offset))
+        y_offset += scale(20)
         
         # Conservation error
         error = self.last_report['conservation_error']
         text = font_data.render(f"Conservation Error: {error:.4f}", True, color)
-        screen.blit(text, (panel_rect.x + 10, panel_rect.y + y_offset))
-        y_offset += 20
+        screen.blit(text, (panel_rect.x + scale(10), panel_rect.y + y_offset))
+        y_offset += scale(20)
         
         # Status
         status = "OK" if self.last_report['conserved'] else "VIOLATION!"
         text = font_data.render(f"Status: {status}", True, color)
-        screen.blit(text, (panel_rect.x + 10, panel_rect.y + y_offset))
+        screen.blit(text, (panel_rect.x + scale(10), panel_rect.y + y_offset))
         
         # Hint
-        hint_font = pygame.font.Font(None, 14)
+        hint_font = pygame.font.Font(None, scale_font(14))
         hint = hint_font.render("Press 'E' for detailed analysis", True, (150, 150, 150))
-        screen.blit(hint, (panel_rect.x + 10, panel_rect.bottom - 20))
+        screen.blit(hint, (panel_rect.x + scale(10), panel_rect.bottom - scale(20)))

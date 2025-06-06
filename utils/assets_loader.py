@@ -1,10 +1,10 @@
-"""Asset loading utility with better size handling."""
+"""Asset loading utility with dynamic scaling support."""
 import pygame
 import os
 from config.settings import CANVAS_OFFSET_X, CANVAS_WIDTH, WINDOW_WIDTH, WINDOW_HEIGHT
 
 class AssetsLoader:
-    """Handles loading and caching of game assets."""
+    """Handles loading and caching of game assets with scaling support."""
     
     def __init__(self):
         self.assets_path = "assets"

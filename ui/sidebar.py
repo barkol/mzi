@@ -1,13 +1,13 @@
-"""Sidebar UI for component selection with sound support and scaling."""
+"""Sidebar UI for component selection with sound support and fixed scaling."""
 import pygame
 import math
 from config.settings import *
 
 class Sidebar:
-    """Component selection sidebar with sound effects and scaling."""
+    """Component selection sidebar with sound effects and proper scaling."""
     
     def __init__(self, sound_manager=None):
-        self.rect = pygame.Rect(0, 0, CANVAS_OFFSET_X - scale(50), WINDOW_HEIGHT)
+        self.sound_manager = sound_manager
         self.components = [
             {'type': 'laser', 'name': 'Laser Source', 'desc': 'Move the laser'},
             {'type': 'beamsplitter', 'name': 'Beam Splitter', 'desc': '50/50 split'},
@@ -22,7 +22,18 @@ class Sidebar:
         self.drag_offset = (0, 0)
         self.last_dragged = None
         self.can_add_callback = None
-        self.sound_manager = sound_manager
+        
+        # Update dimensions
+        self._update_dimensions()
+    
+    def _update_dimensions(self):
+        """Update sidebar dimensions based on current scale."""
+        # Calculate width: should go from left edge to just before canvas
+        sidebar_width = CANVAS_OFFSET_X - scale(50)
+        if sidebar_width < scale(100):  # Minimum width
+            sidebar_width = scale(200)
+        
+        self.rect = pygame.Rect(0, 0, sidebar_width, WINDOW_HEIGHT)
     
     def handle_event(self, event):
         """Handle mouse events."""
@@ -86,14 +97,8 @@ class Sidebar:
         if not self.rect.collidepoint(pos):
             return -1
         
-        y_offset = scale(120)
-        component_height = scale(70)
-        component_spacing = scale(90)
-        margin = scale(20)
-        
         for i, comp in enumerate(self.components):
-            comp_rect = pygame.Rect(margin, y_offset + i * component_spacing, 
-                                  self.rect.width - margin * 2, component_height)
+            comp_rect = self._get_component_rect(i)
             if comp_rect.collidepoint(pos):
                 return i
         
@@ -105,8 +110,16 @@ class Sidebar:
         component_height = scale(70)
         component_spacing = scale(90)
         margin = scale(20)
-        return pygame.Rect(margin, y_offset + index * component_spacing, 
-                          self.rect.width - margin * 2, component_height)
+        
+        # Ensure width doesn't exceed sidebar width
+        comp_width = min(self.rect.width - margin * 2, scale(220))
+        
+        return pygame.Rect(
+            self.rect.x + margin, 
+            y_offset + index * component_spacing, 
+            comp_width, 
+            component_height
+        )
     
     def get_drag_info(self):
         """Get current drag information."""
@@ -114,6 +127,9 @@ class Sidebar:
     
     def draw(self, screen):
         """Draw sidebar."""
+        # Ensure dimensions are current
+        self._update_dimensions()
+        
         # Background
         s = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
         s.fill((DARK_PURPLE[0], DARK_PURPLE[1], DARK_PURPLE[2], 180))
@@ -131,7 +147,6 @@ class Sidebar:
         screen.blit(title, title_rect)
         
         # Component cards
-        y_offset = scale(120)
         font_name = pygame.font.Font(None, scale_font(20))
         font_desc = pygame.font.Font(None, scale_font(16))
         
@@ -176,10 +191,15 @@ class Sidebar:
             name = font_name.render(comp['name'], True, text_color)
             desc = font_desc.render(comp['desc'], True, desc_color)
             
-            screen.blit(name, (card_rect.x + scale(65), card_rect.y + scale(15)))
-            screen.blit(desc, (card_rect.x + scale(65), card_rect.y + scale(40)))
+            # Position text to fit within card
+            name_x = icon_center[0] + scale(30)
+            if name_x + name.get_width() > card_rect.right - scale(5):
+                name_x = card_rect.x + scale(65)
             
-            # Show "LIMIT REACHED" for disabled components
+            screen.blit(name, (name_x, card_rect.y + scale(15)))
+            screen.blit(desc, (name_x, card_rect.y + scale(40)))
+            
+            # Show "LIMIT" for disabled components
             if not can_add and comp['type'] != 'laser':
                 limit_font = pygame.font.Font(None, scale_font(12))
                 limit_text = limit_font.render("LIMIT", True, (255, 100, 100))
