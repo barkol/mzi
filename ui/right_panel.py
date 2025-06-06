@@ -1,9 +1,9 @@
-"""Right panel for help and debug information with sound support and fixed scaling."""
+"""Right panel for help and debug information with responsive width."""
 import pygame
 from config.settings import *
 
 class RightPanel:
-    """Right panel displaying help and debug information with proper scaling."""
+    """Right panel displaying help and debug information with responsive sizing."""
     
     def __init__(self, sound_manager=None):
         self.sound_manager = sound_manager
@@ -16,15 +16,23 @@ class RightPanel:
         self._update_dimensions()
         
     def _update_dimensions(self):
-        """Update panel dimensions based on current scale."""
+        """Update panel dimensions based on current scale and display mode."""
         # Panel should be to the right of canvas
-        panel_x = CANVAS_OFFSET_X + CANVAS_WIDTH + scale(50)
+        panel_x = CANVAS_OFFSET_X + CANVAS_WIDTH + scale(30)
         
-        # Calculate panel width - fill remaining space
-        panel_width = WINDOW_WIDTH - panel_x
-        if panel_width < scale(150):  # Minimum width
-            panel_width = scale(250)
-            panel_x = WINDOW_WIDTH - panel_width
+        # Use responsive width calculation
+        if IS_FULLSCREEN:
+            # In fullscreen, use remaining space
+            panel_width = WINDOW_WIDTH - panel_x
+            if panel_width < scale(FULLSCREEN_MIN_RIGHT_PANEL_WIDTH):
+                panel_width = scale(FULLSCREEN_MIN_RIGHT_PANEL_WIDTH)
+                panel_x = WINDOW_WIDTH - panel_width
+        else:
+            # In windowed mode, calculate based on remaining space
+            panel_width = WINDOW_WIDTH - panel_x
+            if panel_width < scale(200):  # Minimum width
+                panel_width = scale(250)
+                panel_x = WINDOW_WIDTH - panel_width
         
         self.rect = pygame.Rect(
             panel_x,
@@ -73,8 +81,9 @@ class RightPanel:
                         (self.rect.left, 0),
                         (self.rect.left, WINDOW_HEIGHT), scale(2))
         
-        # Title
-        font_title = pygame.font.Font(None, scale_font(24))
+        # Title - larger in fullscreen
+        title_size = scale_font(28) if IS_FULLSCREEN else scale_font(24)
+        font_title = pygame.font.Font(None, title_size)
         title_text = "Photon Path: Help" if self.show_help else "Photon Path: Debug Log"
         title = font_title.render(title_text, True, CYAN)
         title_rect = title.get_rect(centerx=self.rect.centerx, y=scale(20))
@@ -82,7 +91,7 @@ class RightPanel:
         # Make sure title fits
         if title_rect.width > self.rect.width - scale(20):
             # Use smaller font if title doesn't fit
-            font_title = pygame.font.Font(None, scale_font(18))
+            font_title = pygame.font.Font(None, scale_font(20))
             title = font_title.render(title_text, True, CYAN)
             title_rect = title.get_rect(centerx=self.rect.centerx, y=scale(20))
         
@@ -97,13 +106,16 @@ class RightPanel:
             self._draw_debug_content(screen, content_y)
     
     def _draw_help_content(self, screen, start_y):
-        """Draw help information."""
-        font_header = pygame.font.Font(None, scale_font(20))
-        font_text = pygame.font.Font(None, scale_font(16))
+        """Draw help information - responsive text sizing."""
+        header_size = scale_font(22) if IS_FULLSCREEN else scale_font(20)
+        text_size = scale_font(18) if IS_FULLSCREEN else scale_font(16)
+        
+        font_header = pygame.font.Font(None, header_size)
+        font_text = pygame.font.Font(None, text_size)
         
         y = start_y - self.scroll_offset
-        x_margin = self.rect.x + scale(10)
-        line_height = scale_font(20)
+        x_margin = self.rect.x + scale(15)
+        line_height = scale_font(22) if IS_FULLSCREEN else scale_font(20)
         
         # Clip content to panel
         clip_rect = pygame.Rect(self.rect.x, start_y, self.rect.width, self.rect.height - start_y)
@@ -143,6 +155,12 @@ class RightPanel:
             controls.append(("", ""))
             controls.append(("Sound:", f"{sound_status} ({volume_percent}%)"))
         
+        # Add fullscreen info
+        if IS_FULLSCREEN:
+            controls.append(("", ""))
+            controls.append(("Mode:", "FULLSCREEN"))
+            controls.append(("Canvas:", f"{CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} cells"))
+        
         for key, desc in controls:
             if key == "" and desc == "":
                 y += line_height // 2
@@ -156,8 +174,8 @@ class RightPanel:
             else:
                 if y > 0 and y < self.rect.height:
                     # Adjust spacing based on panel width
-                    key_width = scale(90)
-                    if self.rect.width < scale(300):
+                    key_width = scale(110) if IS_FULLSCREEN else scale(90)
+                    if self.rect.width < scale(350):
                         key_width = scale(70)
                     
                     key_surface = font_text.render(f"{key:13}", True, WHITE)
@@ -183,18 +201,16 @@ class RightPanel:
                     
                 y += line_height
         
-        # More help sections...
-        # (truncated for brevity - the pattern continues)
-        
         # Remove clipping
         screen.set_clip(None)
     
     def _draw_debug_content(self, screen, start_y):
-        """Draw debug log messages."""
-        font = pygame.font.Font(None, scale_font(14))
+        """Draw debug log messages - responsive sizing."""
+        text_size = scale_font(16) if IS_FULLSCREEN else scale_font(14)
+        font = pygame.font.Font(None, text_size)
         y = start_y
         x_margin = self.rect.x + scale(10)
-        line_height = scale_font(16)
+        line_height = scale_font(18) if IS_FULLSCREEN else scale_font(16)
         
         # Clip content to panel
         clip_rect = pygame.Rect(self.rect.x, start_y, self.rect.width, self.rect.height - start_y - scale(40))
@@ -231,6 +247,8 @@ class RightPanel:
                     color = (100, 255, 100)
                 elif "Sound:" in message or "Volume:" in message:
                     color = (100, 200, 255)
+                elif "Fullscreen" in message:
+                    color = CYAN
                 
                 text = font.render(message, True, color)
                 if x_margin + text.get_width() <= self.rect.right - scale(10):

@@ -19,7 +19,28 @@ from ui.leaderboard_display import LeaderboardDisplay
 from ui.right_panel import RightPanel
 from utils.vector import Vector2
 from utils.assets_loader import AssetsLoader
-from config.settings import *
+from config.settings import (
+    BLACK, WHITE, PURPLE, CYAN, MAGENTA, RED, GREEN, DARK_PURPLE,
+    GRID_COLOR, GRID_MAJOR_COLOR, HOVER_VALID_COLOR, HOVER_INVALID_COLOR,
+    WINDOW_WIDTH, WINDOW_HEIGHT, FPS,
+    GRID_SIZE, CANVAS_WIDTH, CANVAS_HEIGHT, CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
+    COMPONENT_RADIUS, BEAM_WIDTH,
+    WAVELENGTH, SPEED_OF_LIGHT,
+    MIRROR_LOSS, BEAM_SPLITTER_LOSS, DETECTOR_DECAY_RATE,
+    IDEAL_COMPONENTS, REALISTIC_BEAM_SPLITTER,
+    PLACEMENT_SCORE, COMPLETION_SCORE,
+    # New imports for scaling
+    scale, scale_font, update_scaled_values,
+    BASE_GRID_SIZE, BASE_CANVAS_WIDTH, BASE_CANVAS_HEIGHT,
+    BASE_CANVAS_OFFSET_X, BASE_CANVAS_OFFSET_Y,
+    BASE_COMPONENT_RADIUS, BASE_BEAM_WIDTH,
+    SCALE_FACTOR, FONT_SCALE,
+    # New imports for dynamic canvas
+    CANVAS_GRID_COLS, CANVAS_GRID_ROWS, IS_FULLSCREEN
+)
+
+# Define GOLD color if not already defined
+GOLD = (255, 215, 0)
 
 class Game:
     """Main game class with sound support, energy monitoring, and scaling."""
@@ -36,9 +57,11 @@ class Game:
         # Load assets
         self.assets_loader = AssetsLoader()
         
-        # Game components - use scaled positions
+        # Game components - use dynamic positioning
+        # Center laser vertically based on actual canvas rows
         laser_x = CANVAS_OFFSET_X + GRID_SIZE
-        laser_y = CANVAS_OFFSET_Y + 7 * GRID_SIZE
+        laser_row = CANVAS_GRID_ROWS // 2  # Center vertically in dynamic grid
+        laser_y = CANVAS_OFFSET_Y + laser_row * GRID_SIZE
         self.laser = Laser(laser_x, laser_y)
         
         # Helper modules
@@ -124,17 +147,19 @@ class Game:
         
         # Show scoring formula
         self.controls.set_status("Score = Detector Power × 1000 + Gold Bonus")
+        
+        # Log initial canvas configuration
+        self.right_panel.add_debug_message(f"Canvas: {CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} cells")
+        self.right_panel.add_debug_message(f"Display: {'Fullscreen' if IS_FULLSCREEN else 'Windowed'}")
     
-
-    # Add these methods to the Game class in core/game.py:
-
     def update_scale(self, new_scale_factor):
         """Update the scale factor and all dependent values."""
         self.scale_factor = new_scale_factor
         
-        # Update laser position
-        laser_x = scale(BASE_CANVAS_OFFSET_X + BASE_GRID_SIZE)
-        laser_y = scale(BASE_CANVAS_OFFSET_Y + 7 * BASE_GRID_SIZE)
+        # Update laser position based on new grid dimensions
+        laser_x = CANVAS_OFFSET_X + GRID_SIZE
+        laser_row = CANVAS_GRID_ROWS // 2  # Use dynamic row count
+        laser_y = CANVAS_OFFSET_Y + laser_row * GRID_SIZE
         self.laser.position = Vector2(laser_x, laser_y)
         
         # Clear components to avoid scaling issues
@@ -151,6 +176,14 @@ class Game:
         
         # Clear asset cache
         self.assets_loader.clear_cache()
+        
+        # Log the new canvas configuration
+        print(f"Canvas updated: {CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} cells")
+        print(f"Grid size: {GRID_SIZE}px")
+        print(f"Display mode: {'Fullscreen' if IS_FULLSCREEN else 'Windowed'}")
+        self.right_panel.add_debug_message(f"Canvas: {CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} cells")
+        self.right_panel.add_debug_message(f"Grid: {GRID_SIZE}px")
+        self.right_panel.add_debug_message(f"Display: {'Fullscreen' if IS_FULLSCREEN else 'Windowed'}")
 
     def update_screen_references(self, new_screen, actual_screen=None):
         """Update all screen references when display mode changes."""
@@ -174,7 +207,17 @@ class Game:
         # Clear asset cache
         if hasattr(self, 'assets_loader'):
             self.assets_loader.clear_cache()
-
+    
+    def get_canvas_info(self):
+        """Get current canvas configuration info."""
+        return {
+            'grid_cols': CANVAS_GRID_COLS,
+            'grid_rows': CANVAS_GRID_ROWS,
+            'canvas_width': CANVAS_WIDTH,
+            'canvas_height': CANVAS_HEIGHT,
+            'grid_size': GRID_SIZE,
+            'is_fullscreen': IS_FULLSCREEN
+        }
     
     def handle_event(self, event):
         """Handle game events."""
@@ -546,6 +589,24 @@ class Game:
         
         # Draw keyboard handler overlays (energy monitor)
         self.keyboard_handler.draw(self.screen)
+        
+        # Draw canvas info in fullscreen mode
+        if self.debug_display and IS_FULLSCREEN:
+            font = pygame.font.Font(None, scale_font(14))
+            info_text = f"Canvas: {CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} | Grid: {GRID_SIZE}px"
+            text_surface = font.render(info_text, True, WHITE)
+            text_rect = text_surface.get_rect(
+                centerx=CANVAS_OFFSET_X + CANVAS_WIDTH // 2,
+                bottom=CANVAS_OFFSET_Y - scale(5)
+            )
+            
+            # Background for readability
+            bg_rect = text_rect.inflate(scale(10), scale(4))
+            s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+            s.fill((0, 0, 0, 150))
+            self.screen.blit(s, bg_rect.topleft)
+            
+            self.screen.blit(text_surface, text_rect)
     
     def _draw_challenge_name(self):
         """Draw the current challenge name above the grid."""

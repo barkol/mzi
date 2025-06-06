@@ -1,4 +1,4 @@
-"""Grid system for component placement with scaling support."""
+"""Grid system for component placement with dynamic canvas support."""
 import pygame
 import math
 import random
@@ -7,7 +7,7 @@ from utils.colors import pulse_alpha
 from utils.vector import Vector2
 
 class Grid:
-    """Grid system for the game canvas with scaling."""
+    """Grid system for the game canvas with dynamic sizing."""
     
     def __init__(self):
         self.hover_pos = None
@@ -30,8 +30,18 @@ class Grid:
     
     def draw(self, screen, components, laser_pos=None, blocked_positions=None, gold_positions=None):
         """Draw grid with hover effects, blocked positions, and gold fields."""
+        # Update canvas rect in case it changed
+        self.canvas_rect = pygame.Rect(
+            CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
+            CANVAS_WIDTH, CANVAS_HEIGHT
+        )
+        
         # Draw grid lines
         self._draw_grid_lines(screen)
+        
+        # Draw grid info in fullscreen mode
+        if IS_FULLSCREEN:
+            self._draw_grid_info(screen)
         
         # Draw gold positions (draw before blocked so blocked are on top)
         if gold_positions:
@@ -46,31 +56,52 @@ class Grid:
             self._draw_hover_highlight(screen, components, laser_pos, blocked_positions)
     
     def _draw_grid_lines(self, screen):
-        """Draw the background grid."""
-        # Vertical lines
-        for x in range(CANVAS_OFFSET_X, CANVAS_OFFSET_X + CANVAS_WIDTH + 1, GRID_SIZE):
-            is_major = ((x - CANVAS_OFFSET_X) / GRID_SIZE) % 4 == 0
+        """Draw the background grid with dynamic dimensions."""
+        # Vertical lines - use dynamic grid columns
+        for col in range(CANVAS_GRID_COLS + 1):
+            x = CANVAS_OFFSET_X + col * GRID_SIZE
+            is_major = col % 4 == 0
             color = GRID_MAJOR_COLOR if is_major else GRID_COLOR
             pygame.draw.line(screen, color,
                            (x, CANVAS_OFFSET_Y),
                            (x, CANVAS_OFFSET_Y + CANVAS_HEIGHT))
         
-        # Horizontal lines
-        for y in range(CANVAS_OFFSET_Y, CANVAS_OFFSET_Y + CANVAS_HEIGHT + 1, GRID_SIZE):
-            is_major = ((y - CANVAS_OFFSET_Y) / GRID_SIZE) % 4 == 0
+        # Horizontal lines - use dynamic grid rows
+        for row in range(CANVAS_GRID_ROWS + 1):
+            y = CANVAS_OFFSET_Y + row * GRID_SIZE
+            is_major = row % 4 == 0
             color = GRID_MAJOR_COLOR if is_major else GRID_COLOR
             pygame.draw.line(screen, color,
                            (CANVAS_OFFSET_X, y),
                            (CANVAS_OFFSET_X + CANVAS_WIDTH, y))
         
         # Draw intersection dots
-        for x in range(CANVAS_OFFSET_X, CANVAS_OFFSET_X + CANVAS_WIDTH + 1, GRID_SIZE):
-            for y in range(CANVAS_OFFSET_Y, CANVAS_OFFSET_Y + CANVAS_HEIGHT + 1, GRID_SIZE):
-                is_major = (((x - CANVAS_OFFSET_X) / GRID_SIZE) % 4 == 0 and
-                           ((y - CANVAS_OFFSET_Y) / GRID_SIZE) % 4 == 0)
+        for col in range(CANVAS_GRID_COLS + 1):
+            for row in range(CANVAS_GRID_ROWS + 1):
+                x = CANVAS_OFFSET_X + col * GRID_SIZE
+                y = CANVAS_OFFSET_Y + row * GRID_SIZE
+                is_major = (col % 4 == 0 and row % 4 == 0)
                 radius = scale(3) if is_major else scale(2)
                 pygame.draw.circle(screen, GRID_MAJOR_COLOR if is_major else GRID_COLOR,
                                  (x, y), radius)
+    
+    def _draw_grid_info(self, screen):
+        """Draw grid configuration info in fullscreen mode."""
+        font = pygame.font.Font(None, scale_font(14))
+        info_text = f"Grid: {CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} cells ({GRID_SIZE}px)"
+        text_surface = font.render(info_text, True, WHITE)
+        text_rect = text_surface.get_rect(
+            right=CANVAS_OFFSET_X + CANVAS_WIDTH - scale(10),
+            bottom=CANVAS_OFFSET_Y - scale(5)
+        )
+        
+        # Background for readability
+        bg_rect = text_rect.inflate(scale(10), scale(4))
+        s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+        s.fill((0, 0, 0, 150))
+        screen.blit(s, bg_rect.topleft)
+        
+        screen.blit(text_surface, text_rect)
     
     def _draw_coin(self, screen, x, y, size=12, highlight=False):
         """Draw a single coin with scaling."""
@@ -108,7 +139,8 @@ class Grid:
     
     def _draw_gold_positions(self, screen, gold_positions):
         """Draw gold field positions as piles of coins with scaling."""
-        field_size = scale(40)  # Scaled field size
+        # Use current grid size for field size
+        field_size = int(GRID_SIZE * 0.9)  # 90% of grid cell
         
         for pos in gold_positions:
             x, y = int(pos.x), int(pos.y)
@@ -201,7 +233,8 @@ class Grid:
     
     def _draw_blocked_positions(self, screen, blocked_positions):
         """Draw blocked positions as onyx blocks with red vines and scaling."""
-        field_size = scale(40)  # Scaled field size
+        # Use current grid size for field size
+        field_size = int(GRID_SIZE * 0.9)  # 90% of grid cell
         
         for pos in blocked_positions:
             x, y = int(pos.x), int(pos.y)
@@ -277,7 +310,7 @@ class Grid:
         if blocked_positions:
             test_pos = Vector2(x, y)
             for blocked_pos in blocked_positions:
-                if blocked_pos.distance_to(test_pos) < scale(40) / 2:  # Use scaled field size
+                if blocked_pos.distance_to(test_pos) < GRID_SIZE / 2:
                     blocked = True
                     break
         
@@ -372,9 +405,12 @@ class Grid:
                         (x - scale(15), y + scale(15)), scale(3))
     
     def _draw_coords_text(self, screen, x, y):
-        """Draw coordinate display with scaling."""
+        """Draw coordinate display with grid coordinates."""
         font = pygame.font.Font(None, scale_font(14))
-        coords_text = f"{x - CANVAS_OFFSET_X}, {y - CANVAS_OFFSET_Y}"
+        # Convert to grid coordinates
+        grid_x = (x - CANVAS_OFFSET_X) // GRID_SIZE
+        grid_y = (y - CANVAS_OFFSET_Y) // GRID_SIZE
+        coords_text = f"({grid_x}, {grid_y})"
         text = font.render(coords_text, True, CYAN)
         text_rect = text.get_rect(topleft=(x + scale(15), y - scale(25)))
         

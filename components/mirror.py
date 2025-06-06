@@ -1,11 +1,11 @@
-"""Mirror component with scaling support."""
+"""Mirror component with constrained scaling support."""
 import pygame
 import numpy as np
 from components.tunable_beamsplitter import TunableBeamSplitter
-from config.settings import CYAN, MIRROR_LOSS, scale, scale_font
+from config.settings import CYAN, MIRROR_LOSS, scale, scale_font, GRID_SIZE
 
 class Mirror(TunableBeamSplitter):
-    """Perfect mirror - a tunable beam splitter with t=0, r=-1, with scaling."""
+    """Perfect mirror - a tunable beam splitter with t=0, r=-1, with constrained scaling."""
     
     def __init__(self, x, y, mirror_type='/'):
         """
@@ -46,9 +46,10 @@ class Mirror(TunableBeamSplitter):
             ], dtype=complex)
     
     def draw(self, screen):
-        """Draw mirror with custom appearance and scaling."""
-        # Mirror surface - scaled size
-        size = scale(40)
+        """Draw mirror with custom appearance and constrained scaling."""
+        # Mirror surface - size constrained to fit within grid cell
+        # Use 80% of grid size to ensure it fits
+        size = int(GRID_SIZE * 0.8)
         half_size = size // 2
         
         if self.mirror_type == '/':
@@ -61,54 +62,59 @@ class Mirror(TunableBeamSplitter):
         # Draw thick mirror line - CYAN color like beam splitter
         pygame.draw.line(screen, CYAN, start, end, scale(6))
         
-        # Draw reflection indicators (dimmed)
-        s = pygame.Surface((scale(60), scale(60)), pygame.SRCALPHA)
-        s_center = (scale(30), scale(30))
+        # Draw reflection indicators (dimmed) - keep these subtle
+        indicator_size = int(GRID_SIZE * 0.5)  # Smaller indicators
+        s = pygame.Surface((indicator_size, indicator_size), pygame.SRCALPHA)
+        s_center = (indicator_size // 2, indicator_size // 2)
+        indicator_half = indicator_size // 2 - scale(5)
+        
         if self.mirror_type == '/':
             pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], 100),
-                           (s_center[0] - scale(20), s_center[1] + scale(20)),
-                           (s_center[0] + scale(20), s_center[1] - scale(20)), scale(2))
+                           (s_center[0] - indicator_half, s_center[1] + indicator_half),
+                           (s_center[0] + indicator_half, s_center[1] - indicator_half), scale(2))
         else:
             pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], 100),
-                           (s_center[0] - scale(20), s_center[1] - scale(20)),
-                           (s_center[0] + scale(20), s_center[1] + scale(20)), scale(2))
-        screen.blit(s, (self.position.x - scale(30), self.position.y - scale(30)))
+                           (s_center[0] - indicator_half, s_center[1] - indicator_half),
+                           (s_center[0] + indicator_half, s_center[1] + indicator_half), scale(2))
+        screen.blit(s, (self.position.x - indicator_size // 2, self.position.y - indicator_size // 2))
         
-        # Add direction hints
+        # Add direction hints - smaller and closer to mirror
+        hint_offset = int(GRID_SIZE * 0.4)
+        hint_length = scale(10)
         if self.mirror_type == '/':
             # '/' mirror reflects: left↔top, bottom↔right
             # Show left→top reflection
             points = [
-                (self.position.x - scale(20), self.position.y),
-                (self.position.x - scale(10), self.position.y),
-                (self.position.x - scale(10), self.position.y - scale(10))
+                (self.position.x - hint_offset, self.position.y),
+                (self.position.x - hint_offset + hint_length, self.position.y),
+                (self.position.x - hint_offset + hint_length, self.position.y - hint_length)
             ]
             pygame.draw.lines(screen, CYAN, False, points, scale(1))
             # Show bottom→right reflection
             points2 = [
-                (self.position.x, self.position.y + scale(20)),
-                (self.position.x, self.position.y + scale(10)),
-                (self.position.x + scale(10), self.position.y + scale(10))
+                (self.position.x, self.position.y + hint_offset),
+                (self.position.x, self.position.y + hint_offset - hint_length),
+                (self.position.x + hint_length, self.position.y + hint_offset - hint_length)
             ]
             pygame.draw.lines(screen, CYAN, False, points2, scale(1))
         else:  # '\'
             # '\' mirror reflects: left↔bottom, top↔right
             # Show left→bottom reflection
             points = [
-                (self.position.x - scale(20), self.position.y),
-                (self.position.x - scale(10), self.position.y),
-                (self.position.x - scale(10), self.position.y + scale(10))
+                (self.position.x - hint_offset, self.position.y),
+                (self.position.x - hint_offset + hint_length, self.position.y),
+                (self.position.x - hint_offset + hint_length, self.position.y + hint_length)
             ]
             pygame.draw.lines(screen, CYAN, False, points, scale(1))
             # Show top→right reflection
             points2 = [
-                (self.position.x, self.position.y - scale(20)),
-                (self.position.x, self.position.y - scale(10)),
-                (self.position.x + scale(10), self.position.y - scale(10))
+                (self.position.x, self.position.y - hint_offset),
+                (self.position.x, self.position.y - hint_offset + hint_length),
+                (self.position.x + hint_length, self.position.y - hint_offset + hint_length)
             ]
             pygame.draw.lines(screen, CYAN, False, points2, scale(1))
         
-        # Show debug info
+        # Show debug info - keep it compact
         if self.debug:
             font = pygame.font.Font(None, scale_font(10))
             # Show mirror type and phase shift

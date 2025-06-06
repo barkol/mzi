@@ -1,13 +1,13 @@
-"""Beam splitter component with scaling support."""
+"""Beam splitter component with constrained scaling support."""
 import pygame
 import numpy as np
 import math
 import cmath
 from components.tunable_beamsplitter import TunableBeamSplitter
-from config.settings import CYAN, BEAM_SPLITTER_LOSS, scale, scale_font
+from config.settings import CYAN, BEAM_SPLITTER_LOSS, scale, scale_font, GRID_SIZE
 
 class BeamSplitter(TunableBeamSplitter):
-    """50/50 beam splitter with scaling support."""
+    """50/50 beam splitter with constrained scaling support."""
     
     def __init__(self, x, y):
         """Initialize 50/50 beam splitter."""
@@ -52,9 +52,10 @@ class BeamSplitter(TunableBeamSplitter):
         self.last_phase_diff = None
     
     def draw(self, screen):
-        """Draw beam splitter with custom appearance and scaling."""
-        # Main square - scaled size
-        size = scale(40)
+        """Draw beam splitter with custom appearance and constrained scaling."""
+        # Main square - size constrained to be smaller than grid cell
+        # Use 80% of grid size to ensure it fits within the grid cell
+        size = int(GRID_SIZE * 0.8)
         half_size = size // 2
         rect = pygame.Rect(
             self.position.x - half_size,

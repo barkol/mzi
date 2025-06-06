@@ -1,6 +1,6 @@
 """
 Mach-Zehnder Interferometer Game
-Main entry point for the application with dynamic scaling support
+Main entry point with responsive fullscreen support
 """
 import pygame
 import sys
@@ -31,7 +31,6 @@ def get_display_mode():
     if len(sys.argv) > 1:
         if sys.argv[1] == "--fullscreen" or sys.argv[1] == "-f":
             fullscreen = True
-            scale_factor = min(scale_x, scale_y)
         elif sys.argv[1] == "--scale" or sys.argv[1] == "-s":
             # Scale to 90% of screen size
             scale_factor = min(scale_x, scale_y) * 0.9
@@ -42,13 +41,24 @@ def get_display_mode():
         else:
             scale_factor = min(scale_x, scale_y) * 0.9
     
-    # Update all scaled values
-    update_scaled_values(scale_factor)
-    
     if fullscreen:
-        print(f"Using fullscreen mode with scale factor: {scale_factor:.2f}")
+        # Fullscreen mode - use actual screen dimensions
+        # Scale factor determines UI element sizes but not layout
+        scale_factor = min(scale_x, scale_y)
+        # Limit scale factor to prevent UI elements from becoming too large
+        scale_factor = min(scale_factor, 1.5)
+        
+        # Update scaled values with fullscreen layout
+        update_scaled_values(scale_factor, screen_width, screen_height, fullscreen=True)
+        
+        print(f"Using fullscreen mode with responsive layout")
+        print(f"  UI scale factor: {scale_factor:.2f}")
+        print(f"  Canvas will expand to use available space")
         return (screen_width, screen_height), pygame.FULLSCREEN, scale_factor
     else:
+        # Windowed mode - traditional scaling
+        update_scaled_values(scale_factor, fullscreen=False)
+        
         window_width = int(DESIGN_WIDTH * scale_factor)
         window_height = int(DESIGN_HEIGHT * scale_factor)
         print(f"Using windowed mode: {window_width}x{window_height} (scale: {scale_factor:.2f})")
@@ -89,9 +99,10 @@ def main():
                 if event.key == pygame.K_ESCAPE and is_fullscreen:
                     # Exit fullscreen
                     is_fullscreen = False
-                    scale_factor = min(1.0, min(pygame.display.Info().current_w / DESIGN_WIDTH,
-                                              pygame.display.Info().current_h / DESIGN_HEIGHT) * 0.9)
-                    update_scaled_values(scale_factor)
+                    info = pygame.display.Info()
+                    scale_factor = min(1.0, min(info.current_w / DESIGN_WIDTH,
+                                              info.current_h / DESIGN_HEIGHT) * 0.9)
+                    update_scaled_values(scale_factor, fullscreen=False)
                     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
                     game.update_scale(scale_factor)
                     game.update_screen_references(screen, screen)
@@ -104,7 +115,7 @@ def main():
                         is_fullscreen = False
                         scale_factor = min(1.0, min(pygame.display.Info().current_w / DESIGN_WIDTH,
                                                   pygame.display.Info().current_h / DESIGN_HEIGHT) * 0.9)
-                        update_scaled_values(scale_factor)
+                        update_scaled_values(scale_factor, fullscreen=False)
                         screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
                     else:
                         # Enter fullscreen
@@ -112,8 +123,8 @@ def main():
                         info = pygame.display.Info()
                         scale_x = info.current_w / DESIGN_WIDTH
                         scale_y = info.current_h / DESIGN_HEIGHT
-                        scale_factor = min(scale_x, scale_y)
-                        update_scaled_values(scale_factor)
+                        scale_factor = min(min(scale_x, scale_y), 1.5)  # Cap at 1.5x
+                        update_scaled_values(scale_factor, info.current_w, info.current_h, fullscreen=True)
                         screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
                     
                     game.update_scale(scale_factor)
@@ -126,7 +137,7 @@ def main():
                 new_scale_x = event.w / DESIGN_WIDTH
                 new_scale_y = event.h / DESIGN_HEIGHT
                 scale_factor = min(new_scale_x, new_scale_y)
-                update_scaled_values(scale_factor)
+                update_scaled_values(scale_factor, fullscreen=False)
                 screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
                 game.update_scale(scale_factor)
                 game.update_screen_references(screen, screen)
@@ -155,11 +166,12 @@ if __name__ == "__main__":
     print("========================================")
     print("Usage:")
     print("  python main.py              - Run in auto-scaled windowed mode")
-    print("  python main.py --fullscreen - Run in fullscreen mode")
+    print("  python main.py --fullscreen - Run in fullscreen mode (responsive layout)")
     print("  python main.py --scale      - Run in 90% scaled windowed mode")
     print("\nControls:")
-    print("  F11 - Toggle fullscreen")
+    print("  F11 - Toggle fullscreen/windowed")
     print("  ESC - Exit fullscreen")
+    print("\nFullscreen mode uses responsive layout to fill available space")
     print()
     
     main()

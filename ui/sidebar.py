@@ -1,10 +1,10 @@
-"""Sidebar UI for component selection with sound support and fixed scaling."""
+"""Sidebar UI for component selection with responsive width support."""
 import pygame
 import math
 from config.settings import *
 
 class Sidebar:
-    """Component selection sidebar with sound effects and proper scaling."""
+    """Component selection sidebar with responsive width for fullscreen."""
     
     def __init__(self, sound_manager=None):
         self.sound_manager = sound_manager
@@ -27,12 +27,9 @@ class Sidebar:
         self._update_dimensions()
     
     def _update_dimensions(self):
-        """Update sidebar dimensions based on current scale."""
-        # Calculate width: should go from left edge to just before canvas
-        sidebar_width = CANVAS_OFFSET_X - scale(50)
-        if sidebar_width < scale(100):  # Minimum width
-            sidebar_width = scale(200)
-        
+        """Update sidebar dimensions based on current scale and display mode."""
+        # Use responsive width from settings
+        sidebar_width = get_sidebar_width()
         self.rect = pygame.Rect(0, 0, sidebar_width, WINDOW_HEIGHT)
     
     def handle_event(self, event):
@@ -105,14 +102,21 @@ class Sidebar:
         return -1
     
     def _get_component_rect(self, index):
-        """Get rectangle for component at index."""
-        y_offset = scale(120)
-        component_height = scale(70)
-        component_spacing = scale(90)
-        margin = scale(20)
+        """Get rectangle for component at index - responsive sizing."""
+        # In fullscreen, use more generous spacing
+        if IS_FULLSCREEN:
+            y_offset = scale(120)
+            component_height = scale(90)
+            component_spacing = scale(110)
+            margin = scale(20)
+        else:
+            y_offset = scale(100)
+            component_height = scale(80)
+            component_spacing = scale(100)
+            margin = scale(15)
         
-        # Ensure width doesn't exceed sidebar width
-        comp_width = min(self.rect.width - margin * 2, scale(220))
+        # Component width adapts to sidebar width
+        comp_width = self.rect.width - margin * 2
         
         return pygame.Rect(
             self.rect.x + margin, 
@@ -140,15 +144,18 @@ class Sidebar:
                         (self.rect.right, 0),
                         (self.rect.right, WINDOW_HEIGHT), scale(2))
         
-        # Title
-        font_title = pygame.font.Font(None, scale_font(28))
+        # Title - larger in fullscreen
+        title_size = scale_font(32) if IS_FULLSCREEN else scale_font(28)
+        font_title = pygame.font.Font(None, title_size)
         title = font_title.render("Components", True, CYAN)
         title_rect = title.get_rect(centerx=self.rect.centerx, y=scale(50))
         screen.blit(title, title_rect)
         
         # Component cards
-        font_name = pygame.font.Font(None, scale_font(20))
-        font_desc = pygame.font.Font(None, scale_font(16))
+        name_size = scale_font(22) if IS_FULLSCREEN else scale_font(20)
+        desc_size = scale_font(18) if IS_FULLSCREEN else scale_font(16)
+        font_name = pygame.font.Font(None, name_size)
+        font_desc = pygame.font.Font(None, desc_size)
         
         for i, comp in enumerate(self.components):
             # Card rectangle
@@ -179,8 +186,9 @@ class Sidebar:
             pygame.draw.rect(s, (PURPLE[0], PURPLE[1], PURPLE[2], fill_alpha), s.get_rect())
             screen.blit(s, card_rect.topleft)
             
-            # Component icon (simplified)
-            icon_center = (card_rect.x + scale(35), card_rect.centery)
+            # Component icon - larger in fullscreen
+            icon_offset = scale(40) if IS_FULLSCREEN else scale(35)
+            icon_center = (card_rect.x + icon_offset, card_rect.centery)
             icon_color = (100, 100, 100) if not can_add and comp['type'] != 'laser' else None
             self._draw_component_icon(screen, comp['type'], icon_center, icon_color)
             
@@ -191,13 +199,12 @@ class Sidebar:
             name = font_name.render(comp['name'], True, text_color)
             desc = font_desc.render(comp['desc'], True, desc_color)
             
-            # Position text to fit within card
-            name_x = icon_center[0] + scale(30)
-            if name_x + name.get_width() > card_rect.right - scale(5):
-                name_x = card_rect.x + scale(65)
+            # Position text with more space in fullscreen
+            text_offset = scale(70) if IS_FULLSCREEN else scale(65)
+            name_x = card_rect.x + text_offset
             
-            screen.blit(name, (name_x, card_rect.y + scale(15)))
-            screen.blit(desc, (name_x, card_rect.y + scale(40)))
+            screen.blit(name, (name_x, card_rect.y + scale(18)))
+            screen.blit(desc, (name_x, card_rect.y + scale(45)))
             
             # Show "LIMIT" for disabled components
             if not can_add and comp['type'] != 'laser':
@@ -208,30 +215,33 @@ class Sidebar:
                 screen.blit(limit_text, limit_rect)
     
     def _draw_component_icon(self, screen, comp_type, center, override_color=None):
-        """Draw simplified component icon."""
+        """Draw simplified component icon - larger in fullscreen."""
         color = override_color if override_color else CYAN
         
+        # Scale icons up in fullscreen
+        icon_scale = 1.2 if IS_FULLSCREEN else 1.0
+        
         if comp_type == 'laser':
-            # Laser icon - circle with rays (always turquoise)
-            radius = scale(12)
+            # Laser icon - circle with rays
+            radius = scale(int(15 * icon_scale))
             pygame.draw.circle(screen, CYAN, center, radius)
             # Rays
             for angle in range(0, 360, 45):
                 rad = math.radians(angle)
                 start_x = center[0] + radius * math.cos(rad)
                 start_y = center[1] + radius * math.sin(rad)
-                end_x = center[0] + scale(18) * math.cos(rad)
-                end_y = center[1] + scale(18) * math.sin(rad)
+                end_x = center[0] + scale(int(22 * icon_scale)) * math.cos(rad)
+                end_y = center[1] + scale(int(22 * icon_scale)) * math.sin(rad)
                 pygame.draw.line(screen, CYAN, (start_x, start_y), (end_x, end_y), scale(2))
         elif comp_type == 'beamsplitter':
-            size = scale(30)
+            size = scale(int(35 * icon_scale))
             half_size = size // 2
             rect = pygame.Rect(center[0] - half_size, center[1] - half_size, size, size)
             pygame.draw.rect(screen, color, rect, scale(2))
             pygame.draw.line(screen, color, rect.topleft, rect.bottomright, scale(2))
         elif comp_type.startswith('mirror'):
             # Mirror icons
-            size = scale(30)
+            size = scale(int(35 * icon_scale))
             half_size = size // 2
             if '/' in comp_type:
                 pygame.draw.line(screen, color,
@@ -242,6 +252,6 @@ class Sidebar:
                                (center[0] - half_size, center[1] - half_size),
                                (center[0] + half_size, center[1] + half_size), scale(4))
         elif comp_type == 'detector':
-            radius = scale(15)
+            radius = scale(int(18 * icon_scale))
             pygame.draw.circle(screen, color, center, radius, scale(2))
-            pygame.draw.circle(screen, color, center, scale(5))
+            pygame.draw.circle(screen, color, center, scale(int(6 * icon_scale)))
