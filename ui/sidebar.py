@@ -134,9 +134,12 @@ class Sidebar:
         # Ensure dimensions are current
         self._update_dimensions()
         
-        # Background
+        # Background - draw directly on screen
+        pygame.draw.rect(screen, DARK_PURPLE, self.rect)
+        
+        # Add semi-transparent overlay for depth
         s = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
-        s.fill((DARK_PURPLE[0], DARK_PURPLE[1], DARK_PURPLE[2], 180))
+        s.fill((DARK_PURPLE[0], DARK_PURPLE[1], DARK_PURPLE[2], 100))
         screen.blit(s, self.rect.topleft)
         
         # Border
@@ -164,26 +167,30 @@ class Sidebar:
             # Check if component can be added (laser always allowed)
             can_add = comp['type'] == 'laser' or self._can_add_component()
             
+            # Draw card background
+            card_color = PURPLE if can_add else (50, 50, 50)
+            
             # Hover/selected effect
             if i == self.hover_index and can_add:
                 color = CYAN if comp['type'] == self.selected else PURPLE
-                pygame.draw.rect(screen, color, card_rect, scale(2))
+                # Draw glow effect
+                for j in range(3):
+                    glow_rect = card_rect.inflate(scale(j * 4), scale(j * 4))
+                    s = pygame.Surface((glow_rect.width, glow_rect.height), pygame.SRCALPHA)
+                    s.fill((color[0], color[1], color[2], 30 - j * 10))
+                    screen.blit(s, glow_rect.topleft)
                 
-                # Glow effect
-                s = pygame.Surface((card_rect.width + scale(10), card_rect.height + scale(10)), pygame.SRCALPHA)
-                pygame.draw.rect(s, (color[0], color[1], color[2], 30), s.get_rect(), border_radius=scale(5))
-                screen.blit(s, (card_rect.x - scale(5), card_rect.y - scale(5)))
+                # Draw highlighted border
+                pygame.draw.rect(screen, color, card_rect, scale(2))
             else:
-                # Draw a faint border
-                s = pygame.Surface((card_rect.width, card_rect.height), pygame.SRCALPHA)
+                # Draw normal border
                 border_color = (100, 100, 100) if not can_add else PURPLE
-                pygame.draw.rect(s, (border_color[0], border_color[1], border_color[2], 100), s.get_rect(), scale(1))
-                screen.blit(s, card_rect.topleft)
+                pygame.draw.rect(screen, border_color, card_rect, scale(1))
             
-            # Fill
+            # Fill with semi-transparent background
             s = pygame.Surface((card_rect.width, card_rect.height), pygame.SRCALPHA)
             fill_alpha = 20 if not can_add else 40
-            pygame.draw.rect(s, (PURPLE[0], PURPLE[1], PURPLE[2], fill_alpha), s.get_rect())
+            s.fill((card_color[0], card_color[1], card_color[2], fill_alpha))
             screen.blit(s, card_rect.topleft)
             
             # Component icon - larger in fullscreen
@@ -194,7 +201,7 @@ class Sidebar:
             
             # Text
             text_color = (150, 150, 150) if not can_add and comp['type'] != 'laser' else WHITE
-            desc_color = (100, 100, 100) if not can_add and comp['type'] != 'laser' else (*WHITE, 180)
+            desc_color = (100, 100, 100) if not can_add and comp['type'] != 'laser' else (200, 200, 200)
             
             name = font_name.render(comp['name'], True, text_color)
             desc = font_desc.render(comp['desc'], True, desc_color)
@@ -225,6 +232,9 @@ class Sidebar:
             # Laser icon - circle with rays
             radius = scale(int(15 * icon_scale))
             pygame.draw.circle(screen, CYAN, center, radius)
+            pygame.draw.circle(screen, CYAN, center, radius, scale(2))
+            # Inner bright spot
+            pygame.draw.circle(screen, WHITE, center, scale(int(5 * icon_scale)))
             # Rays
             for angle in range(0, 360, 45):
                 rad = math.radians(angle)

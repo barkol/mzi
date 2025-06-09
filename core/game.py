@@ -497,7 +497,7 @@ class Game:
             self.last_gold_hits = self.beam_tracer.gold_field_hits.copy()
     
     def draw(self):
-        """Draw the game."""
+        """Draw the game with fixed rendering order."""
         # Update challenge completion status for controls
         if self.challenge_manager.current_challenge and hasattr(self.controls, 'set_challenge_completed'):
             is_completed = self.challenge_manager.current_challenge in self.completed_challenges
@@ -514,37 +514,38 @@ class Game:
         # Clear screen
         self.screen.fill(BLACK)
         
-        # Draw banner as the bottom-most layer
+        # Layer 1: Draw banner as the bottom-most layer
         self.debug_display.draw_banner()
         
-        # Draw game info above canvas
-        self._draw_game_info_top()
+        # Layer 2: Draw UI panels (sidebar and right panel backgrounds)
+        self.sidebar.draw(self.screen)
+        self.right_panel.draw(self.screen)
         
-        # Draw challenge name above grid
-        self._draw_challenge_name()
-        
-        # Draw game canvas background
+        # Layer 3: Draw game area outline (no fill to not obscure grid elements)
         canvas_rect = pygame.Rect(CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT)
-        s = pygame.Surface((CANVAS_WIDTH, CANVAS_HEIGHT), pygame.SRCALPHA)
-        s.fill((BLACK[0], BLACK[1], BLACK[2], 60))
-        self.screen.blit(s, canvas_rect.topleft)
         pygame.draw.rect(self.screen, PURPLE, canvas_rect, scale(2), border_radius=scale(15))
         
-        # Draw grid
+        # Layer 4: Draw game info above canvas
+        self._draw_game_info_top()
+        
+        # Layer 5: Draw challenge name above grid
+        self._draw_challenge_name()
+        
+        # Layer 6: Draw grid (includes gold fields, blocked fields, and grid lines)
         laser_pos = self.laser.position.tuple() if self.laser else None
         self.grid.draw(self.screen, self.component_manager.components, laser_pos,
                       self.challenge_manager.get_blocked_positions(),
                       self.challenge_manager.get_gold_positions())
         
-        # Draw laser
+        # Layer 7: Draw laser
         if self.laser:
             self.laser.draw(self.screen)
         
-        # Draw components
+        # Layer 8: Draw components
         for comp in self.component_manager.components:
             comp.draw(self.screen)
         
-        # Trace and draw beams
+        # Layer 9: Trace and draw beams
         if self.laser and self.laser.enabled:
             # Set gold positions on beam tracer
             self.beam_tracer.set_gold_positions(self.challenge_manager.get_gold_positions())
@@ -559,38 +560,36 @@ class Game:
                                         0,
                                         self.challenge_manager.get_blocked_positions())
         
-        # Draw UI
-        self.sidebar.draw(self.screen)
+        # Layer 10: Draw control panel
         self.controls.draw(self.screen)
-        self.right_panel.draw(self.screen)
         
-        # Draw dragged component preview
+        # Layer 11: Draw dragged component preview
         if self.sidebar.dragging and self.sidebar.selected:
             self._draw_drag_preview()
         
-        # Draw effects
+        # Layer 12: Draw effects
         self.effects.draw(self.screen)
         
-        # Draw info text and debug info
+        # Layer 13: Draw info text and debug info
         self.debug_display.draw_info_text()
         self.debug_display.draw_opd_info(self.component_manager.components, self.show_opd_info)
         
-        # Draw session high score
+        # Layer 14: Draw session high score
         self._draw_session_high_score()
         
-        # Draw challenge completion status
+        # Layer 15: Draw challenge completion status
         self._draw_challenge_status()
         
-        # Draw component counter
+        # Layer 16: Draw component counter in bottom left
         self._draw_component_counter()
         
-        # Draw leaderboard if visible
+        # Layer 17: Draw leaderboard if visible (modal overlay)
         self.leaderboard_display.draw(self.screen)
         
-        # Draw keyboard handler overlays (energy monitor)
+        # Layer 18: Draw keyboard handler overlays (energy monitor)
         self.keyboard_handler.draw(self.screen)
         
-        # Draw canvas info in fullscreen mode
+        # Layer 19: Draw canvas info in fullscreen mode
         if self.debug_display and IS_FULLSCREEN:
             font = pygame.font.Font(None, scale_font(14))
             info_text = f"Canvas: {CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} | Grid: {GRID_SIZE}px"
@@ -711,7 +710,7 @@ class Game:
             self.screen.blit(text, text_rect)
     
     def _draw_component_counter(self):
-        """Draw component counter in bottom left corner."""
+        """Draw component counter in bottom left corner of the screen."""
         current_count = len(self.component_manager.components)
         
         # Get challenge limits
@@ -723,7 +722,7 @@ class Game:
                 min_components = challenge.get('min_components', 0)
                 max_components = challenge.get('max_components', float('inf'))
         
-        # Position
+        # Position - in the bottom left of the entire screen
         counter_x = scale(20)
         counter_y = WINDOW_HEIGHT - scale(60)
         

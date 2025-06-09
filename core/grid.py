@@ -6,6 +6,30 @@ from config.settings import *
 from utils.colors import pulse_alpha
 from utils.vector import Vector2
 
+# Define GOLD color if not in settings
+GOLD = (255, 215, 0)
+
+# Make sure we have essential variables
+if 'GRID_SIZE' not in globals():
+    GRID_SIZE = 40
+if 'CANVAS_GRID_COLS' not in globals():
+    CANVAS_GRID_COLS = 20
+if 'CANVAS_GRID_ROWS' not in globals():
+    CANVAS_GRID_ROWS = 15
+if 'IS_FULLSCREEN' not in globals():
+    IS_FULLSCREEN = False
+
+# Make sure scale and scale_font are available
+if 'scale' not in globals():
+    def scale(value):
+        """Default scale function if not imported."""
+        return int(value)
+
+if 'scale_font' not in globals():
+    def scale_font(size):
+        """Default font scale function if not imported."""
+        return max(8, int(size))
+
 class Grid:
     """Grid system for the game canvas with dynamic sizing."""
     
@@ -35,6 +59,12 @@ class Grid:
             CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
             CANVAS_WIDTH, CANVAS_HEIGHT
         )
+        
+        # Debug print
+        if gold_positions and len(gold_positions) > 0:
+            if not hasattr(self, '_gold_logged'):
+                self._gold_logged = True
+                print(f"Grid.draw called with {len(gold_positions)} gold positions")
         
         # Draw grid lines
         self._draw_grid_lines(screen)
@@ -81,22 +111,27 @@ class Grid:
                 x = CANVAS_OFFSET_X + col * GRID_SIZE
                 y = CANVAS_OFFSET_Y + row * GRID_SIZE
                 is_major = (col % 4 == 0 and row % 4 == 0)
-                radius = scale(3) if is_major else scale(2)
+                radius = 3 if is_major else 2
                 pygame.draw.circle(screen, GRID_MAJOR_COLOR if is_major else GRID_COLOR,
                                  (x, y), radius)
     
     def _draw_grid_info(self, screen):
         """Draw grid configuration info in fullscreen mode."""
-        font = pygame.font.Font(None, scale_font(14))
+        try:
+            font_size = scale_font(14) if 'scale_font' in globals() else 14
+            font = pygame.font.Font(None, font_size)
+        except:
+            font = pygame.font.Font(None, 14)
+            
         info_text = f"Grid: {CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} cells ({GRID_SIZE}px)"
         text_surface = font.render(info_text, True, WHITE)
         text_rect = text_surface.get_rect(
-            right=CANVAS_OFFSET_X + CANVAS_WIDTH - scale(10),
-            bottom=CANVAS_OFFSET_Y - scale(5)
+            right=CANVAS_OFFSET_X + CANVAS_WIDTH - 10,
+            bottom=CANVAS_OFFSET_Y - 5
         )
         
         # Background for readability
-        bg_rect = text_rect.inflate(scale(10), scale(4))
+        bg_rect = text_rect.inflate(10, 4)
         s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
         s.fill((0, 0, 0, 150))
         screen.blit(s, bg_rect.topleft)
@@ -104,46 +139,48 @@ class Grid:
         screen.blit(text_surface, text_rect)
     
     def _draw_coin(self, screen, x, y, size=12, highlight=False):
-        """Draw a single coin with scaling."""
-        # Scale the size
-        scaled_size = scale(size)
+        """Draw a simple, highly visible coin."""
+        # Use raw size values without scaling for testing
+        coin_size = int(size * 0.5)  # Make coins bigger
         
-        # Coin colors
-        coin_edge = (184, 134, 11)  # Dark gold
-        coin_center = (255, 215, 0)  # Gold
-        coin_highlight = (255, 255, 150)  # Light gold
+        # Ensure minimum size
+        if coin_size < 8:
+            coin_size = 8
         
-        # Draw coin base (darker edge)
-        pygame.draw.circle(screen, coin_edge, (x, y), scaled_size)
+        # Draw black shadow/outline for contrast
+        pygame.draw.circle(screen, (0, 0, 0), (x + 2, y + 2), coin_size + 2)
         
-        # Draw coin top (lighter center)
-        pygame.draw.circle(screen, coin_center, (x, y - scale(2)), scaled_size - scale(2))
+        # Draw main coin - bright yellow/gold
+        pygame.draw.circle(screen, (255, 215, 0), (x, y), coin_size)
         
-        # Draw highlight
-        highlight_x = x - scaled_size // 3
-        highlight_y = y - scaled_size // 3 - scale(2)
-        pygame.draw.circle(screen, coin_highlight, (highlight_x, highlight_y), scaled_size // 3)
+        # Draw inner lighter circle for 3D effect
+        if coin_size > 12:
+            inner_size = coin_size - 6
+            pygame.draw.circle(screen, (255, 255, 150), (x - 2, y - 2), inner_size)
         
-        # Draw embossed detail (simple design)
-        if scaled_size > scale(8):
-            # Draw a simple "$" or star pattern
-            detail_color = coin_edge
-            # Vertical line
-            pygame.draw.line(screen, detail_color, 
-                           (x, y - scaled_size//2), 
-                           (x, y + scaled_size//2 - scale(2)), scale(1))
-            # Horizontal lines for "$"
-            pygame.draw.line(screen, detail_color, 
-                           (x - scaled_size//4, y - scale(2)), 
-                           (x + scaled_size//4, y - scale(2)), scale(1))
+        # Draw shine highlight
+        if coin_size > 16:
+            pygame.draw.circle(screen, (255, 255, 255), 
+                             (x - coin_size//3, y - coin_size//3), 
+                             4)
+        
+        # Draw black outline for definition
+        pygame.draw.circle(screen, (0, 0, 0), (x, y), coin_size, 2)
     
     def _draw_gold_positions(self, screen, gold_positions):
-        """Draw gold field positions as piles of coins with scaling."""
+        """Draw gold field positions as piles of coins."""
+        if not gold_positions:
+            return
+            
         # Use current grid size for field size
-        field_size = int(GRID_SIZE * 0.9)  # 90% of grid cell
+        field_size = int(GRID_SIZE * 0.9) if GRID_SIZE else 36  # Fallback size
         
         for pos in gold_positions:
-            x, y = int(pos.x), int(pos.y)
+            try:
+                x, y = int(pos.x), int(pos.y)
+            except:
+                print(f"Invalid gold position: {pos}")
+                continue
             
             # Get or create coin positions for this grid cell
             grid_key = (x, y)
@@ -152,63 +189,80 @@ class Grid:
                 random.seed(x * 1000 + y)  # Consistent randomness per position
                 coins = []
                 
-                # Bottom layer - 2-3 coins
-                for i in range(random.randint(2, 3)):
+                # Bottom layer - 3-4 coins more tightly grouped
+                for i in range(random.randint(3, 4)):
                     offset_x = random.randint(-field_size//4, field_size//4)
-                    offset_y = random.randint(field_size//8, field_size//4)
-                    coins.append((x + offset_x, y + offset_y, 8, 0))  # x, y, size, layer
+                    offset_y = random.randint(-field_size//6, field_size//6)
+                    coins.append((x + offset_x, y + offset_y, 15, 0))  # x, y, size, layer
+                
+                # Middle layer - 2-3 coins
+                for i in range(random.randint(2, 3)):
+                    offset_x = random.randint(-field_size//5, field_size//5)
+                    offset_y = random.randint(-field_size//8, field_size//8) - 4
+                    coins.append((x + offset_x, y + offset_y, 14, 1))
                 
                 # Top layer - 1-2 coins
                 for i in range(random.randint(1, 2)):
                     offset_x = random.randint(-field_size//6, field_size//6)
-                    offset_y = random.randint(-field_size//6, 0)
-                    coins.append((x + offset_x, y + offset_y - scale(4), 7, 1))
+                    offset_y = random.randint(-field_size//8, -field_size//12) - 8
+                    coins.append((x + offset_x, y + offset_y, 13, 2))
                 
                 # Sort by y position for proper layering
-                coins.sort(key=lambda c: c[1])
+                coins.sort(key=lambda c: (c[1], c[3]))  # Sort by y and layer
                 self.coin_cache[grid_key] = coins
             
-            # Draw background field with rounded corners
+            # Draw background field with rounded corners - very dark, almost black
             field_rect = pygame.Rect(x - field_size // 2, y - field_size // 2, field_size, field_size)
             
-            # Golden background with transparency
-            field_surf = pygame.Surface((field_size, field_size), pygame.SRCALPHA)
-            pygame.draw.rect(field_surf, (255, 215, 0, 60), 
-                           field_surf.get_rect(), border_radius=scale(8))
-            screen.blit(field_surf, field_rect.topleft)
+            # Almost black background with very slight brown tint
+            pygame.draw.rect(screen, (20, 15, 5), field_rect, border_radius=8)
             
-            # Draw coins from cache
+            # Don't add any inner rectangles that might cover coins
+            
+            # Draw coins from cache AFTER background
             coins = self.coin_cache[grid_key]
+            # Debug: print coin count on first draw
+            if len(coins) > 0 and grid_key not in getattr(self, '_printed_coins', set()):
+                if not hasattr(self, '_printed_coins'):
+                    self._printed_coins = set()
+                self._printed_coins.add(grid_key)
+                print(f"Drawing {len(coins)} coins at gold field {grid_key}")
+            
             for coin_x, coin_y, coin_size, layer in coins:
-                self._draw_coin(screen, coin_x, coin_y, coin_size, layer == 1)
+                self._draw_coin(screen, coin_x, coin_y, coin_size, layer == 2)
             
-            # Draw contrastive border with rounded corners
-            pygame.draw.rect(screen, (184, 134, 11), field_rect, scale(3), border_radius=scale(8))
-            
-            # Draw inner highlight border
-            inner_rect = field_rect.inflate(-scale(4), -scale(4))
-            pygame.draw.rect(screen, (255, 255, 150), inner_rect, scale(1), border_radius=scale(6))
+            # Draw contrastive border with rounded corners - bright gold, not filled
+            pygame.draw.rect(screen, (255, 215, 0), field_rect, 2, border_radius=8)
             
             # Draw "100" text below the field
-            font = pygame.font.Font(None, scale_font(12))
-            text = font.render("100", True, (255, 255, 200))
-            text_rect = text.get_rect(center=(x, y + field_size // 2 + scale(8)))
-            # Background for text
-            bg_rect = text_rect.inflate(scale(4), scale(2))
-            s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            s.fill((0, 0, 0, 150))
-            screen.blit(s, bg_rect.topleft)
-            screen.blit(text, text_rect)
+            try:
+                if 'scale_font' in globals() and callable(scale_font):
+                    font_size = scale_font(14)
+                else:
+                    font_size = 16
+                font = pygame.font.Font(None, font_size)
+                text = font.render("100", True, (255, 255, 255))
+                text_rect = text.get_rect(center=(x, y + field_size // 2 + 10))
+                
+                # Shadow for text
+                shadow_text = font.render("100", True, (0, 0, 0))
+                screen.blit(shadow_text, (text_rect.x + 1, text_rect.y + 1))
+                
+                # Main text
+                screen.blit(text, text_rect)
+            except Exception as e:
+                print(f"Error drawing text: {e}")
+                pass  # Skip text if there's an error
     
     def _draw_vine(self, screen, start_x, start_y, length, direction, thickness=1):
-        """Draw a curvy vine with scaling."""
+        """Draw a curvy vine."""
         points = []
         vine_color = (150, 20, 20)  # Dark red
         
         x, y = start_x, start_y
         for i in range(length):
             # Add some curve to the vine
-            offset = math.sin(i * 0.4) * scale(3)  # Scaled curves
+            offset = math.sin(i * 0.4) * 3  # Small curves
             if direction == 'horizontal':
                 x += 1
                 y_pos = y + offset
@@ -222,17 +276,17 @@ class Grid:
                 points.append((x_pos, y))
         
         if len(points) > 1:
-            pygame.draw.lines(screen, vine_color, False, points, scale(thickness))
+            pygame.draw.lines(screen, vine_color, False, points, thickness)
             
             # Add some leaves/thorns (smaller, less frequent)
             for i in range(0, len(points), 15):
                 if i < len(points):
                     px, py = points[i]
                     # Small thorn/leaf
-                    pygame.draw.circle(screen, vine_color, (int(px), int(py)), scale(thickness))
+                    pygame.draw.circle(screen, vine_color, (int(px), int(py)), thickness)
     
     def _draw_blocked_positions(self, screen, blocked_positions):
-        """Draw blocked positions as onyx blocks with red vines and scaling."""
+        """Draw blocked positions as onyx blocks with red vines."""
         # Use current grid size for field size
         field_size = int(GRID_SIZE * 0.9)  # 90% of grid cell
         
@@ -242,50 +296,43 @@ class Grid:
             # Main onyx block with rounded corners
             block_rect = pygame.Rect(x - field_size // 2, y - field_size // 2, field_size, field_size)
             
-            # Draw onyx texture - dark with lighter veins
-            # Create surface for block with transparency
-            block_surf = pygame.Surface((field_size, field_size), pygame.SRCALPHA)
+            # Base color - very dark purple/black
+            pygame.draw.rect(screen, (20, 10, 25), block_rect, border_radius=8)
             
-            # Base color - very dark purple/black with rounded corners
-            pygame.draw.rect(block_surf, (20, 10, 25), 
-                           block_surf.get_rect(), border_radius=scale(8))
-            
-            # Add marble-like veins
+            # Add marble-like veins directly on screen
             random.seed(x * 100 + y)  # Consistent pattern per block
-            for i in range(2):
-                vein_start_x = random.randint(0, field_size)
-                vein_start_y = 0
-                vein_end_x = random.randint(0, field_size)
-                vein_end_y = field_size
+            for i in range(3):
+                vein_start_x = block_rect.left + random.randint(5, field_size - 5)
+                vein_start_y = block_rect.top
+                vein_end_x = block_rect.left + random.randint(5, field_size - 5)
+                vein_end_y = block_rect.bottom
                 
-                # Draw vein with some thickness variation
-                for t in range(3):
-                    alpha = 30 - t * 10
-                    offset = t * 0.5
-                    pygame.draw.line(block_surf, (60, 50, 70, alpha),
-                                   (vein_start_x + offset, vein_start_y),
-                                   (vein_end_x + offset, vein_end_y), scale(1))
+                # Draw vein with varying thickness
+                vein_color = (60 + random.randint(0, 20), 50 + random.randint(0, 20), 70 + random.randint(0, 20))
+                pygame.draw.line(screen, vein_color, 
+                               (vein_start_x, vein_start_y),
+                               (vein_end_x, vein_end_y), random.randint(1, 3))
             
-            screen.blit(block_surf, block_rect.topleft)
+            # Draw 3D effect edges
+            # Highlight (top-left) - lighter edge
+            offset = 4
+            highlight_points = [
+                (block_rect.left + offset, block_rect.bottom - offset),
+                (block_rect.left + offset, block_rect.top + offset),
+                (block_rect.right - offset, block_rect.top + offset)
+            ]
+            pygame.draw.lines(screen, (40, 30, 45), False, highlight_points, 2)
             
-            # Draw 3D effect edges on rounded rect
-            # Inner highlight (top-left)
-            inner_rect = block_rect.inflate(-scale(6), -scale(6))
-            pygame.draw.rect(screen, (40, 30, 45), inner_rect, scale(1), border_radius=scale(6))
-            
-            # Outer shadow (bottom-right)
-            shadow_rect = block_rect.inflate(scale(2), scale(2))
-            shadow_surf = pygame.Surface((shadow_rect.width, shadow_rect.height), pygame.SRCALPHA)
-            pygame.draw.rect(shadow_surf, (0, 0, 0, 100), 
-                           shadow_surf.get_rect(), scale(2), border_radius=scale(9))
-            screen.blit(shadow_surf, shadow_rect.topleft)
+            # Shadow (bottom-right) - darker edge
+            shadow_points = [
+                (block_rect.right - offset, block_rect.top + offset),
+                (block_rect.right - offset, block_rect.bottom - offset),
+                (block_rect.left + offset, block_rect.bottom - offset)
+            ]
+            pygame.draw.lines(screen, (10, 5, 15), False, shadow_points, 2)
             
             # Main contrastive border - bright red for contrast
-            pygame.draw.rect(screen, (255, 50, 50), block_rect, scale(3), border_radius=scale(8))
-            
-            # Inner dark border for definition
-            inner_border = block_rect.inflate(-scale(4), -scale(4))
-            pygame.draw.rect(screen, (10, 5, 15), inner_border, scale(1), border_radius=scale(6))
+            pygame.draw.rect(screen, (255, 50, 50), block_rect, 2, border_radius=8)
             
             # Draw smaller, more subtle vines
             random.seed(x * 200 + y)  # Different seed for vines
@@ -301,7 +348,7 @@ class Grid:
                 self._draw_vine(screen, vine_x, y - field_size//2, field_size, 'vertical', 1)
     
     def _draw_hover_highlight(self, screen, components, laser_pos, blocked_positions=None):
-        """Draw hover highlight for component placement with scaling."""
+        """Draw hover highlight for component placement."""
         x, y = self.hover_pos
         
         # Check if position is occupied or blocked
@@ -328,11 +375,11 @@ class Grid:
         
         # Draw border
         rect = pygame.Rect(x - GRID_SIZE // 2, y - GRID_SIZE // 2, GRID_SIZE, GRID_SIZE)
-        pygame.draw.rect(screen, color[:3], rect, scale(2))
+        pygame.draw.rect(screen, color[:3], rect, 2)
         
         # Draw crosshair
-        pygame.draw.line(screen, color[:3], (x - scale(10), y), (x + scale(10), y), scale(1))
-        pygame.draw.line(screen, color[:3], (x, y - scale(10)), (x, y + scale(10)), scale(1))
+        pygame.draw.line(screen, color[:3], (x - 10, y), (x + 10, y), 1)
+        pygame.draw.line(screen, color[:3], (x, y - 10), (x, y + 10), 1)
         
         # Draw status text
         if blocked:
@@ -359,66 +406,76 @@ class Grid:
         return False
     
     def _draw_blocked_text(self, screen, x, y):
-        """Draw blocked position warning with scaling."""
-        font = pygame.font.Font(None, scale_font(14))
+        """Draw blocked position warning."""
+        try:
+            font_size = scale_font(14) if 'scale_font' in globals() else 14
+            font = pygame.font.Font(None, font_size)
+        except:
+            font = pygame.font.Font(None, 14)
+            
         text = font.render("BEAM OBSTACLE", True, (255, 0, 0))
-        text_rect = text.get_rect(topleft=(x + scale(15), y - scale(25)))
+        text_rect = text.get_rect(topleft=(x + 15, y - 25))
         
         # Background
-        padding = scale(5)
+        padding = 5
         bg_rect = text_rect.inflate(padding * 2, padding * 2)
-        s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-        s.fill((BLACK[0], BLACK[1], BLACK[2], 200))
-        screen.blit(s, bg_rect.topleft)
-        pygame.draw.rect(screen, (255, 0, 0), bg_rect, scale(1))
+        pygame.draw.rect(screen, BLACK, bg_rect)
+        pygame.draw.rect(screen, (255, 0, 0), bg_rect, 1)
         
         screen.blit(text, text_rect)
         
         # Draw prohibition symbol
-        pygame.draw.circle(screen, (255, 0, 0), (x, y), scale(20), scale(3))
+        pygame.draw.circle(screen, (255, 0, 0), (x, y), 20, 3)
         pygame.draw.line(screen, (255, 0, 0), 
-                        (x - scale(14), y - scale(14)), 
-                        (x + scale(14), y + scale(14)), scale(3))
+                        (x - 14, y - 14), 
+                        (x + 14, y + 14), 3)
     
     def _draw_occupied_text(self, screen, x, y):
-        """Draw occupied warning with scaling."""
-        font = pygame.font.Font(None, scale_font(14))
+        """Draw occupied warning."""
+        try:
+            font_size = scale_font(14) if 'scale_font' in globals() else 14
+            font = pygame.font.Font(None, font_size)
+        except:
+            font = pygame.font.Font(None, 14)
+            
         text = font.render("OCCUPIED", True, (255, 0, 0))
-        text_rect = text.get_rect(topleft=(x + scale(15), y - scale(25)))
+        text_rect = text.get_rect(topleft=(x + 15, y - 25))
         
         # Background
-        padding = scale(5)
+        padding = 5
         bg_rect = text_rect.inflate(padding * 2, padding * 2)
-        s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-        s.fill((BLACK[0], BLACK[1], BLACK[2], 200))
-        screen.blit(s, bg_rect.topleft)
-        pygame.draw.rect(screen, (255, 0, 0), bg_rect, scale(1))
+        pygame.draw.rect(screen, BLACK, bg_rect)
+        pygame.draw.rect(screen, (255, 0, 0), bg_rect, 1)
         
         screen.blit(text, text_rect)
         
         # Draw X mark
         pygame.draw.line(screen, (255, 0, 0), 
-                        (x - scale(15), y - scale(15)), 
-                        (x + scale(15), y + scale(15)), scale(3))
+                        (x - 15, y - 15), 
+                        (x + 15, y + 15), 3)
         pygame.draw.line(screen, (255, 0, 0), 
-                        (x + scale(15), y - scale(15)), 
-                        (x - scale(15), y + scale(15)), scale(3))
+                        (x + 15, y - 15), 
+                        (x - 15, y + 15), 3)
     
     def _draw_coords_text(self, screen, x, y):
         """Draw coordinate display with grid coordinates."""
-        font = pygame.font.Font(None, scale_font(14))
+        try:
+            font_size = scale_font(14) if 'scale_font' in globals() else 14
+            font = pygame.font.Font(None, font_size)
+        except:
+            font = pygame.font.Font(None, 14)
+            
         # Convert to grid coordinates
         grid_x = (x - CANVAS_OFFSET_X) // GRID_SIZE
         grid_y = (y - CANVAS_OFFSET_Y) // GRID_SIZE
         coords_text = f"({grid_x}, {grid_y})"
         text = font.render(coords_text, True, CYAN)
-        text_rect = text.get_rect(topleft=(x + scale(15), y - scale(25)))
+        text_rect = text.get_rect(topleft=(x + 15, y - 25))
         
         # Background
-        padding = scale(5)
+        padding = 5
         bg_rect = text_rect.inflate(padding * 2, padding * 2)
-        s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-        s.fill((BLACK[0], BLACK[1], BLACK[2], 200))
-        screen.blit(s, bg_rect.topleft)
+        pygame.draw.rect(screen, BLACK, bg_rect)
+        pygame.draw.rect(screen, CYAN, bg_rect, 1)
         
         screen.blit(text, text_rect)
