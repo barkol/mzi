@@ -317,8 +317,11 @@ class Game:
             self.component_manager.clear_all(self.laser)
             self.score = 0
             self.controls.score = self.score
+            # Reset gold collection
+            self.beam_tracer.reset_gold_collection()
             if hasattr(self.controls, 'set_gold_bonus'):
                 self.controls.set_gold_bonus(0)
+            self.last_gold_hits.clear()
             
             # Reset completed challenges with Shift
             if pygame.key.get_mods() & pygame.KMOD_SHIFT:
@@ -384,6 +387,14 @@ class Game:
                     self.sound_manager.play('laser_on')
                 else:
                     self.sound_manager.play('laser_off')
+                    # Clear gold field hits when laser is turned off
+                    if hasattr(self.beam_tracer, 'gold_field_hits'):
+                        self.beam_tracer.reset_gold_collection()
+                    # Reset gold bonus display
+                    if hasattr(self.controls, 'set_gold_bonus'):
+                        self.controls.set_gold_bonus(0)
+                    # Clear last gold hits for sound tracking
+                    self.last_gold_hits.clear()
                     
         elif action == 'Load Challenge':
             # Cycle through challenges
@@ -407,6 +418,12 @@ class Game:
                 is_completed = challenge_name in self.completed_challenges
                 if hasattr(self.controls, 'set_challenge_completed'):
                     self.controls.set_challenge_completed(is_completed)
+                
+                # Reset gold collection when loading new challenge
+                self.beam_tracer.reset_gold_collection()
+                if hasattr(self.controls, 'set_gold_bonus'):
+                    self.controls.set_gold_bonus(0)
+                self.last_gold_hits.clear()
                 
                 self.sound_manager.play('panel_open')
                 print(f"Loaded challenge: {challenge_title}")
@@ -449,8 +466,11 @@ class Game:
                     # Clear score when changing field configuration
                     self.score = 0
                     self.controls.score = self.score
+                    # Reset gold collection
+                    self.beam_tracer.reset_gold_collection()
                     if hasattr(self.controls, 'set_gold_bonus'):
                         self.controls.set_gold_bonus(0)
+                    self.last_gold_hits.clear()
                     
                     # Show status message
                     self.controls.set_status(f"Loaded: {next_config['display_name']}")
@@ -608,66 +628,66 @@ class Game:
             self.screen.blit(text_surface, text_rect)
     
     def _draw_challenge_name(self):
-        """Draw the current challenge name above the grid."""
-        if self.current_challenge_display_name:
-            # Check if current challenge is completed
-            is_completed = (self.challenge_manager.current_challenge and
-                          self.challenge_manager.current_challenge in self.completed_challenges)
-            
-            # Use gold color if completed, cyan otherwise
-            color = GOLD if is_completed else CYAN
-            
-            font = pygame.font.Font(None, scale_font(32))
-            text = font.render(self.current_challenge_display_name, True, color)
-            text_rect = text.get_rect(centerx=CANVAS_OFFSET_X + CANVAS_WIDTH // 2,
-                                     y=CANVAS_OFFSET_Y - scale(65))
-            
-            # Background with glow effect
-            bg_rect = text_rect.inflate(scale(40), scale(12))
-            
-            # Glow effect
-            glow_surf = pygame.Surface((bg_rect.width + scale(20), bg_rect.height + scale(20)), pygame.SRCALPHA)
-            pygame.draw.rect(glow_surf, (color[0], color[1], color[2], 20),
-                           glow_surf.get_rect(), border_radius=scale(20))
-            self.screen.blit(glow_surf, (bg_rect.x - scale(10), bg_rect.y - scale(10)))
-            
-            # Background
-            s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            pygame.draw.rect(s, (0, 0, 0, 200), s.get_rect(), border_radius=scale(15))
-            self.screen.blit(s, bg_rect.topleft)
-            pygame.draw.rect(self.screen, color, bg_rect, scale(2), border_radius=scale(15))
-            
-            # Draw the text
-            self.screen.blit(text, text_rect)
-            
-            # Add decorative elements
-            # Left decoration
-            deco_left = pygame.Rect(bg_rect.left - scale(50), bg_rect.centery - scale(1), scale(40), scale(2))
-            pygame.draw.rect(self.screen, color, deco_left)
-            pygame.draw.circle(self.screen, color, (deco_left.left, deco_left.centery), scale(3))
-            
-            # Right decoration
-            deco_right = pygame.Rect(bg_rect.right + scale(10), bg_rect.centery - scale(1), scale(40), scale(2))
-            pygame.draw.rect(self.screen, color, deco_right)
-            pygame.draw.circle(self.screen, color, (deco_right.right, deco_right.centery), scale(3))
-            
-            # Add completed indicator if applicable
-            if is_completed:
-                # Draw "DONE" text
-                done_font = pygame.font.Font(None, scale_font(20))
-                done_text = done_font.render("DONE", True, GOLD)
-                done_rect = done_text.get_rect(left=bg_rect.right + scale(10), centery=bg_rect.centery)
+            """Draw the current challenge name above the grid."""
+            if self.current_challenge_display_name:
+                # Check if current challenge is completed
+                is_completed = (self.challenge_manager.current_challenge and
+                            self.challenge_manager.current_challenge in self.completed_challenges)
                 
-                # Background for DONE text
-                done_bg_rect = done_rect.inflate(scale(8), scale(4))
-                s = pygame.Surface((done_bg_rect.width, done_bg_rect.height), pygame.SRCALPHA)
-                pygame.draw.rect(s, (GOLD[0]//4, GOLD[1]//4, GOLD[2]//4, 200),
-                               s.get_rect(), border_radius=scale(5))
-                self.screen.blit(s, done_bg_rect.topleft)
-                pygame.draw.rect(self.screen, GOLD, done_bg_rect, scale(1), border_radius=scale(5))
+                # Use gold color if completed, cyan otherwise
+                color = GOLD if is_completed else CYAN
                 
-                self.screen.blit(done_text, done_rect)
-    
+                font = pygame.font.Font(None, scale_font(32))
+                text = font.render(self.current_challenge_display_name, True, color)
+                text_rect = text.get_rect(centerx=CANVAS_OFFSET_X + CANVAS_WIDTH // 2,
+                                        y=CANVAS_OFFSET_Y - scale(65))
+                
+                # Background with glow effect
+                bg_rect = text_rect.inflate(scale(40), scale(12))
+                
+                # Glow effect - draw BEFORE background
+                glow_surf = pygame.Surface((bg_rect.width + scale(20), bg_rect.height + scale(20)), pygame.SRCALPHA)
+                pygame.draw.rect(glow_surf, (color[0], color[1], color[2], 20),
+                            glow_surf.get_rect(), border_radius=scale(20))
+                self.screen.blit(glow_surf, (bg_rect.x - scale(10), bg_rect.y - scale(10)))
+                
+                # Background - semi-transparent
+                s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+                s.fill((0, 0, 0, 200))  # Semi-transparent black
+                self.screen.blit(s, bg_rect.topleft)
+                pygame.draw.rect(self.screen, color, bg_rect, scale(2), border_radius=scale(15))
+                
+                # Draw the text AFTER background
+                self.screen.blit(text, text_rect)
+                
+                # Add decorative elements
+                # Left decoration
+                deco_left = pygame.Rect(bg_rect.left - scale(50), bg_rect.centery - scale(1), scale(40), scale(2))
+                pygame.draw.rect(self.screen, color, deco_left)
+                pygame.draw.circle(self.screen, color, (deco_left.left, deco_left.centery), scale(3))
+                
+                # Right decoration
+                deco_right = pygame.Rect(bg_rect.right + scale(10), bg_rect.centery - scale(1), scale(40), scale(2))
+                pygame.draw.rect(self.screen, color, deco_right)
+                pygame.draw.circle(self.screen, color, (deco_right.right, deco_right.centery), scale(3))
+                
+                # Add completed indicator if applicable
+                if is_completed:
+                    # Draw "DONE" text
+                    done_font = pygame.font.Font(None, scale_font(20))
+                    done_text = done_font.render("DONE", True, GOLD)
+                    done_rect = done_text.get_rect(left=bg_rect.right + scale(10), centery=bg_rect.centery)
+                    
+                    # Background for DONE text - semi-transparent
+                    done_bg_rect = done_rect.inflate(scale(8), scale(4))
+                    s = pygame.Surface((done_bg_rect.width, done_bg_rect.height), pygame.SRCALPHA)
+                    s.fill((GOLD[0]//4, GOLD[1]//4, GOLD[2]//4, 200))  # Semi-transparent gold tint
+                    self.screen.blit(s, done_bg_rect.topleft)
+                    pygame.draw.rect(self.screen, GOLD, done_bg_rect, scale(1), border_radius=scale(5))
+                    
+                    # Draw DONE text AFTER background
+                    self.screen.blit(done_text, done_rect)
+        
     def _draw_session_high_score(self):
         """Draw session high score indicator."""
         if self.session_high_score > 0:
@@ -675,12 +695,13 @@ class Game:
             text = font.render(f"Session Best: {self.session_high_score}", True, GREEN)
             text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - scale(20), y=scale(70))
             
-            # Background
+            # Background - semi-transparent
             bg_rect = text_rect.inflate(scale(10), scale(4))
             s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            s.fill((0, 0, 0, 150))
+            s.fill((0, 0, 0, 150))  # Semi-transparent black
             self.screen.blit(s, bg_rect.topleft)
             
+            # Draw text AFTER background
             self.screen.blit(text, text_rect)
     
     def _draw_game_info_top(self):
@@ -700,15 +721,16 @@ class Game:
                              True, CYAN)
             text_rect = text.get_rect(left=CANVAS_OFFSET_X + scale(20), centery=info_y)
             
-            # Background
+            # Background - semi-transparent
             bg_rect = text_rect.inflate(scale(20), scale(8))
             s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            pygame.draw.rect(s, (0, 0, 0, 180), s.get_rect(), border_radius=scale(8))
+            s.fill((0, 0, 0, 180))  # Semi-transparent black
             self.screen.blit(s, bg_rect.topleft)
             pygame.draw.rect(self.screen, CYAN, bg_rect, scale(1), border_radius=scale(8))
             
+            # Draw text AFTER background
             self.screen.blit(text, text_rect)
-    
+
     def _draw_component_counter(self):
         """Draw component counter in bottom left corner of the screen."""
         current_count = len(self.component_manager.components)
@@ -744,13 +766,14 @@ class Game:
         counter_text = font.render(text, True, color)
         counter_rect = counter_text.get_rect(left=counter_x, centery=counter_y)
         
-        # Background
+        # Background - semi-transparent
         bg_rect = counter_rect.inflate(scale(20), scale(10))
         s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-        pygame.draw.rect(s, (0, 0, 0, 180), s.get_rect(), border_radius=scale(10))
+        s.fill((0, 0, 0, 180))  # Semi-transparent black background
         self.screen.blit(s, bg_rect.topleft)
         pygame.draw.rect(self.screen, color, bg_rect, scale(1), border_radius=scale(10))
         
+        # Draw text AFTER background
         self.screen.blit(counter_text, counter_rect)
         
         # Show min requirement if not met
@@ -759,7 +782,7 @@ class Game:
             hint_text = hint_font.render(f"Need at least {min_components}", True, (200, 200, 200))
             hint_rect = hint_text.get_rect(left=counter_x + scale(10), top=counter_rect.bottom + scale(5))
             self.screen.blit(hint_text, hint_rect)
-    
+
     def _draw_challenge_status(self):
         """Draw indicator if current challenge is already completed."""
         if (self.challenge_manager.current_challenge and
@@ -769,12 +792,13 @@ class Game:
             text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - scale(20),
                                      y=CANVAS_OFFSET_Y + CANVAS_HEIGHT - scale(15))
             
-            # Background
+            # Background - semi-transparent
             bg_rect = text_rect.inflate(scale(10), scale(4))
             s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            s.fill((0, 0, 0, 150))
+            s.fill((0, 0, 0, 150))  # Semi-transparent black
             self.screen.blit(s, bg_rect.topleft)
             
+            # Draw text AFTER background
             self.screen.blit(text, text_rect)
     
     def _draw_drag_preview(self):

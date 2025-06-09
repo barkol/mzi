@@ -203,40 +203,44 @@ class ControlPanel:
             bonus_rect = bonus_text.get_rect(right=self.rect.right - scale(20),
                                             bottom=score_rect.top - scale(5))
             
-            # Background for gold bonus - draw directly
+            # Background for gold bonus - use darker semi-transparent background
             bonus_bg_rect = bonus_rect.inflate(scale(16), scale(6))
             
-            # Draw background
-            pygame.draw.rect(screen, (GOLD[0]//4, GOLD[1]//4, GOLD[2]//4), bonus_bg_rect, border_radius=scale(10))
+            # Draw dark semi-transparent background
+            s = pygame.Surface((bonus_bg_rect.width, bonus_bg_rect.height), pygame.SRCALPHA)
+            s.fill((20, 20, 20, 200))  # Almost black with good opacity
+            screen.blit(s, bonus_bg_rect.topleft)
             
-            # Draw glow effect around bonus
-            for i in range(3):
-                glow_rect = bonus_bg_rect.inflate(scale(i * 4), scale(i * 4))
-                s = pygame.Surface((glow_rect.width, glow_rect.height), pygame.SRCALPHA)
-                s.fill((GOLD[0], GOLD[1], GOLD[2], 25 - i * 8))
-                screen.blit(s, glow_rect.topleft)
+            # Single subtle glow
+            glow_rect = bonus_bg_rect.inflate(scale(4), scale(4))
+            s = pygame.Surface((glow_rect.width, glow_rect.height), pygame.SRCALPHA)
+            s.fill((GOLD[0], GOLD[1], GOLD[2], 20))
+            screen.blit(s, glow_rect.topleft)
             
             # Border
             pygame.draw.rect(screen, GOLD, bonus_bg_rect, scale(1), border_radius=scale(10))
             
+            # Draw text LAST - it should be on top of everything
             screen.blit(bonus_text, bonus_rect)
         
-        # Background for score - draw directly
+        # Background for score - use darker semi-transparent background
         bg_rect = score_rect.inflate(scale(20), scale(10))
         
-        # Draw background
-        pygame.draw.rect(screen, (score_color[0]//8, score_color[1]//8, score_color[2]//8), bg_rect, border_radius=scale(15))
+        # Draw dark semi-transparent background
+        s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+        s.fill((20, 20, 20, 200))  # Almost black with good opacity
+        screen.blit(s, bg_rect.topleft)
         
-        # Draw glow effect
-        for i in range(3):
-            glow_rect = bg_rect.inflate(scale(i * 6), scale(i * 6))
-            s = pygame.Surface((glow_rect.width, glow_rect.height), pygame.SRCALPHA)
-            s.fill((score_color[0], score_color[1], score_color[2], 20 - i * 6))
-            screen.blit(s, glow_rect.topleft)
+        # Single subtle glow
+        glow_rect = bg_rect.inflate(scale(6), scale(6))
+        s = pygame.Surface((glow_rect.width, glow_rect.height), pygame.SRCALPHA)
+        s.fill((score_color[0], score_color[1], score_color[2], 15))
+        screen.blit(s, glow_rect.topleft)
         
         # Border
         pygame.draw.rect(screen, score_color, bg_rect, scale(1), border_radius=scale(15))
         
+        # Draw score text LAST - it should be on top of everything
         screen.blit(score_text, score_rect)
         
         # Add "WIN!" text if challenge is completed
@@ -246,11 +250,14 @@ class ControlPanel:
             win_text = win_font.render("WIN!", True, GOLD)
             win_rect = win_text.get_rect(right=bg_rect.left - scale(10), centery=bg_rect.centery)
             
-            # Background for WIN text
+            # Background for WIN text - dark semi-transparent
             win_bg_rect = win_rect.inflate(scale(8), scale(4))
-            pygame.draw.rect(screen, (GOLD[0]//4, GOLD[1]//4, GOLD[2]//4), win_bg_rect, border_radius=scale(5))
+            s = pygame.Surface((win_bg_rect.width, win_bg_rect.height), pygame.SRCALPHA)
+            s.fill((20, 20, 20, 200))  # Almost black with good opacity
+            screen.blit(s, win_bg_rect.topleft)
             pygame.draw.rect(screen, GOLD, win_bg_rect, scale(1), border_radius=scale(5))
             
+            # Draw WIN text LAST
             screen.blit(win_text, win_rect)
     
     def _draw_field_config(self, screen):
@@ -261,9 +268,12 @@ class ControlPanel:
         config_rect = config_text.get_rect(left=self.rect.x + scale(20), 
                                          bottom=self.rect.bottom - scale(5))
         
-        # Background for better readability
+        # Background for better readability - dark semi-transparent
         bg_rect = config_rect.inflate(scale(10), scale(4))
-        pygame.draw.rect(screen, BLACK, bg_rect)
+        s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+        s.fill((20, 20, 20, 200))  # Almost black with good opacity
+        screen.blit(s, bg_rect.topleft)
         pygame.draw.rect(screen, PURPLE, bg_rect, 1)
         
+        # Draw text LAST
         screen.blit(config_text, config_rect)
