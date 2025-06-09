@@ -126,18 +126,13 @@ class ControlPanel:
         # Update dimensions in case scale changed
         self._update_dimensions()
         
-        # Background - draw directly on screen
+        # Background - solid dark purple
         pygame.draw.rect(screen, DARK_PURPLE, self.rect, border_radius=scale(10))
-        
-        # Add semi-transparent overlay for depth
-        s = pygame.Surface((self.rect.width, self.rect.height), pygame.SRCALPHA)
-        s.fill((DARK_PURPLE[0], DARK_PURPLE[1], DARK_PURPLE[2], 100))
-        screen.blit(s, self.rect.topleft)
         
         # Border
         pygame.draw.rect(screen, PURPLE, self.rect, scale(2), border_radius=scale(10))
         
-        # Buttons - larger text in fullscreen
+        # Buttons
         button_font_size = scale_font(20) if IS_FULLSCREEN else scale_font(18)
         font = pygame.font.Font(None, button_font_size)
         
@@ -146,56 +141,43 @@ class ControlPanel:
             if button['name'] == self.hover_button:
                 # Highlighted button
                 pygame.draw.rect(screen, CYAN, button['rect'], border_radius=scale(20))
-                
-                # Draw gradient directly on button
-                for i in range(button['rect'].height // 2):
-                    color = (
-                        max(0, CYAN[0] - i * 2),
-                        max(0, CYAN[1] - i * 2),
-                        max(0, CYAN[2] - i * 2)
-                    )
-                    pygame.draw.line(screen, color,
-                                   (button['rect'].x, button['rect'].y + i),
-                                   (button['rect'].right, button['rect'].y + i))
             else:
                 # Normal button
                 pygame.draw.rect(screen, PURPLE, button['rect'], border_radius=scale(20))
-                
-                # Draw gradient directly
-                for i in range(button['rect'].height // 2):
-                    color = (
-                        max(0, PURPLE[0] - i),
-                        max(0, PURPLE[1] - i),
-                        max(0, PURPLE[2] - i)
-                    )
-                    pygame.draw.line(screen, color,
-                                   (button['rect'].x, button['rect'].y + i),
-                                   (button['rect'].right, button['rect'].y + i))
             
-            # Text
+            # Button text
             text = font.render(button['name'], True, WHITE)
             text_rect = text.get_rect(center=button['rect'].center)
-            
             screen.blit(text, text_rect)
         
-        # Score
+        # Score display
         self._draw_score(screen)
         
-        # Field configuration indicator
+        # Field configuration
         self._draw_field_config(screen)
     
     def _draw_score(self, screen):
-        """Draw score display - larger in fullscreen."""
-        # Use gold color if challenge is completed, cyan otherwise
+        """Draw score display with solid backgrounds."""
+        # Colors
         score_color = GOLD if self.challenge_completed else CYAN
+        bg_color = (40, 40, 40)  # Dark gray background
         
+        # Score text
         score_font_size = scale_font(28) if IS_FULLSCREEN else scale_font(24)
         font = pygame.font.Font(None, score_font_size)
         score_text = font.render(f"Score: {self.score}", True, score_color)
         score_rect = score_text.get_rect(right=self.rect.right - scale(20),
                                         centery=self.rect.centery + scale(10))
         
-        # Draw gold bonus above score if present
+        # Score background
+        bg_rect = score_rect.inflate(scale(20), scale(10))
+        pygame.draw.rect(screen, bg_color, bg_rect, border_radius=scale(15))
+        pygame.draw.rect(screen, score_color, bg_rect, scale(2), border_radius=scale(15))
+        
+        # Draw score text
+        screen.blit(score_text, score_rect)
+        
+        # Gold bonus if present
         if self.gold_bonus > 0:
             bonus_font_size = scale_font(20) if IS_FULLSCREEN else scale_font(18)
             bonus_font = pygame.font.Font(None, bonus_font_size)
@@ -203,77 +185,41 @@ class ControlPanel:
             bonus_rect = bonus_text.get_rect(right=self.rect.right - scale(20),
                                             bottom=score_rect.top - scale(5))
             
-            # Background for gold bonus - use darker semi-transparent background
+            # Bonus background
             bonus_bg_rect = bonus_rect.inflate(scale(16), scale(6))
+            pygame.draw.rect(screen, bg_color, bonus_bg_rect, border_radius=scale(10))
+            pygame.draw.rect(screen, GOLD, bonus_bg_rect, scale(2), border_radius=scale(10))
             
-            # Draw dark semi-transparent background
-            s = pygame.Surface((bonus_bg_rect.width, bonus_bg_rect.height), pygame.SRCALPHA)
-            s.fill((20, 20, 20, 200))  # Almost black with good opacity
-            screen.blit(s, bonus_bg_rect.topleft)
-            
-            # Single subtle glow
-            glow_rect = bonus_bg_rect.inflate(scale(4), scale(4))
-            s = pygame.Surface((glow_rect.width, glow_rect.height), pygame.SRCALPHA)
-            s.fill((GOLD[0], GOLD[1], GOLD[2], 20))
-            screen.blit(s, glow_rect.topleft)
-            
-            # Border
-            pygame.draw.rect(screen, GOLD, bonus_bg_rect, scale(1), border_radius=scale(10))
-            
-            # Draw text LAST - it should be on top of everything
+            # Draw bonus text
             screen.blit(bonus_text, bonus_rect)
         
-        # Background for score - use darker semi-transparent background
-        bg_rect = score_rect.inflate(scale(20), scale(10))
-        
-        # Draw dark semi-transparent background
-        s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-        s.fill((20, 20, 20, 200))  # Almost black with good opacity
-        screen.blit(s, bg_rect.topleft)
-        
-        # Single subtle glow
-        glow_rect = bg_rect.inflate(scale(6), scale(6))
-        s = pygame.Surface((glow_rect.width, glow_rect.height), pygame.SRCALPHA)
-        s.fill((score_color[0], score_color[1], score_color[2], 15))
-        screen.blit(s, glow_rect.topleft)
-        
-        # Border
-        pygame.draw.rect(screen, score_color, bg_rect, scale(1), border_radius=scale(15))
-        
-        # Draw score text LAST - it should be on top of everything
-        screen.blit(score_text, score_rect)
-        
-        # Add "WIN!" text if challenge is completed
+        # WIN indicator if completed
         if self.challenge_completed:
             win_font_size = scale_font(20) if IS_FULLSCREEN else scale_font(18)
             win_font = pygame.font.Font(None, win_font_size)
             win_text = win_font.render("WIN!", True, GOLD)
             win_rect = win_text.get_rect(right=bg_rect.left - scale(10), centery=bg_rect.centery)
             
-            # Background for WIN text - dark semi-transparent
+            # WIN background
             win_bg_rect = win_rect.inflate(scale(8), scale(4))
-            s = pygame.Surface((win_bg_rect.width, win_bg_rect.height), pygame.SRCALPHA)
-            s.fill((20, 20, 20, 200))  # Almost black with good opacity
-            screen.blit(s, win_bg_rect.topleft)
-            pygame.draw.rect(screen, GOLD, win_bg_rect, scale(1), border_radius=scale(5))
+            pygame.draw.rect(screen, bg_color, win_bg_rect, border_radius=scale(5))
+            pygame.draw.rect(screen, GOLD, win_bg_rect, scale(2), border_radius=scale(5))
             
-            # Draw WIN text LAST
+            # Draw WIN text
             screen.blit(win_text, win_rect)
     
     def _draw_field_config(self, screen):
         """Draw current field configuration name."""
         config_font_size = scale_font(18) if IS_FULLSCREEN else scale_font(16)
         font = pygame.font.Font(None, config_font_size)
-        config_text = font.render(f"Fields: {self.current_field_config}", True, PURPLE)
+        config_text = font.render(f"Fields: {self.current_field_config}", True, WHITE)
         config_rect = config_text.get_rect(left=self.rect.x + scale(20), 
                                          bottom=self.rect.bottom - scale(5))
         
-        # Background for better readability - dark semi-transparent
+        # Simple background
         bg_rect = config_rect.inflate(scale(10), scale(4))
-        s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-        s.fill((20, 20, 20, 200))  # Almost black with good opacity
-        screen.blit(s, bg_rect.topleft)
+        pygame.draw.rect(screen, (40, 40, 40), bg_rect)
         pygame.draw.rect(screen, PURPLE, bg_rect, 1)
         
-        # Draw text LAST
+        # Draw text
         screen.blit(config_text, config_rect)
