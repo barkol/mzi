@@ -45,8 +45,14 @@ def get_display_mode():
         # Fullscreen mode - use actual screen dimensions
         # Scale factor determines UI element sizes but not layout
         scale_factor = min(scale_x, scale_y)
-        # Limit scale factor to prevent UI elements from becoming too large
-        scale_factor = min(scale_factor, 1.5)
+        
+        # Adaptive scale factor limits based on screen size
+        if screen_width > 3840:  # 4K ultra-wide or larger
+            scale_factor = min(scale_factor, 2.5)
+        elif screen_width > 2560:  # 4K or 1440p ultra-wide
+            scale_factor = min(scale_factor, 2.0)
+        else:  # 1080p and smaller
+            scale_factor = min(scale_factor, 1.5)
         
         # Update scaled values with fullscreen layout
         update_scaled_values(scale_factor, screen_width, screen_height, fullscreen=True)
@@ -108,28 +114,32 @@ def main():
                     game.update_screen_references(screen, screen)
                     print("Switched to windowed mode")
                     continue
-                elif event.key == pygame.K_F11:
-                    # Toggle fullscreen
-                    if is_fullscreen:
-                        # Exit fullscreen
-                        is_fullscreen = False
-                        scale_factor = min(1.0, min(pygame.display.Info().current_w / DESIGN_WIDTH,
-                                                  pygame.display.Info().current_h / DESIGN_HEIGHT) * 0.9)
-                        update_scaled_values(scale_factor, fullscreen=False)
-                        screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
-                    else:
-                        # Enter fullscreen
-                        is_fullscreen = True
-                        info = pygame.display.Info()
-                        scale_x = info.current_w / DESIGN_WIDTH
-                        scale_y = info.current_h / DESIGN_HEIGHT
-                        scale_factor = min(min(scale_x, scale_y), 1.5)  # Cap at 1.5x
-                        update_scaled_values(scale_factor, info.current_w, info.current_h, fullscreen=True)
-                        screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
+                elif event.key == pygame.K_F11 and not is_fullscreen:
+                    # Only allow F11 to enter fullscreen in windowed mode
+                    # Enter fullscreen
+                    is_fullscreen = True
+                    info = pygame.display.Info()
+                    scale_x = info.current_w / DESIGN_WIDTH
+                    scale_y = info.current_h / DESIGN_HEIGHT
+                    scale_factor = min(scale_x, scale_y)
+                    
+                    # Adaptive scale factor limits based on screen size
+                    if info.current_w > 3840:  # 4K ultra-wide or larger
+                        scale_factor = min(scale_factor, 2.5)
+                    elif info.current_w > 2560:  # 4K or 1440p ultra-wide
+                        scale_factor = min(scale_factor, 2.0)
+                    else:  # 1080p and smaller
+                        scale_factor = min(scale_factor, 1.5)
+                    
+                    update_scaled_values(scale_factor, info.current_w, info.current_h, fullscreen=True)
+                    
+                    # Store the actual screen for later reference
+                    actual_screen = screen
+                    screen = pygame.display.set_mode((info.current_w, info.current_h), pygame.FULLSCREEN)
                     
                     game.update_scale(scale_factor)
-                    game.update_screen_references(screen, screen)
-                    mode = "fullscreen" if is_fullscreen else "windowed"
+                    game.update_screen_references(screen, actual_screen)
+                    mode = "fullscreen"
                     print(f"Switched to {mode} mode with scale: {scale_factor:.2f}")
                     continue
             elif event.type == pygame.VIDEORESIZE and not is_fullscreen:
@@ -169,9 +179,14 @@ if __name__ == "__main__":
     print("  python main.py --fullscreen - Run in fullscreen mode (responsive layout)")
     print("  python main.py --scale      - Run in 90% scaled windowed mode")
     print("\nControls:")
-    print("  F11 - Toggle fullscreen/windowed")
+    print("  F11 - Enter fullscreen (from windowed mode only)")
     print("  ESC - Exit fullscreen")
+    print("\nGameplay:")
+    print("  - Use 'Load Fields' button to cycle through different map layouts")
+    print("  - Red blocks create obstacles, gold fields give bonus points")
+    print("  - Build interferometers to complete challenges and maximize score")
     print("\nFullscreen mode uses responsive layout to fill available space")
+    print("UI panels are justified to edges, game area is centered")
     print()
     
     main()

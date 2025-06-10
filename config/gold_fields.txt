@@ -5,6 +5,10 @@
 # Canvas is 20x15 grid cells (800x600 pixels with 40px grid)
 # Lines starting with # are comments
 
+# IMPORTANT: A field cannot be both blocked AND gold!
+# If a position appears in both blocked_fields.txt and gold_fields.txt,
+# the blocked field takes precedence (the position will be blocked, not gold).
+
 # Example: Strategic gold field placements
 
 # Upper path rewards
@@ -17,7 +21,7 @@
 8,11
 9,11
 
-# Central challenge areas
+# Central challenge areas (avoid if these are blocked!)
 10,7
 10,8
 10,9

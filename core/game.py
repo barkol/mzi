@@ -44,7 +44,8 @@ GOLD = (255, 215, 0)
 
 class Game:
     """Main game class with sound support, energy monitoring, and scaling."""
-    
+    # Updated __init__ method for core/game.py (partial)
+
     def __init__(self, screen, scale_factor=1.0):
         self.screen = screen
         self.clock = pygame.time.Clock()
@@ -123,12 +124,8 @@ class Game:
         # Set initial field configuration in controls
         self.controls.set_field_config("Default Fields")
         
-        # Create template if it doesn't exist
-        if not os.path.exists("config/blocked_fields_template.txt"):
-            self.challenge_manager.create_blocked_fields_template()
-        
-        # Create example field configurations
-        self.challenge_manager.create_example_field_configs()
+        # NOTE: Removed file creation - just search for existing configurations
+        # The challenge manager will only search for and load existing field configuration files
         
         # Load default challenge
         challenges = self.challenge_manager.get_challenge_list()
@@ -151,7 +148,8 @@ class Game:
         # Log initial canvas configuration
         self.right_panel.add_debug_message(f"Canvas: {CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} cells")
         self.right_panel.add_debug_message(f"Display: {'Fullscreen' if IS_FULLSCREEN else 'Windowed'}")
-    
+
+
     def update_scale(self, new_scale_factor):
         """Update the scale factor and all dependent values."""
         self.scale_factor = new_scale_factor

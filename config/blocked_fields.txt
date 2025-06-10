@@ -1,9 +1,7 @@
 # Beam Maze Challenge - A challenging puzzle using beam-blocking obstacles
-# Copy this to config/blocked_fields.txt to activate
 # Format: grid_x,grid_y
 
 # This creates a maze that beams must navigate through
-# The laser starts at grid position (1,7) by default
 
 # First barrier - forces initial routing decision
 4,5
@@ -44,17 +42,3 @@
 15,5
 15,10
 15,11
-
-# Force specific detector placement
-17,6
-17,8
-18,7
-
-# Strategic blockers to prevent trivial solutions
-2,2
-2,12
-7,7
-12,7
-
-# This configuration creates multiple possible paths but requires careful
-# component placement to successfully route beams to detectors

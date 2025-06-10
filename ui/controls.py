@@ -26,25 +26,37 @@ class ControlPanel:
         # Use responsive height from settings
         panel_height = get_control_panel_height()
         
-        # Control panel position - below the canvas
-        panel_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT + scale(15)
-        
-        # Make sure panel doesn't go off screen
-        if panel_y + panel_height > WINDOW_HEIGHT:
-            panel_y = WINDOW_HEIGHT - panel_height - scale(10)
-        
-        self.rect = pygame.Rect(
-            CANVAS_OFFSET_X,
-            panel_y,
-            CANVAS_WIDTH,
-            panel_height
-        )
+        if IS_FULLSCREEN:
+            # In fullscreen, control panel is at the very bottom of the screen
+            panel_y = WINDOW_HEIGHT - panel_height - scale(20)  # Small margin from bottom
+            
+            # Panel spans the width between sidebar and right panel
+            sidebar_width = get_sidebar_width()
+            right_panel_width = get_right_panel_width()
+            panel_x = sidebar_width
+            panel_width = WINDOW_WIDTH - sidebar_width - right_panel_width
+            
+            self.rect = pygame.Rect(panel_x, panel_y, panel_width, panel_height)
+        else:
+            # Windowed mode - below the canvas
+            panel_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT + scale(15)
+            
+            # Make sure panel doesn't go off screen
+            if panel_y + panel_height > WINDOW_HEIGHT:
+                panel_y = WINDOW_HEIGHT - panel_height - scale(10)
+            
+            self.rect = pygame.Rect(
+                CANVAS_OFFSET_X,
+                panel_y,
+                CANVAS_WIDTH,
+                panel_height
+            )
         
         # Scale button dimensions - larger in fullscreen
         if IS_FULLSCREEN:
             button_height = scale(50)
             button_spacing = scale(15)
-            button_y_offset = scale(25)
+            button_y_offset = (panel_height - button_height) // 2  # Center vertically
         else:
             button_height = scale(40)
             button_spacing = scale(10)

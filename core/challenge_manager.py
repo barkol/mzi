@@ -1,7 +1,6 @@
 """Challenge configuration and blocked/gold field management with improved interference detection."""
 import json
 import os
-import glob
 from utils.vector import Vector2
 from config.settings import CANVAS_OFFSET_X, CANVAS_OFFSET_Y, GRID_SIZE
 
@@ -279,85 +278,28 @@ class ChallengeManager:
             print(f"Error loading gold fields: {e}")
     
     def get_available_field_configs(self):
-        """Get list of available field configuration files."""
-        configs = []
-        
-        # Default configuration
-        configs.append({
-            'name': 'default',
-            'display_name': 'Default Fields',
-            'blocked_file': 'config/blocked_fields.txt',
-            'gold_file': 'config/gold_fields.txt'
-        })
-        
-        # Look for other field configuration files in config directory
-        # Find all blocked field files
-        blocked_files = glob.glob('config/blocked_fields_*.txt')
-        for blocked_file in blocked_files:
-            # Extract name from filename
-            name = blocked_file.replace('config/blocked_fields_', '').replace('.txt', '')
-            display_name = name.replace('_', ' ').title()
-            
-            # Check if corresponding gold file exists
-            gold_file = f'config/gold_fields_{name}.txt'
-            if not os.path.exists(gold_file):
-                gold_file = 'config/gold_fields.txt'  # Use default gold fields
-            
-            configs.append({
-                'name': name,
-                'display_name': display_name,
-                'blocked_file': blocked_file,
-                'gold_file': gold_file
-            })
-        
-        # Find all gold field files without corresponding blocked files
-        gold_files = glob.glob('config/gold_fields_*.txt')
-        for gold_file in gold_files:
-            name = gold_file.replace('config/gold_fields_', '').replace('.txt', '')
-            # Skip if we already have this config from blocked files
-            if any(c['name'] == name for c in configs):
-                continue
-                
-            display_name = name.replace('_', ' ').title()
-            configs.append({
-                'name': name,
-                'display_name': display_name,
-                'blocked_file': 'config/blocked_fields.txt',  # Use default blocked fields
-                'gold_file': gold_file
-            })
-        
-        # Add example configurations if they exist
-        example_configs = [
+        """Get list of available field configuration files - limited to Default, Maze, and Treasure only."""
+        # Always return all three configurations with their specific files
+        configs = [
             {
-                'name': 'example',
-                'display_name': 'Example Layout',
-                'blocked_file': 'config/example_blocked_fields.txt',
-                'gold_file': 'config/example_gold_fields.txt'
-            },
-            {
-                'name': 'maze',
-                'display_name': 'Beam Maze',
-                'blocked_file': 'config/blocked_fields_maze.txt',
+                'name': 'default',
+                'display_name': 'Default Fields',
+                'blocked_file': 'config/blocked_fields.txt',
                 'gold_file': 'config/gold_fields.txt'
             },
             {
+                'name': 'maze',
+                'display_name': 'Maze',
+                'blocked_file': 'config/blocked_fields_maze.txt',
+                'gold_file': 'config/gold_fields_maze.txt'
+            },
+            {
                 'name': 'treasure',
-                'display_name': 'Treasure Hunt',
-                'blocked_file': 'config/blocked_fields.txt',
+                'display_name': 'Treasure',
+                'blocked_file': 'config/blocked_fields_treasure.txt',
                 'gold_file': 'config/gold_fields_treasure.txt'
             }
         ]
-        
-        for config in example_configs:
-            # Only add if files exist and not already in list
-            if (os.path.exists(config['blocked_file']) or os.path.exists(config['gold_file'])) \
-               and not any(c['name'] == config['name'] for c in configs):
-                # Use default files if specific ones don't exist
-                if not os.path.exists(config['blocked_file']):
-                    config['blocked_file'] = 'config/blocked_fields.txt'
-                if not os.path.exists(config['gold_file']):
-                    config['gold_file'] = 'config/gold_fields.txt'
-                configs.append(config)
         
         return configs
     
@@ -719,6 +661,57 @@ class ChallengeManager:
     
     def create_example_field_configs(self):
         """Create example field configuration files if they don't exist."""
+        # Default configuration files
+        default_blocked = """# Default Blocked Fields Configuration
+# Format: grid_x,grid_y
+# Grid coordinates start at 0,0 (top-left of canvas)
+
+# Center area obstacles
+10,7
+10,8
+10,9
+11,7
+11,8
+11,9
+
+# Corner blockers
+0,0
+0,14
+19,0
+19,14
+
+# Additional strategic blockers
+5,5
+5,9
+14,5
+14,9
+"""
+
+        default_gold = """# Default Gold Fields Configuration
+# Format: grid_x,grid_y
+
+# Upper path rewards
+7,5
+8,5
+9,5
+
+# Lower path rewards  
+7,11
+8,11
+9,11
+
+# Central challenge areas
+10,10
+11,10
+12,10
+
+# Corner bonuses
+2,2
+17,2
+2,12
+17,12
+"""
+        
         # Example 1: Maze configuration
         maze_blocked = """# Beam Maze Challenge - A challenging puzzle using beam-blocking obstacles
 # Format: grid_x,grid_y
@@ -790,6 +783,50 @@ class ChallengeManager:
 """
         
         # Example 2: Treasure Hunt configuration
+        treasure_blocked = """# Treasure Hunt Blocked Fields - Protect the treasure!
+# Format: grid_x,grid_y
+
+# Treasure vault guards (surrounding the center vault)
+8,5
+8,6
+8,7
+8,8
+8,9
+12,5
+12,6
+12,7
+12,8
+12,9
+
+# Corner fortifications
+0,0
+1,0
+0,1
+18,0
+19,0
+19,1
+0,13
+0,14
+1,14
+18,14
+19,14
+19,13
+
+# Path obstacles to make it challenging
+6,7
+14,7
+
+# Upper barrier
+9,4
+10,4
+11,4
+
+# Lower barrier
+9,10
+10,10
+11,10
+"""
+
         treasure_gold = """# Treasure Hunt - Maximize your score by hitting gold fields!
 # Format: grid_x,grid_y
 
@@ -834,8 +871,11 @@ class ChallengeManager:
 """
         
         files_to_create = [
+            ("config/blocked_fields.txt", default_blocked),
+            ("config/gold_fields.txt", default_gold),
             ("config/blocked_fields_maze.txt", maze_blocked),
             ("config/gold_fields_maze.txt", maze_gold),
+            ("config/blocked_fields_treasure.txt", treasure_blocked),
             ("config/gold_fields_treasure.txt", treasure_gold)
         ]
         

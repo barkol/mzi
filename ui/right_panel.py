@@ -17,30 +17,36 @@ class RightPanel:
         
     def _update_dimensions(self):
         """Update panel dimensions based on current scale and display mode."""
-        # Panel should be to the right of canvas
-        panel_x = CANVAS_OFFSET_X + CANVAS_WIDTH + scale(30)
+        # Get responsive width
+        panel_width = get_right_panel_width()
         
-        # Use responsive width calculation
         if IS_FULLSCREEN:
-            # In fullscreen, use remaining space
-            panel_width = WINDOW_WIDTH - panel_x
-            if panel_width < scale(FULLSCREEN_MIN_RIGHT_PANEL_WIDTH):
-                panel_width = scale(FULLSCREEN_MIN_RIGHT_PANEL_WIDTH)
-                panel_x = WINDOW_WIDTH - panel_width
+            # In fullscreen, justify to the right edge
+            panel_x = WINDOW_WIDTH - panel_width
+            self.rect = pygame.Rect(
+                panel_x,
+                0,
+                panel_width,
+                WINDOW_HEIGHT
+            )
         else:
-            # In windowed mode, calculate based on remaining space
-            panel_width = WINDOW_WIDTH - panel_x
-            if panel_width < scale(200):  # Minimum width
-                panel_width = scale(250)
-                panel_x = WINDOW_WIDTH - panel_width
-        
-        self.rect = pygame.Rect(
-            panel_x,
-            0,
-            panel_width,
-            WINDOW_HEIGHT
-        )
-        
+            # In windowed mode, position after canvas
+            panel_x = CANVAS_OFFSET_X + CANVAS_WIDTH + scale(30)
+            
+            # Make sure panel fits
+            if panel_x + panel_width > WINDOW_WIDTH:
+                panel_width = WINDOW_WIDTH - panel_x
+                if panel_width < scale(200):  # Minimum width
+                    panel_width = scale(250)
+                    panel_x = WINDOW_WIDTH - panel_width
+            
+            self.rect = pygame.Rect(
+                panel_x,
+                0,
+                panel_width,
+                WINDOW_HEIGHT
+            )
+    
     def add_debug_message(self, message):
         """Add a debug message to the panel."""
         self.debug_messages.append(message)
@@ -84,7 +90,7 @@ class RightPanel:
         # Title - larger in fullscreen
         title_size = scale_font(28) if IS_FULLSCREEN else scale_font(24)
         font_title = pygame.font.Font(None, title_size)
-        title_text = "Photon Path: Help" if self.show_help else "Photon Path: Debug Log"
+        title_text = "MaZeInvader: Help" if self.show_help else "MaZeInvader: Debug Log"
         title = font_title.render(title_text, True, CYAN)
         title_rect = title.get_rect(centerx=self.rect.centerx, y=scale(20))
         
@@ -138,13 +144,20 @@ class RightPanel:
             ("Shift+H", "Toggle help/debug"),
             ("Shift+N", "New session"),
             ("", ""),
+            ("BUTTONS", ""),
+            ("Clear All", "Remove all components"),
+            ("Check Setup", "Verify challenge"),
+            ("Toggle Laser", "Turn laser on/off"),
+            ("Load Challenge", "Cycle challenges"),
+            ("Load Fields", "Cycle map layouts"),
+            ("", ""),
             ("SOUND CONTROLS", ""),
             ("Shift+S", "Toggle sound"),
             ("Shift+V", "Volume up 10%"),
             ("Ctrl+Shift+V", "Volume down 10%"),
             ("", ""),
             ("WINDOW", ""),
-            ("F11", "Toggle fullscreen"),
+            ("F11", "Enter fullscreen"),
             ("ESC", "Exit fullscreen"),
         ]
         
@@ -160,6 +173,16 @@ class RightPanel:
             controls.append(("", ""))
             controls.append(("Mode:", "FULLSCREEN"))
             controls.append(("Canvas:", f"{CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} cells"))
+        
+        # Add map features info
+        controls.append(("", ""))
+        controls.append(("MAP FEATURES", ""))
+        controls.append(("Red Blocks", "Block beam paths"))
+        controls.append(("Gold Fields", "+100 pts × intensity"))
+        controls.append(("", ""))
+        controls.append(("TIP", ""))
+        controls.append(("", "Use Load Fields to"))
+        controls.append(("", "cycle through maps!"))
         
         for key, desc in controls:
             if key == "" and desc == "":
@@ -249,6 +272,10 @@ class RightPanel:
                     color = (100, 200, 255)
                 elif "Fullscreen" in message:
                     color = CYAN
+                elif "Loaded fields:" in message:
+                    color = (255, 200, 100)  # Orange for field loading
+                elif "map layouts available" in message:
+                    color = (100, 255, 100)  # Green for available maps
                 
                 text = font.render(message, True, color)
                 if x_margin + text.get_width() <= self.rect.right - scale(10):

@@ -15,6 +15,7 @@ class BeamTracer:
         self.gold_positions = []  # Positions that award points
         self.gold_field_hits = {}  # Track gold field hits: {position: total_intensity}
         self.collected_gold_fields = set()  # Track which fields have been collected
+        self.gold_field_hits_this_frame = {}  # Track new gold field hits this frame for sounds
     
     def set_blocked_positions(self, blocked_positions):
         """Set positions that block beam propagation."""
@@ -27,6 +28,8 @@ class BeamTracer:
     def reset(self):
         """Reset beam tracer for new frame."""
         self.active_beams = []
+        # Clear this frame's gold field hits
+        self.gold_field_hits_this_frame = {}
         # Note: We don't reset gold_field_hits or collected_gold_fields here
         # They persist across frames until explicitly reset
     
@@ -34,6 +37,7 @@ class BeamTracer:
         """Reset gold field collection state."""
         self.gold_field_hits.clear()
         self.collected_gold_fields.clear()
+        self.gold_field_hits_this_frame.clear()
     
     def add_beam(self, beam):
         """Add a beam to trace."""
@@ -296,11 +300,18 @@ class BeamTracer:
                     grid_y = round((gold_pos.y - CANVAS_OFFSET_Y) / GRID_SIZE)
                     gold_key = (grid_x, grid_y)
                     
-                    # Only count if not already collected
+                    # Calculate beam intensity
+                    intensity = beam['amplitude'] ** 2  # Intensity is amplitude squared
+                    
+                    # Track for this frame (for sound effects)
+                    if gold_key not in self.gold_field_hits_this_frame:
+                        self.gold_field_hits_this_frame[gold_key] = 0
+                    self.gold_field_hits_this_frame[gold_key] += intensity
+                    
+                    # Only count for scoring if not already collected
                     if gold_key not in self.collected_gold_fields:
                         self.collected_gold_fields.add(gold_key)
-                        # Add beam intensity to this gold field
-                        intensity = beam['amplitude'] ** 2  # Intensity is amplitude squared
+                        # Add beam intensity to total gold field hits
                         if gold_key not in self.gold_field_hits:
                             self.gold_field_hits[gold_key] = 0
                         self.gold_field_hits[gold_key] += intensity
