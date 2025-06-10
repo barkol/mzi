@@ -53,8 +53,8 @@ class DebugDisplay:
         # Background
         bg_rect = pygame.Rect(CANVAS_OFFSET_X + scale(10), info_y, scale(360), scale(110))
         s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-        s.fill((0, 0, 0, 200))
-        pygame.draw.rect(s, CYAN, s.get_rect(), scale(1))
+        s.fill((20, 20, 20, 220))  # Darker background
+        pygame.draw.rect(s, CYAN, s.get_rect(), scale(2))  # Thicker border
         self.screen.blit(s, bg_rect.topleft)
         
         # Text
@@ -72,7 +72,7 @@ class DebugDisplay:
         # Show detector intensities if available
         if len(detectors) >= 2:
             total_intensity = sum(d.intensity for d in detectors)
-            detector_text = font.render(f"Detector Intensities: {detectors[0].intensity*100:.0f}% + {detectors[1].intensity*100:.0f}% = {total_intensity*100:.0f}%", True, CYAN)
+            detector_text = font.render(f"Detector Intensities: {detectors[0].intensity*100:.0f}% + {detectors[1].intensity*100:.0f}% = {total_intensity*100:.0f}%", True, WHITE)  # Changed from CYAN to WHITE
             self.screen.blit(detector_text, (bg_rect.x + scale(10), bg_rect.y + scale(85)))
     
     def _draw_detector_opd(self, components):
@@ -97,12 +97,12 @@ class DebugDisplay:
             # Background
             bg_rect = pygame.Rect(CANVAS_OFFSET_X + scale(10), info_y, scale(280), scale(50))
             s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            s.fill((0, 0, 0, 200))
-            pygame.draw.rect(s, CYAN, s.get_rect(), scale(1))
+            s.fill((20, 20, 20, 220))  # Darker background
+            pygame.draw.rect(s, CYAN, s.get_rect(), scale(2))  # Thicker border
             self.screen.blit(s, bg_rect.topleft)
             
             # Text
-            opd_text = font.render(f"Optical Path Difference: {opd:.1f} px", True, CYAN)
+            opd_text = font.render(f"Optical Path Difference: {opd:.1f} px", True, WHITE)  # Changed from CYAN
             phase_text = font.render(f"Phase from OPD: {phase_from_opd*180/math.pi:.1f}° ({opd/WAVELENGTH:.2f}λ)", True, WHITE)
             
             self.screen.blit(opd_text, (bg_rect.x + scale(10), bg_rect.y + scale(5)))
@@ -117,10 +117,14 @@ class DebugDisplay:
             
             # Background for hint
             bg_rect = hint_rect.inflate(scale(20), scale(10))
-            s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            s.fill((0, 0, 0, 150))
-            self.screen.blit(s, bg_rect.topleft)
             
+            # Draw dark background directly on screen
+            pygame.draw.rect(self.screen, (20, 20, 20), bg_rect)
+            
+            # Draw subtle border
+            pygame.draw.rect(self.screen, (100, 100, 100), bg_rect, scale(1))
+            
+            # Draw the hint text
             self.screen.blit(hint, hint_rect)
     
     def draw_banner(self):

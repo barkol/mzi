@@ -24,7 +24,7 @@ def scale(value):
 
 def scale_font(size):
     """Scale font size."""
-    return max(8, int(size * FONT_SCALE))  # Minimum font size of 8
+    return max(10, int(size * FONT_SCALE))  # Increased minimum from 8 to 10
 
 # Grid settings (base values for windowed mode)
 BASE_GRID_SIZE = 45
@@ -78,7 +78,7 @@ COMPONENT_RADIUS = BASE_COMPONENT_RADIUS
 BEAM_WIDTH = BASE_BEAM_WIDTH
 
 # Physics settings
-WAVELENGTH = 30
+WAVELENGTH = 20
 SPEED_OF_LIGHT = 300
 
 # Component losses

@@ -44,8 +44,7 @@ GOLD = (255, 215, 0)
 
 class Game:
     """Main game class with sound support, energy monitoring, and scaling."""
-    # Updated __init__ method for core/game.py (partial)
-
+    
     def __init__(self, screen, scale_factor=1.0):
         self.screen = screen
         self.clock = pygame.time.Clock()
@@ -124,9 +123,6 @@ class Game:
         # Set initial field configuration in controls
         self.controls.set_field_config("Default Fields")
         
-        # NOTE: Removed file creation - just search for existing configurations
-        # The challenge manager will only search for and load existing field configuration files
-        
         # Load default challenge
         challenges = self.challenge_manager.get_challenge_list()
         if challenges:
@@ -148,7 +144,6 @@ class Game:
         # Log initial canvas configuration
         self.right_panel.add_debug_message(f"Canvas: {CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} cells")
         self.right_panel.add_debug_message(f"Display: {'Fullscreen' if IS_FULLSCREEN else 'Windowed'}")
-
 
     def update_scale(self, new_scale_factor):
         """Update the scale factor and all dependent values."""
@@ -325,11 +320,6 @@ class Game:
         
         return current_count < max_components
     
-    """
-    Updated method from core/game.py that passes field configuration to leaderboard.
-    This is the _handle_control_action method - replace the existing one with this version.
-    """
-
     def _handle_control_action(self, action):
         """Handle control panel actions."""
         if action == 'Clear All':
@@ -511,7 +501,6 @@ class Game:
                 self.controls.set_status("No field configurations available!")
                 self.sound_manager.play('error')
 
-
     def _update_score(self, points):
         """Update game score."""
         self.score = points
@@ -679,73 +668,82 @@ class Game:
             self.screen.blit(text_surface, text_rect)
     
     def _draw_challenge_name(self):
-            """Draw the current challenge name above the grid."""
-            if self.current_challenge_display_name:
-                # Check if current challenge is completed
-                is_completed = (self.challenge_manager.current_challenge and
-                            self.challenge_manager.current_challenge in self.completed_challenges)
+        """Draw the current challenge name above the grid."""
+        if self.current_challenge_display_name:
+            # Check if current challenge is completed
+            is_completed = (self.challenge_manager.current_challenge and
+                        self.challenge_manager.current_challenge in self.completed_challenges)
+            
+            # Use gold color if completed, cyan otherwise
+            color = GOLD if is_completed else CYAN
+            
+            # Prepare main text
+            font = pygame.font.Font(None, scale_font(32))
+            text = font.render(self.current_challenge_display_name, True, color)
+            text_rect = text.get_rect(centerx=CANVAS_OFFSET_X + CANVAS_WIDTH // 2,
+                                    y=CANVAS_OFFSET_Y - scale(65))
+            
+            # Background rect
+            bg_rect = text_rect.inflate(scale(40), scale(12))
+            
+            # Draw solid background
+            pygame.draw.rect(self.screen, (20, 20, 20), bg_rect, border_radius=scale(15))
+            
+            # Draw border
+            pygame.draw.rect(self.screen, color, bg_rect, scale(3), border_radius=scale(15))
+            
+            # Draw the main text
+            self.screen.blit(text, text_rect)
+            
+            # Add decorative elements
+            # Left decoration
+            deco_left = pygame.Rect(bg_rect.left - scale(50), bg_rect.centery - scale(1), scale(40), scale(2))
+            pygame.draw.rect(self.screen, color, deco_left)
+            pygame.draw.circle(self.screen, color, (deco_left.left, deco_left.centery), scale(3))
+            
+            # Right decoration
+            deco_right = pygame.Rect(bg_rect.right + scale(10), bg_rect.centery - scale(1), scale(40), scale(2))
+            pygame.draw.rect(self.screen, color, deco_right)
+            pygame.draw.circle(self.screen, color, (deco_right.right, deco_right.centery), scale(3))
+            
+            # Add completed indicator if applicable
+            if is_completed:
+                # Prepare DONE text
+                done_font = pygame.font.Font(None, scale_font(20))
+                done_text = done_font.render("DONE", True, GOLD)
+                done_rect = done_text.get_rect(left=bg_rect.right + scale(10), centery=bg_rect.centery)
                 
-                # Use gold color if completed, cyan otherwise
-                color = GOLD if is_completed else CYAN
+                # Draw DONE background
+                done_bg_rect = done_rect.inflate(scale(8), scale(4))
+                pygame.draw.rect(self.screen, (60, 50, 0), done_bg_rect, border_radius=scale(5))
                 
-                # Prepare main text
-                font = pygame.font.Font(None, scale_font(32))
-                text = font.render(self.current_challenge_display_name, True, color)
-                text_rect = text.get_rect(centerx=CANVAS_OFFSET_X + CANVAS_WIDTH // 2,
-                                        y=CANVAS_OFFSET_Y - scale(65))
+                # Draw DONE border
+                pygame.draw.rect(self.screen, GOLD, done_bg_rect, scale(2), border_radius=scale(5))
                 
-                # Background rect
-                bg_rect = text_rect.inflate(scale(40), scale(12))
-                
-                # Draw solid background
-                pygame.draw.rect(self.screen, (20, 20, 20), bg_rect, border_radius=scale(15))
-                
-                # Draw border
-                pygame.draw.rect(self.screen, color, bg_rect, scale(3), border_radius=scale(15))
-                
-                # Draw the main text
-                self.screen.blit(text, text_rect)
-                
-                # Add decorative elements
-                # Left decoration
-                deco_left = pygame.Rect(bg_rect.left - scale(50), bg_rect.centery - scale(1), scale(40), scale(2))
-                pygame.draw.rect(self.screen, color, deco_left)
-                pygame.draw.circle(self.screen, color, (deco_left.left, deco_left.centery), scale(3))
-                
-                # Right decoration
-                deco_right = pygame.Rect(bg_rect.right + scale(10), bg_rect.centery - scale(1), scale(40), scale(2))
-                pygame.draw.rect(self.screen, color, deco_right)
-                pygame.draw.circle(self.screen, color, (deco_right.right, deco_right.centery), scale(3))
-                
-                # Add completed indicator if applicable
-                if is_completed:
-                    # Prepare DONE text
-                    done_font = pygame.font.Font(None, scale_font(20))
-                    done_text = done_font.render("DONE", True, GOLD)
-                    done_rect = done_text.get_rect(left=bg_rect.right + scale(10), centery=bg_rect.centery)
-                    
-                    # Draw DONE background
-                    done_bg_rect = done_rect.inflate(scale(8), scale(4))
-                    pygame.draw.rect(self.screen, (60, 50, 0), done_bg_rect, border_radius=scale(5))
-                    
-                    # Draw DONE border
-                    pygame.draw.rect(self.screen, GOLD, done_bg_rect, scale(2), border_radius=scale(5))
-                    
-                    # Draw DONE text
-                    self.screen.blit(done_text, done_rect)
-        
+                # Draw DONE text
+                self.screen.blit(done_text, done_rect)
+    
     def _draw_session_high_score(self):
         """Draw session high score indicator."""
         if self.session_high_score > 0:
-            # Prepare text
-            font = pygame.font.Font(None, scale_font(18))
-            text = font.render(f"Session Best: {self.session_high_score}", True, GREEN)
+            # Prepare text - ensure minimum font size
+            font_size = max(scale_font(18), 14)  # Minimum 14px font
+            font = pygame.font.Font(None, font_size)
+            text_str = f"Session Best: {self.session_high_score}"
+            text = font.render(text_str, True, GREEN)
+            
+            # Verify text was rendered
+            if text.get_width() < 5:  # Text failed to render
+                # Try with default font
+                font = pygame.font.Font(None, 18)
+                text = font.render(text_str, True, GREEN)
+            
             text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - scale(20), y=scale(70))
             
-            # Draw solid background
+            # Draw solid background - dark gray
             bg_rect = text_rect.inflate(scale(10), scale(4))
             pygame.draw.rect(self.screen, (40, 40, 40), bg_rect)
-            pygame.draw.rect(self.screen, GREEN, bg_rect, scale(1))
+            pygame.draw.rect(self.screen, GREEN, bg_rect, scale(2))  # Thicker border
             
             # Draw text
             self.screen.blit(text, text_rect)
@@ -834,16 +832,25 @@ class Game:
         """Draw indicator if current challenge is already completed."""
         if (self.challenge_manager.current_challenge and
             self.challenge_manager.current_challenge in self.completed_challenges):
-            # Prepare text
-            font = pygame.font.Font(None, scale_font(16))
-            text = font.render("[DONE] Challenge Completed", True, GREEN)
+            # Prepare text - ensure minimum font size
+            font_size = max(scale_font(16), 14)  # Minimum 14px font
+            font = pygame.font.Font(None, font_size)
+            text_str = "[DONE] Challenge Completed"
+            text = font.render(text_str, True, GREEN)
+            
+            # Verify text was rendered
+            if text.get_width() < 5:  # Text failed to render
+                # Try with default font
+                font = pygame.font.Font(None, 16)
+                text = font.render(text_str, True, GREEN)
+            
             text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - scale(20),
                                      y=CANVAS_OFFSET_Y + CANVAS_HEIGHT - scale(15))
             
-            # Draw solid background
+            # Draw solid background - dark gray
             bg_rect = text_rect.inflate(scale(10), scale(4))
             pygame.draw.rect(self.screen, (40, 40, 40), bg_rect)
-            pygame.draw.rect(self.screen, GREEN, bg_rect, scale(1))
+            pygame.draw.rect(self.screen, GREEN, bg_rect, scale(2))  # Thicker border
             
             # Draw text
             self.screen.blit(text, text_rect)
