@@ -224,14 +224,24 @@ class ControlPanel:
         """Draw current field configuration name."""
         config_font_size = scale_font(18) if IS_FULLSCREEN else scale_font(16)
         font = pygame.font.Font(None, config_font_size)
-        config_text = font.render(f"Fields: {self.current_field_config}", True, WHITE)
+        
+        # Color code the field config
+        field_color = WHITE
+        if 'Treasure' in self.current_field_config:
+            field_color = (255, 215, 0)  # Gold
+        elif 'Maze' in self.current_field_config:
+            field_color = (255, 100, 100)  # Red
+        else:  # Default
+            field_color = (100, 200, 255)  # Light blue
+        
+        config_text = font.render(f"Map: {self.current_field_config}", True, field_color)
         config_rect = config_text.get_rect(left=self.rect.x + scale(20), 
                                          bottom=self.rect.bottom - scale(5))
         
         # Simple background
         bg_rect = config_rect.inflate(scale(10), scale(4))
         pygame.draw.rect(screen, (40, 40, 40), bg_rect)
-        pygame.draw.rect(screen, PURPLE, bg_rect, 1)
+        pygame.draw.rect(screen, field_color, bg_rect, 1)
         
         # Draw text
         screen.blit(config_text, config_rect)

@@ -19,13 +19,14 @@ class LeaderboardDisplay:
         self.pending_score = None
         self.pending_challenge = None
         self.pending_components = 0
+        self.pending_field_config = None
     
     def update_scale(self):
         """Update scaled dimensions - call this when scale factor changes."""
         self.rect = pygame.Rect(
-            CANVAS_OFFSET_X + scale(100),
+            CANVAS_OFFSET_X + scale(20),  # Moved left to ensure it fits
             CANVAS_OFFSET_Y + scale(50),
-            scale(600),
+            scale(650),  # Slightly smaller to ensure it fits
             scale(500)
         )
         self.close_button = pygame.Rect(
@@ -47,7 +48,7 @@ class LeaderboardDisplay:
             scale(30)
         )
     
-    def show(self, auto_add_score=None, challenge=None, components=0):
+    def show(self, auto_add_score=None, challenge=None, components=0, field_config=None):
         """Show the leaderboard."""
         self.visible = True
         if self.sound_manager:
@@ -58,6 +59,7 @@ class LeaderboardDisplay:
             self.pending_score = auto_add_score
             self.pending_challenge = challenge
             self.pending_components = components
+            self.pending_field_config = field_config
             self.player_name = ""
             if self.sound_manager:
                 self.sound_manager.play('high_score')
@@ -68,6 +70,7 @@ class LeaderboardDisplay:
         self.name_input_active = False
         self.player_name = ""
         self.pending_score = None
+        self.pending_field_config = None
         if self.sound_manager:
             self.sound_manager.play('panel_close')
     
@@ -122,13 +125,15 @@ class LeaderboardDisplay:
                 self.player_name,
                 self.pending_score,
                 self.pending_challenge,
-                self.pending_components
+                self.pending_components,
+                self.pending_field_config
             )
             if self.sound_manager:
                 self.sound_manager.play('success')
             self.name_input_active = False
             self.player_name = ""
             self.pending_score = None
+            self.pending_field_config = None
     
     def _draw_trophy(self, screen, x, y, size=30, color=(255, 215, 0)):
         """Draw a simple trophy shape with scaling."""
@@ -237,10 +242,10 @@ class LeaderboardDisplay:
         if entries:
             # Headers
             header_font = pygame.font.Font(None, scale_font(20))
-            headers = ["Rank", "Name", "Score", "Challenge", "Date"]
-            header_x = [self.rect.x + scale(30), self.rect.x + scale(80), 
-                       self.rect.x + scale(250), self.rect.x + scale(350), 
-                       self.rect.x + scale(480)]
+            headers = ["Rank", "Name", "Score", "Map", "Challenge", "Date"]
+            header_x = [self.rect.x + scale(30), self.rect.x + scale(75), 
+                       self.rect.x + scale(180), self.rect.x + scale(260),
+                       self.rect.x + scale(350), self.rect.x + scale(480)]
             header_y = self.rect.y + scale(80)
             
             for i, (header, x) in enumerate(zip(headers, header_x)):
@@ -253,7 +258,7 @@ class LeaderboardDisplay:
                            (self.rect.right - scale(20), header_y + scale(25)), scale(2))
             
             # Entries
-            entry_font = pygame.font.Font(None, scale_font(18))
+            entry_font = pygame.font.Font(None, scale_font(16))  # Slightly smaller font
             y_offset = header_y + scale(40)
             
             for i, entry in enumerate(entries):
@@ -289,14 +294,31 @@ class LeaderboardDisplay:
                 score_text = entry_font.render(str(entry['score']), True, color)
                 screen.blit(score_text, (header_x[2], y_offset))
                 
+                # Map/Field with color coding
+                field_name = entry.get('field_config', 'Default')
+                field_color = color  # Default color
+                
+                # Color code different maps
+                if 'Treasure' in field_name:
+                    field_color = (255, 215, 0)  # Gold for treasure
+                elif 'Maze' in field_name:
+                    field_color = (255, 100, 100)  # Red for maze
+                else:  # Default Fields
+                    field_color = (100, 200, 255)  # Light blue for default
+                
+                # Truncate long names
+                display_field = field_name[:8] + '..' if len(field_name) > 10 else field_name
+                field_text = entry_font.render(display_field, True, field_color)
+                screen.blit(field_text, (header_x[3], y_offset))
+                
                 # Challenge
-                challenge_text = entry_font.render(entry.get('challenge', 'Free Play')[:12], True, color)
-                screen.blit(challenge_text, (header_x[3], y_offset))
+                challenge_text = entry_font.render(entry.get('challenge', 'Free Play')[:10], True, color)
+                screen.blit(challenge_text, (header_x[4], y_offset))
                 
                 # Date
                 date_str = entry_date.strftime("%m/%d %I:%M%p")
                 date_text = entry_font.render(date_str, True, color)
-                screen.blit(date_text, (header_x[4], y_offset))
+                screen.blit(date_text, (header_x[5], y_offset))
                 
                 y_offset += scale(30)
         
@@ -318,7 +340,7 @@ class LeaderboardDisplay:
         """Draw name input dialog with scaling."""
         # Background for input area
         input_width = scale(400)
-        input_height = scale(150)
+        input_height = scale(170)  # Increased height for map display
         input_bg = pygame.Surface((input_width, input_height), pygame.SRCALPHA)
         pygame.draw.rect(input_bg, (BLACK[0], BLACK[1], BLACK[2], 220),
                         input_bg.get_rect(), border_radius=scale(10))
@@ -341,11 +363,24 @@ class LeaderboardDisplay:
                                         y=input_bg_rect.y + scale(40))
         screen.blit(score_text, score_rect)
         
+        # Map display
+        if self.pending_field_config:
+            map_font = pygame.font.Font(None, scale_font(18))
+            map_color = CYAN
+            if 'Treasure' in self.pending_field_config:
+                map_color = (255, 215, 0)  # Gold
+            elif 'Maze' in self.pending_field_config:
+                map_color = (255, 100, 100)  # Red
+            map_text = map_font.render(f"Map: {self.pending_field_config}", True, map_color)
+            map_rect = map_text.get_rect(centerx=self.rect.centerx,
+                                        y=input_bg_rect.y + scale(65))
+            screen.blit(map_text, map_rect)
+        
         # Input label
         label_font = pygame.font.Font(None, scale_font(18))
         label = label_font.render("Enter your name:", True, WHITE)
         label_rect = label.get_rect(centerx=self.rect.centerx - scale(60),
-                                   y=self.name_input_rect.y - scale(25))
+                                   y=self.name_input_rect.y - scale(20))
         screen.blit(label, label_rect)
         
         # Input field
@@ -391,8 +426,8 @@ class LeaderboardDisplay:
         # Stats text
         stats_font = pygame.font.Font(None, scale_font(16))
         stats_text = (f"Highest: {stats['highest_score']} | "
-                     f"Average: {stats['average_score']} | "
-                     f"Most Played: {stats['most_common_challenge']}")
+                     f"Avg: {stats['average_score']} | "
+                     f"Popular Map: {stats['most_common_map']}")
         text_surface = stats_font.render(stats_text, True, WHITE)
         text_rect = text_surface.get_rect(center=stats_rect.center)
         screen.blit(text_surface, text_rect)

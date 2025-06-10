@@ -179,6 +179,7 @@ class RightPanel:
         controls.append(("MAP FEATURES", ""))
         controls.append(("Red Blocks", "Block beam paths"))
         controls.append(("Gold Fields", "+100 pts × intensity"))
+        controls.append(("Leaderboard", "Tracks map used"))
         controls.append(("", ""))
         controls.append(("TIP", ""))
         controls.append(("", "Use Load Fields to"))

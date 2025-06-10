@@ -325,6 +325,11 @@ class Game:
         
         return current_count < max_components
     
+    """
+    Updated method from core/game.py that passes field configuration to leaderboard.
+    This is the _handle_control_action method - replace the existing one with this version.
+    """
+
     def _handle_control_action(self, action):
         """Handle control panel actions."""
         if action == 'Clear All':
@@ -376,10 +381,20 @@ class Game:
                     
                     # Show leaderboard
                     challenge_info = self.challenge_manager.challenges.get(challenge_name, {})
+                    
+                    # Get current field configuration display name
+                    field_configs = self.challenge_manager.get_available_field_configs()
+                    current_field_display = "Default Fields"
+                    for config in field_configs:
+                        if config['name'] == self.challenge_manager.current_field_config:
+                            current_field_display = config['display_name']
+                            break
+                    
                     self.leaderboard_display.show(
                         auto_add_score=self.score,
                         challenge=challenge_info.get('name', 'Unknown'),
-                        components=len(self.component_manager.components)
+                        components=len(self.component_manager.components),
+                        field_config=current_field_display
                     )
                 else:
                     # Already completed
@@ -495,7 +510,8 @@ class Game:
                 print("No field configurations available!")
                 self.controls.set_status("No field configurations available!")
                 self.sound_manager.play('error')
-    
+
+
     def _update_score(self, points):
         """Update game score."""
         self.score = points

@@ -36,17 +36,19 @@ class LeaderboardManager:
         """Get default leaderboard entries."""
         default_names = ["Alice", "Bob", "Charlie", "David", "Eve"]
         default_scores = [1000, 800, 600, 400, 200]
+        default_fields = ["Treasure", "Maze", "Default Fields", "Default Fields", "Maze"]
         
         entries = []
         base_date = datetime.now()
         
-        for i, (name, score) in enumerate(zip(default_names, default_scores)):
+        for i, (name, score, field) in enumerate(zip(default_names, default_scores, default_fields)):
             entries.append({
                 'name': name,
                 'score': score,
                 'challenge': 'Basic MZ',
                 'date': (base_date.replace(day=base_date.day - i)).isoformat(),
-                'components': 6
+                'components': 6,
+                'field_config': field
             })
         
         return entries
@@ -64,7 +66,7 @@ class LeaderboardManager:
             print(f"Error saving leaderboard: {e}")
     
     def add_score(self, name: str, score: int, challenge: str = None,
-                  components: int = 0) -> Tuple[bool, int]:
+                  components: int = 0, field_config: str = None) -> Tuple[bool, int]:
         """
         Add a new score to the leaderboard.
         
@@ -77,7 +79,8 @@ class LeaderboardManager:
             'score': score,
             'challenge': challenge or 'Free Play',
             'date': datetime.now().isoformat(),
-            'components': components
+            'components': components,
+            'field_config': field_config or 'Default Fields'
         }
         
         # Find position
@@ -122,6 +125,20 @@ class LeaderboardManager:
                 return i + 1
         return len(self.entries) + 1
     
+    def get_entries_for_map(self, field_config: str) -> List[Dict]:
+        """Get leaderboard entries for a specific map."""
+        return [entry for entry in self.entries 
+                if entry.get('field_config', 'Default Fields') == field_config]
+    
+    def get_top_score_per_map(self) -> Dict[str, int]:
+        """Get the top score for each map."""
+        map_scores = {}
+        for entry in self.entries:
+            map_name = entry.get('field_config', 'Default Fields')
+            current_score = map_scores.get(map_name, 0)
+            map_scores[map_name] = max(current_score, entry['score'])
+        return map_scores
+    
     def clear_leaderboard(self):
         """Clear all entries (for testing/reset)."""
         self.entries = []
@@ -134,22 +151,31 @@ class LeaderboardManager:
                 'total_entries': 0,
                 'highest_score': 0,
                 'average_score': 0,
-                'most_common_challenge': 'None'
+                'most_common_challenge': 'None',
+                'most_common_map': 'None'
             }
         
         scores = [e['score'] for e in self.entries]
         challenges = [e['challenge'] for e in self.entries]
+        maps = [e.get('field_config', 'Default Fields') for e in self.entries]
         
         # Count challenge frequency
         challenge_counts = {}
         for challenge in challenges:
             challenge_counts[challenge] = challenge_counts.get(challenge, 0) + 1
         
-        most_common = max(challenge_counts.items(), key=lambda x: x[1])[0]
+        # Count map frequency
+        map_counts = {}
+        for map_name in maps:
+            map_counts[map_name] = map_counts.get(map_name, 0) + 1
+        
+        most_common_challenge = max(challenge_counts.items(), key=lambda x: x[1])[0]
+        most_common_map = max(map_counts.items(), key=lambda x: x[1])[0]
         
         return {
             'total_entries': len(self.entries),
             'highest_score': max(scores),
             'average_score': sum(scores) // len(scores),
-            'most_common_challenge': most_common
+            'most_common_challenge': most_common_challenge,
+            'most_common_map': most_common_map
         }
