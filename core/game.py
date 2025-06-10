@@ -401,14 +401,13 @@ class Game:
                     self.sound_manager.play('laser_on')
                 else:
                     self.sound_manager.play('laser_off')
-                    # Clear gold field hits when laser is turned off
-                    if hasattr(self.beam_tracer, 'gold_field_hits'):
-                        self.beam_tracer.reset_gold_collection()
-                    # Reset gold bonus display
-                    if hasattr(self.controls, 'set_gold_bonus'):
-                        self.controls.set_gold_bonus(0)
+                    # Clear per-frame gold field tracking when laser is turned off
+                    if hasattr(self.beam_tracer, 'gold_field_hits_this_frame'):
+                        self.beam_tracer.gold_field_hits_this_frame.clear()
                     # Clear last gold hits for sound tracking
                     self.last_gold_hits.clear()
+                    # Note: We do NOT reset gold_field_hits or collected_gold_fields
+                    # The gold bonus persists until explicitly reset
                     
         elif action == 'Load Challenge':
             # Cycle through challenges
@@ -524,24 +523,34 @@ class Game:
         
         # Check for gold field hits this frame and play sounds
         if hasattr(self.beam_tracer, 'gold_field_hits_this_frame'):
-            # Count total gold fields hit this frame
-            gold_fields_hit = sum(1 for intensity in self.beam_tracer.gold_field_hits_this_frame.values() if intensity > 0)
-            
-            # Play sound for each gold field hit this frame
+            # Play sound only for gold fields that are newly hit (weren't hit last frame)
             for pos, intensity in self.beam_tracer.gold_field_hits_this_frame.items():
                 if intensity > 0:
-                    # Play sound with volume based on intensity
-                    # Reduce volume slightly if multiple fields are hit to avoid being too loud
-                    volume_multiplier = 0.7 if gold_fields_hit > 3 else 1.0
-                    self.sound_manager.play('gold_field_hit', volume=min(0.8, intensity * 0.5 * volume_multiplier))
+                    # Check if this field was NOT hit in the last frame
+                    last_intensity = self.last_gold_hits.get(pos, 0)
+                    
+                    if last_intensity == 0:  # Field was not hit last frame
+                        # Play coin sound - this is a new hit
+                        volume = min(0.8, 0.5 + intensity * 0.3)
+                        self.sound_manager.play('gold_field_hit', volume=volume)
+                        
+                        # Check if this is a first-time collection for bonus
+                        if pos in self.beam_tracer.collected_gold_fields:
+                            self.right_panel.add_debug_message(f"Gold bonus collected at {pos}!")
+                        else:
+                            self.right_panel.add_debug_message(f"Gold field hit at {pos}")
             
-            # Update tracking for debug messages
-            for pos, intensity in self.beam_tracer.gold_field_hits_this_frame.items():
-                if intensity > 0 and (pos not in self.last_gold_hits or self.last_gold_hits.get(pos, 0) == 0):
-                    self.right_panel.add_debug_message(f"Gold field hit at {pos}")
+            # Clear entries from last_gold_hits that are not hit this frame
+            # This ensures sounds play again when beams re-enter fields
+            for pos in list(self.last_gold_hits.keys()):
+                if pos not in self.beam_tracer.gold_field_hits_this_frame:
+                    del self.last_gold_hits[pos]
             
             # Update tracking for next frame
             self.last_gold_hits = self.beam_tracer.gold_field_hits_this_frame.copy()
+        else:
+            # No gold field tracking - clear last hits
+            self.last_gold_hits.clear()
     
     def draw(self):
         """Draw the game with fixed rendering order."""

@@ -279,8 +279,10 @@ class ChallengeManager:
     
     def get_available_field_configs(self):
         """Get list of available field configuration files - limited to Default, Maze, and Treasure only."""
-        # Always return all three configurations with their specific files
-        configs = [
+        configs = []
+        
+        # Only allow these three specific configurations
+        allowed_configs = [
             {
                 'name': 'default',
                 'display_name': 'Default Fields',
@@ -296,10 +298,25 @@ class ChallengeManager:
             {
                 'name': 'treasure',
                 'display_name': 'Treasure',
-                'blocked_file': 'config/blocked_fields_treasure.txt',
+                'blocked_file': 'config/blocked_fields.txt',
                 'gold_file': 'config/gold_fields_treasure.txt'
             }
         ]
+        
+        # Only add configurations if their files exist
+        for config in allowed_configs:
+            # For default, we'll create the files if they don't exist
+            if config['name'] == 'default':
+                configs.append(config)
+            else:
+                # For maze and treasure, only add if at least one file exists
+                if os.path.exists(config['blocked_file']) or os.path.exists(config['gold_file']):
+                    # Use default files as fallback if specific ones don't exist
+                    if not os.path.exists(config['blocked_file']):
+                        config['blocked_file'] = 'config/blocked_fields.txt'
+                    if not os.path.exists(config['gold_file']):
+                        config['gold_file'] = 'config/gold_fields.txt'
+                    configs.append(config)
         
         return configs
     
@@ -783,50 +800,6 @@ class ChallengeManager:
 """
         
         # Example 2: Treasure Hunt configuration
-        treasure_blocked = """# Treasure Hunt Blocked Fields - Protect the treasure!
-# Format: grid_x,grid_y
-
-# Treasure vault guards (surrounding the center vault)
-8,5
-8,6
-8,7
-8,8
-8,9
-12,5
-12,6
-12,7
-12,8
-12,9
-
-# Corner fortifications
-0,0
-1,0
-0,1
-18,0
-19,0
-19,1
-0,13
-0,14
-1,14
-18,14
-19,14
-19,13
-
-# Path obstacles to make it challenging
-6,7
-14,7
-
-# Upper barrier
-9,4
-10,4
-11,4
-
-# Lower barrier
-9,10
-10,10
-11,10
-"""
-
         treasure_gold = """# Treasure Hunt - Maximize your score by hitting gold fields!
 # Format: grid_x,grid_y
 
@@ -875,7 +848,6 @@ class ChallengeManager:
             ("config/gold_fields.txt", default_gold),
             ("config/blocked_fields_maze.txt", maze_blocked),
             ("config/gold_fields_maze.txt", maze_gold),
-            ("config/blocked_fields_treasure.txt", treasure_blocked),
             ("config/gold_fields_treasure.txt", treasure_gold)
         ]
         
