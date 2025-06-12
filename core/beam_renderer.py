@@ -1,18 +1,71 @@
-"""Beam rendering and visualization module with scaling support."""
+"""Beam rendering and visualization module with pulsing and color effects."""
 import pygame
 import math
+import time
 from config.settings import BEAM_WIDTH, CYAN, WHITE, scale, scale_font
 
 class BeamRenderer:
-    """Handles beam path rendering and visualization with scaling."""
+    """Handles beam path rendering with dynamic pulsing and color effects."""
     
     def __init__(self, screen):
         self.screen = screen
         self.debug = False
+        self.start_time = time.time()
     
     def set_debug(self, debug_state):
         """Set debug mode for beam renderer."""
         self.debug = debug_state
+    
+    def _get_dynamic_color(self, amplitude, time_offset=0):
+        """Get a dynamically shifting color based on amplitude and time."""
+        current_time = time.time() - self.start_time + time_offset
+        
+        # Base color shifts between cyan variants
+        # Strong beams shift between cyan and light blue
+        # Weak beams shift between cyan and turquoise
+        
+        if amplitude > 0.7:
+            # Strong beams: Cyan to Light Blue
+            phase = math.sin(current_time * 2.0) * 0.5 + 0.5  # 0 to 1
+            r = min(255, max(0, int(0 + phase * 100)))  # 0 to 100
+            g = min(255, max(0, int(200 + phase * 55)))  # 200 to 255
+            b = 255
+        elif amplitude > 0.4:
+            # Medium beams: Cyan to Aqua
+            phase = math.sin(current_time * 2.5) * 0.5 + 0.5
+            r = min(255, max(0, int(0 + phase * 50)))  # 0 to 50
+            g = 255
+            b = min(255, max(0, int(200 + phase * 55)))  # 200 to 255
+        else:
+            # Weak beams: Cyan to Turquoise
+            phase = math.sin(current_time * 3.0) * 0.5 + 0.5
+            r = min(255, max(0, int(0 + phase * 64)))  # 0 to 64
+            g = min(255, max(0, int(200 + phase * 55)))  # 200 to 255
+            b = min(255, max(0, int(180 + phase * 75)))  # 180 to 255
+        
+        return (r, g, b)
+    
+    def _get_pulse_factor(self, amplitude, time_offset=0):
+        """Get a pulsing factor for beam width and glow."""
+        current_time = time.time() - self.start_time + time_offset
+        
+        # Different pulse speeds for different amplitudes
+        if amplitude > 0.8:
+            # Strong beams pulse slowly
+            pulse_speed = 1.5
+            pulse_amplitude = 0.15  # 15% variation
+        elif amplitude > 0.5:
+            # Medium beams pulse moderately
+            pulse_speed = 2.0
+            pulse_amplitude = 0.12  # 12% variation
+        else:
+            # Weak beams pulse faster
+            pulse_speed = 3.0
+            pulse_amplitude = 0.20  # 20% variation
+        
+        # Calculate pulse (varies from 1-pulse_amplitude to 1+pulse_amplitude)
+        pulse = 1.0 + math.sin(current_time * pulse_speed) * pulse_amplitude
+        return pulse
     
     def draw_beams(self, beam_tracer, laser, components, phase_value=0, blocked_positions=None):
         """Trace and draw all laser beams."""
@@ -51,12 +104,13 @@ class BeamRenderer:
         # Trace beams
         traced_beams = beam_tracer.trace_beams(components)
         
-        # Draw beams
-        for beam_data in traced_beams:
-            self._draw_beam_path(beam_data)
+        # Draw beams with slight time offset for each beam to create variation
+        for i, beam_data in enumerate(traced_beams):
+            time_offset = i * 0.3  # Slight phase difference between beams
+            self._draw_beam_path(beam_data, time_offset)
     
-    def _draw_beam_path(self, beam_data):
-        """Draw a single beam path with scaling."""
+    def _draw_beam_path(self, beam_data, time_offset=0):
+        """Draw a single beam path with pulsing and color effects."""
         path = beam_data['path']
         if len(path) < 2:
             return
@@ -68,93 +122,153 @@ class BeamRenderer:
         # Check if beam was blocked
         was_blocked = beam_data.get('blocked', False)
         
-        # Color based on blocked status and intensity
+        # Get dynamic color based on amplitude and time
+        color = self._get_dynamic_color(beam_data['amplitude'], time_offset)
+        
+        # For blocked beams, use a reddish-cyan flash
         if was_blocked:
-            color = CYAN  # Cyan for blocked beams
-        else:
-            # All beams are shades of turquoise/cyan
-            # Vary the shade based on amplitude for visual distinction
-            amplitude = beam_data['amplitude']
-            if amplitude > 0.8:
-                color = CYAN  # Bright cyan for strong beams
-            elif amplitude > 0.5:
-                color = (0, 200, 200)  # Medium cyan
-            else:
-                color = (0, 150, 150)  # Darker cyan for weak beams
+            current_time = time.time() - self.start_time
+            flash = (math.sin(current_time * 10) + 1) * 0.5  # Fast flash
+            color = (min(255, max(0, int(100 * flash))), 255, 255)  # Red-cyan flash
         
-        # Adjust alpha based on amplitude squared (intensity)
+        # Keep beams bright - use high alpha for visibility
         intensity = beam_data['amplitude'] ** 2
-        alpha = int(255 * min(1.0, intensity))
-        alpha = max(10, alpha)
+        alpha = int(200 + 55 * intensity)  # Range: 200-255, always bright
+        alpha = max(200, min(255, alpha))
         
-        # Adjust beam width based on amplitude and scale
-        beam_width = max(scale(2), int(BEAM_WIDTH * beam_data['amplitude']))
+        # Get pulse factor for this beam
+        pulse_factor = self._get_pulse_factor(beam_data['amplitude'], time_offset)
+        
+        # Consistent beam width calculation with pulsing
+        min_width = max(1, BEAM_WIDTH // 2)
+        base_beam_width = max(min_width, int(BEAM_WIDTH * beam_data['amplitude']))
+        beam_width = int(base_beam_width * pulse_factor)
+        beam_width = max(1, beam_width)  # Ensure minimum width
         
         # Draw path
         for i in range(len(path) - 1):
             start = path[i].tuple() if hasattr(path[i], 'tuple') else path[i]
             end = path[i+1].tuple() if hasattr(path[i+1], 'tuple') else path[i+1]
             
-            # Draw beam with adjusted color intensity based on amplitude
-            beam_color = tuple(int(c * alpha / 255) for c in color)
+            # Draw beam with dynamic color
+            beam_color = color
             
             # Draw glow effect for stronger beams (not for blocked beams)
             if beam_data['amplitude'] > 0.7 and not was_blocked:
-                # Multiple glow layers for wider beam
-                glow_width = beam_width + scale(8)
-                glow_color = tuple(int(c * alpha / 510) for c in color)
-                pygame.draw.line(self.screen, glow_color, start, end, glow_width)
+                # Pulsing glow layers
+                glow_pulse = 1.0 + math.sin((time.time() - self.start_time + time_offset) * 2.0) * 0.3
                 
-                # Second glow layer
-                glow_width2 = beam_width + scale(4)
-                glow_color2 = tuple(int(c * alpha / 380) for c in color)
-                pygame.draw.line(self.screen, glow_color2, start, end, glow_width2)
+                # Draw multiple glow layers directly for smoother effect
+                glow_width = int((beam_width + beam_width * 2.0) * glow_pulse)
+                
+                for j in range(3):
+                    layer_width = glow_width - j * (glow_width // 4)
+                    # Simulate alpha by dimming the color
+                    dim_factor = 0.3 / (j + 1)  # Gets dimmer with each layer
+                    
+                    # Clamp glow color values
+                    glow_color = (min(255, max(0, int(color[0] * dim_factor))), 
+                                 min(255, max(0, int(color[1] * dim_factor))), 
+                                 min(255, max(0, int(color[2] * dim_factor))))
+                    
+                    # Draw glow directly on screen
+                    if layer_width > 0:
+                        pygame.draw.line(self.screen, glow_color, start, end, layer_width)
             
-            # Draw beam core
-            pygame.draw.line(self.screen, beam_color, start, end, beam_width)
+            # Draw beam core with anti-aliasing for smoother appearance
+            if hasattr(pygame.draw, 'aaline') and beam_width <= 2:
+                # Use anti-aliased line for thin beams
+                pygame.draw.aaline(self.screen, beam_color, start, end)
+            else:
+                # Regular line for thicker beams
+                pygame.draw.line(self.screen, beam_color, start, end, beam_width)
             
-            # Add bright center line for very strong beams
+            # Add bright center line for very strong beams with color shift
             if beam_data['amplitude'] > 0.9 and not was_blocked:
-                center_width = max(scale(1), beam_width // 3)
-                center_color = (200, 255, 255)  # Almost white cyan
+                center_width = max(1, beam_width // 3)
+                
+                # Shifting center color
+                current_time = time.time() - self.start_time + time_offset
+                center_phase = (math.sin(current_time * 4.0) + 1) * 0.5
+                
+                # Shift between white and light cyan - clamp values
+                center_r = min(255, max(0, int(200 + center_phase * 55)))  # 200-255
+                center_g = 255
+                center_b = 255
+                center_color = (center_r, center_g, center_b)
+                
                 pygame.draw.line(self.screen, center_color, start, end, center_width)
         
         # Draw impact effect for blocked beams
         if was_blocked and len(path) >= 2:
-            self._draw_blocked_impact(path[-1], beam_data['amplitude'])
+            self._draw_blocked_impact(path[-1], beam_data['amplitude'], time_offset)
         
         # Draw phase information in debug mode
         if self.debug and len(path) >= 2 and not was_blocked:
             self._draw_phase_info(beam_data, path)
     
-    def _draw_blocked_impact(self, position, amplitude):
-        """Draw impact effect where beam hits blocked position with scaling."""
+    def _draw_blocked_impact(self, position, amplitude, time_offset=0):
+        """Draw pulsing impact effect where beam hits blocked position."""
         pos = position.tuple() if hasattr(position, 'tuple') else position
         
-        # Draw impact flash effect - scale with wider beam
-        impact_radius = int(scale(15) + amplitude * scale(30))
-        alpha = int(amplitude * 128)
+        # Calculate beam width for this amplitude
+        min_width = max(1, BEAM_WIDTH // 2)
+        beam_width = max(min_width, int(BEAM_WIDTH * amplitude))
         
-        # Outer glow
-        for r in range(3):
-            radius = impact_radius - r * scale(4)
-            if radius > 0:
-                surf = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-                pygame.draw.circle(surf, (CYAN[0], CYAN[1], CYAN[2], alpha // (r + 1)),
-                                 (radius, radius), radius)
-                self.screen.blit(surf, (pos[0] - radius, pos[1] - radius))
+        # Pulsing impact effect
+        current_time = time.time() - self.start_time + time_offset
+        impact_pulse = 1.0 + math.sin(current_time * 8.0) * 0.5  # Fast pulse
         
-        # Inner bright spot
-        pygame.draw.circle(self.screen, (200, 255, 255), pos, scale(5))
+        # Draw impact flash effect - scale with beam width and pulse
+        impact_radius = int((beam_width * 3 + amplitude * beam_width * 2) * impact_pulse)
         
-        # Draw small particles/sparks
+        # Draw ripple effect directly on screen
+        num_ripples = 3
+        for r in range(num_ripples):
+            # Each ripple expands outward with time
+            ripple_phase = (current_time * 2.0 + r * 0.5) % 2.0
+            ripple_radius = int(impact_radius * (0.5 + ripple_phase * 0.5))
+            
+            if ripple_radius > 0:
+                # Ripple color shifts from cyan to white based on phase
+                # Make outer ripples dimmer by adjusting color intensity
+                intensity = (1.0 - ripple_phase * 0.5) / (r + 1)
+                # Clamp all color values to 0-255 range
+                r_val = min(255, max(0, int(100 * intensity + ripple_phase * 155 * intensity)))
+                g_val = min(255, max(0, int(255 * intensity)))
+                b_val = min(255, max(0, int(255 * intensity)))
+                ripple_color = (r_val, g_val, b_val)
+                # Draw circle directly on screen with width for ring effect
+                pygame.draw.circle(self.screen, ripple_color, pos, ripple_radius, 2)
+        
+        # Inner bright spot with color pulse - clamp values
+        inner_radius = max(3, beam_width)
+        flash_r = min(255, max(0, int(200 + impact_pulse * 55)))
+        flash_color = (flash_r, 255, 255)
+        pygame.draw.circle(self.screen, flash_color, pos, inner_radius)
+        
+        # Draw rotating particles/sparks
         import random
         random.seed(int(pos[0] + pos[1]))  # Consistent randomness based on position
-        for _ in range(8):  # More particles for wider beam
-            offset_x = random.randint(-scale(20), scale(20))
-            offset_y = random.randint(-scale(20), scale(20))
-            particle_pos = (pos[0] + offset_x, pos[1] + offset_y)
-            pygame.draw.circle(self.screen, (100, 255, 255), particle_pos, scale(2))
+        particle_spread = impact_radius
+        
+        for i in range(12):  # More particles
+            # Rotate particles around impact point
+            angle = (i * 30 + current_time * 100) % 360
+            distance = particle_spread * (0.5 + random.random() * 0.5)
+            
+            particle_x = int(pos[0] + distance * math.cos(math.radians(angle)))
+            particle_y = int(pos[1] + distance * math.sin(math.radians(angle)))
+            
+            particle_size = max(1, beam_width // 3)
+            particle_brightness = random.random()
+            # Clamp particle colors
+            p_r = min(255, max(0, int(100 + particle_brightness * 155)))
+            p_g = min(255, max(0, int(200 + particle_brightness * 55)))
+            particle_color = (p_r, p_g, 255)
+            
+            pygame.draw.circle(self.screen, particle_color, 
+                             (particle_x, particle_y), particle_size)
     
     def _draw_phase_info(self, beam_data, path):
         """Draw phase information at beam origin and end with scaling."""

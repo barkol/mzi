@@ -46,19 +46,14 @@ def get_display_mode():
         # Scale factor determines UI element sizes but not layout
         scale_factor = min(scale_x, scale_y)
         
-        # Adaptive scale factor limits based on screen size
-        if screen_width > 3840:  # 4K ultra-wide or larger
-            scale_factor = min(scale_factor, 2.5)
-        elif screen_width > 2560:  # 4K or 1440p ultra-wide
-            scale_factor = min(scale_factor, 2.0)
-        else:  # 1080p and smaller
-            scale_factor = min(scale_factor, 1.5)
+        # Remove the aggressive scale factor limits - let the settings.py handle it
+        # The 1.5x boost for external monitors is now handled in update_scaled_values
         
         # Update scaled values with fullscreen layout
         update_scaled_values(scale_factor, screen_width, screen_height, fullscreen=True)
         
         print(f"Using fullscreen mode with responsive layout")
-        print(f"  UI scale factor: {scale_factor:.2f}")
+        print(f"  Base scale factor: {scale_factor:.2f}")
         print(f"  Canvas will expand to use available space")
         return (screen_width, screen_height), pygame.FULLSCREEN, scale_factor
     else:
@@ -123,13 +118,7 @@ def main():
                     scale_y = info.current_h / DESIGN_HEIGHT
                     scale_factor = min(scale_x, scale_y)
                     
-                    # Adaptive scale factor limits based on screen size
-                    if info.current_w > 3840:  # 4K ultra-wide or larger
-                        scale_factor = min(scale_factor, 2.5)
-                    elif info.current_w > 2560:  # 4K or 1440p ultra-wide
-                        scale_factor = min(scale_factor, 2.0)
-                    else:  # 1080p and smaller
-                        scale_factor = min(scale_factor, 1.5)
+                    # Remove the scale factor limits - let settings.py handle it
                     
                     update_scaled_values(scale_factor, info.current_w, info.current_h, fullscreen=True)
                     
@@ -139,8 +128,22 @@ def main():
                     
                     game.update_scale(scale_factor)
                     game.update_screen_references(screen, actual_screen)
+                    
+                    # Force UI layout update for fullscreen
+                    from config.settings import (
+                        WINDOW_WIDTH, WINDOW_HEIGHT, CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
+                        CANVAS_WIDTH, CANVAS_HEIGHT, get_sidebar_width, get_right_panel_width,
+                        get_control_panel_height, scale
+                    )
+                    
+                    # Manual UI component updates if needed
+                    if hasattr(game, 'update_layout'):
+                        game.update_layout()
+                    
                     mode = "fullscreen"
-                    print(f"Switched to {mode} mode with scale: {scale_factor:.2f}")
+                    print(f"Switched to {mode} mode with base scale: {scale_factor:.2f}")
+                    print(f"Canvas should be at: ({CANVAS_OFFSET_X}, {CANVAS_OFFSET_Y})")
+                    print(f"Canvas size should be: {CANVAS_WIDTH}x{CANVAS_HEIGHT}")
                     continue
             elif event.type == pygame.VIDEORESIZE and not is_fullscreen:
                 # Handle window resize
@@ -187,6 +190,7 @@ if __name__ == "__main__":
     print("  - Build interferometers to complete challenges and maximize score")
     print("\nFullscreen mode uses responsive layout to fill available space")
     print("UI panels are justified to edges, game area is centered")
+    print("\nExternal monitors (≥2560x1440) receive 1.5x UI scaling boost")
     print()
     
     main()
