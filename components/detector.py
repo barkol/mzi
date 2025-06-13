@@ -166,3 +166,28 @@ class Detector(Component):
             screen.blit(s3, bg_rect.topleft)
             
             screen.blit(text, text_rect)
+
+    """Add this method to your Detector class in components/detector.py"""
+
+    def get_energy_info(self):
+        """Get energy information for conservation analysis."""
+        info = {
+            'position': self.position.tuple(),
+            'num_beams': len(self.incoming_beams),
+            'coherent_intensity': self.intensity,
+            'input_power_sum': 0,
+            'beams': []
+        }
+        
+        # Calculate incoherent sum of input powers
+        for beam in self.incoming_beams:
+            power = beam['amplitude'] ** 2
+            info['input_power_sum'] += power
+            info['beams'].append({
+                'amplitude': beam['amplitude'],
+                'phase': beam['phase'],
+                'phase_deg': beam['phase'] * 180 / math.pi,
+                'power': power
+            })
+        
+        return info

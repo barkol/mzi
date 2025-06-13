@@ -1,4 +1,4 @@
-"""Tunable beam splitter - base class for all optical components."""
+"""Fixed tunable beam splitter with proper beam accumulation and energy conservation."""
 import pygame
 import numpy as np
 import math
@@ -64,12 +64,11 @@ class TunableBeamSplitter(Component):
         self.orientation = orientation
         self.loss = loss
         
-        # Beam accumulation across all generations
-        # Dictionary mapping port index to list of all beams that have arrived
+        # FIXED: Better beam tracking to prevent double-processing
         self.all_beams_by_port = {0: [], 1: [], 2: [], 3: []}  # A, B, C, D
-        self.current_iteration_beams = []  # Beams added in current iteration
+        self.processed_beams = set()  # Track beam IDs to prevent double-processing
         self.processed_this_frame = False
-        self.output_beams = []  # Current output beams
+        self.output_beams = []
         
         self.debug = False
         
@@ -135,7 +134,7 @@ class TunableBeamSplitter(Component):
     def reset_frame(self):
         """Reset for new frame processing - clears all accumulated beams."""
         self.all_beams_by_port = {0: [], 1: [], 2: [], 3: []}
-        self.current_iteration_beams = []
+        self.processed_beams.clear()
         self.processed_this_frame = False
         self.output_beams = []
     
@@ -143,9 +142,19 @@ class TunableBeamSplitter(Component):
         """Add a beam to be processed - accumulates across all iterations."""
         # Only accept beams if this component hasn't been processed yet
         if not self.processed_this_frame:
-            self.current_iteration_beams.append(beam)
+            # FIXED: Add unique ID to beams if not present
+            if 'unique_id' not in beam:
+                beam['unique_id'] = id(beam)
             
-            # Map beam to input port and store it
+            # FIXED: Check if we've already processed this beam
+            if beam['unique_id'] in self.processed_beams:
+                if self.debug:
+                    print(f"  {self.component_type} at {self.position}: rejecting duplicate beam")
+                return
+            
+            self.processed_beams.add(beam['unique_id'])
+            
+            # Map beam to input port
             direction = beam['direction']
             port_idx = None
             
@@ -165,9 +174,9 @@ class TunableBeamSplitter(Component):
                     phase_deg = beam.get('accumulated_phase', beam['phase']) * 180 / math.pi
                     port_name = ['A', 'B', 'C', 'D'][port_idx] if port_idx is not None else '?'
                     print(f"  {self.component_type} at {self.position}: beam added to port {port_name}, "
-                          f"dir ({beam['direction'].x:.1f}, {beam['direction'].y:.1f}), phase={phase_deg:.1f}°")
+                          f"amp={beam['amplitude']:.3f}, phase={phase_deg:.1f}°")
         else:
-            # Component already processed - reject beam to prevent double counting
+            # Component already processed - reject beam
             if self.debug:
                 print(f"  {self.component_type} at {self.position}: rejecting beam (already processed)")
     
@@ -212,7 +221,7 @@ class TunableBeamSplitter(Component):
             v_in[port_idx] = port_sum
             
             if self.debug and abs(port_sum) > 0.001:
-                print(f"    Port {port_names[port_idx]} total input: {port_sum:.3f}")
+                print(f"    Port {port_names[port_idx]} total input: {port_sum:.3f} (|E|²={abs(port_sum)**2:.3f})")
         
         self._last_v_in = v_in.copy()
         
@@ -261,6 +270,7 @@ class TunableBeamSplitter(Component):
             {'name': 'D', 'direction': Vector2(0, -1)}
         ]
         
+        output_counter = 0
         for i, (amplitude, port) in enumerate(zip(v_out, port_info)):
             if abs(amplitude) > 0.001:
                 output_phase = cmath.phase(amplitude)
@@ -278,9 +288,12 @@ class TunableBeamSplitter(Component):
                         if self.all_beams_by_port[0] else 'laser'
                     ),
                     'origin_phase': output_phase,
-                    'origin_component': self
+                    'origin_component': self,
+                    # FIXED: Add unique ID to output beams
+                    'unique_id': f"{id(self)}_out_{output_counter}"
                 }
                 self.output_beams.append(beam)
+                output_counter += 1
                 
                 if self.debug:
                     print(f"    Output port {port['name']}: |E|={abs(amplitude):.3f}, φ={output_phase*180/math.pi:.1f}°")

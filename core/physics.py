@@ -1,11 +1,11 @@
-"""Physics engine for beam propagation with scaling support."""
+"""Fixed physics engine for beam propagation with proper multi-beamsplitter handling."""
 import math
 import cmath
 from utils.vector import Vector2
 from config.settings import WAVELENGTH, IDEAL_COMPONENTS, GRID_SIZE, CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT, scale
 
 class BeamTracer:
-    """Traces beam paths through optical components with scaling."""
+    """Traces beam paths through optical components with proper interference handling."""
     
     def __init__(self):
         self.active_beams = []
@@ -30,8 +30,6 @@ class BeamTracer:
         self.active_beams = []
         # Clear this frame's gold field hits
         self.gold_field_hits_this_frame = {}
-        # Note: We don't reset gold_field_hits or collected_gold_fields here
-        # They persist across frames until explicitly reset
     
     def reset_gold_collection(self):
         """Reset gold field collection state."""
@@ -45,10 +43,10 @@ class BeamTracer:
     
     def trace_beams(self, components, max_depth=10):
         """
-        Trace all beams through components.
+        Trace all beams through components with proper multi-beamsplitter interference.
         
-        Key change: Components accumulate beams across all iterations,
-        then process everything at the end.
+        FIXED: Ensure beams from all sources reach their destination beam splitters
+        before those beam splitters are processed.
         """
         # Reset components for new frame
         for comp in components:
@@ -59,28 +57,39 @@ class BeamTracer:
         all_traced_paths = []
         
         if self.debug:
-            print(f"\n=== NEW FRAME - Beam tracing with proper accumulation ===")
+            print(f"\n=== NEW FRAME - Beam tracing with fixed accumulation ===")
         
         # Start with initial beams
         active_beams = self.active_beams.copy()
-        iteration = 0
         
-        # Phase 1: Trace all beams and accumulate them at components
-        # Keep iterating until no new beams are generated
-        while active_beams and iteration < max_depth:
+        # FIXED: First, trace ALL beams to their destinations and accumulate them
+        # This includes beams from laser and ALL outputs from components
+        all_beams_to_trace = active_beams.copy()
+        traced_beam_ids = set()
+        
+        iteration = 0
+        while all_beams_to_trace and iteration < max_depth * 2:
             if self.debug:
-                print(f"\n--- Iteration {iteration} ---")
-                print(f"Active beams: {len(active_beams)}")
+                print(f"\n--- Full trace iteration {iteration} ---")
+                print(f"Beams to trace: {len(all_beams_to_trace)}")
             
-            new_beams = []
+            new_beams_to_trace = []
             
-            # Trace all active beams
-            for beam in active_beams:
+            for beam in all_beams_to_trace:
+                # Skip if already traced
+                if 'unique_id' not in beam:
+                    beam['unique_id'] = f"beam_{id(beam)}"
+                
+                if beam['unique_id'] in traced_beam_ids:
+                    continue
+                
+                traced_beam_ids.add(beam['unique_id'])
+                
                 # Skip very weak beams
                 if abs(beam['amplitude']) < 0.01:
                     continue
                 
-                # Trace beam to next component or blocked position
+                # Trace beam to next component
                 path, hit_component, path_length, blocked = self._trace_single_beam(beam, components)
                 
                 if path and len(path) >= 2:
@@ -94,11 +103,10 @@ class BeamTracer:
                         'amplitude': abs(beam['amplitude']),
                         'phase': new_accumulated_phase,
                         'source_type': beam.get('source_type', 'laser'),
-                        'blocked': blocked  # Mark if beam was blocked
+                        'blocked': blocked
                     })
                     
                     if blocked:
-                        # Beam hit a blocked position - stop propagation
                         if self.debug:
                             print(f"  Beam blocked at position {path[-1]}")
                         continue
@@ -108,19 +116,24 @@ class BeamTracer:
                         beam_at_component = beam.copy()
                         beam_at_component['accumulated_phase'] = new_accumulated_phase
                         beam_at_component['total_path_length'] = beam.get('total_path_length', 0) + path_length
+                        beam_at_component['unique_id'] = beam['unique_id']
                         
                         if self.debug:
-                            print(f"  Beam hit {hit_component.component_type} at {hit_component.position}")
+                            print(f"  Beam {beam['unique_id']} hit {hit_component.component_type} at {hit_component.position}")
                         
-                        # Add beam to component (accumulate, don't process yet)
-                        if hit_component.component_type in ["mirror", "beamsplitter", "detector"]:
+                        # Add beam to component accumulation
+                        if hasattr(hit_component, 'add_beam'):
                             hit_component.add_beam(beam_at_component)
-                            
-                            # For mirrors, process immediately since they don't have interference
-                            if hit_component.component_type == "mirror" and not hit_component.processed_this_frame:
+                        
+                        # If it's a mirror, process it immediately and get output beams
+                        if hit_component.component_type == "mirror" and not hit_component.processed_this_frame:
+                            if hasattr(hit_component, 'finalize_frame'):
                                 output_beams = hit_component.finalize_frame()
                                 
                                 for out_beam in output_beams:
+                                    # Ensure unique ID
+                                    out_beam['unique_id'] = f"{beam['unique_id']}_mirror_{id(out_beam)}"
+                                    
                                     # Visualization
                                     output_path = [hit_component.position, out_beam['position']]
                                     all_traced_paths.append({
@@ -131,50 +144,60 @@ class BeamTracer:
                                         'blocked': False
                                     })
                                     
-                                    new_beams.append(out_beam)
+                                    # Add to beams to trace
+                                    new_beams_to_trace.append(out_beam)
                                     
                                     if self.debug:
                                         dir_str = self._direction_to_string(out_beam['direction'])
                                         print(f"    Mirror output {dir_str}: amp={abs(out_beam['amplitude']):.3f}")
             
-            # Continue with new beams from mirrors only
-            active_beams = new_beams
+            # Continue with new beams
+            all_beams_to_trace = new_beams_to_trace
             iteration += 1
         
-        # Phase 2: Process all beam splitters AFTER all beams have been accumulated
+        # FIXED: Now process ALL beam splitters after ALL beams have been accumulated
         if self.debug:
-            print(f"\n=== PROCESSING BEAM SPLITTERS - All beams accumulated ===")
+            print(f"\n=== PROCESSING ALL BEAM SPLITTERS - After full accumulation ===")
         
-        # Keep processing beam splitters until no new beams are generated
+        # Get all beam splitters
+        beam_splitters = [c for c in components if c.component_type == "beamsplitter"]
+        
+        # Process beam splitters and trace their outputs
         bs_iteration = 0
-        bs_processed_any = True
+        bs_processed = True
         
-        while bs_processed_any and bs_iteration < max_depth:
-            bs_processed_any = False
-            new_beams = []
+        while bs_processed and bs_iteration < max_depth:
+            bs_processed = False
+            new_beams_from_bs = []
             
-            for comp in components:
-                if comp.component_type == "beamsplitter" and not comp.processed_this_frame:
-                    # Check if this beam splitter has any beams to process
-                    total_beams = sum(len(beams) for beams in comp.all_beams_by_port.values())
+            if self.debug:
+                print(f"\n--- Beam splitter processing iteration {bs_iteration} ---")
+            
+            for bs in beam_splitters:
+                if not bs.processed_this_frame:
+                    # Check if this beam splitter has any beams
+                    total_beams = sum(len(beams) for beams in bs.all_beams_by_port.values())
                     
                     if total_beams > 0:
-                        bs_processed_any = True
+                        bs_processed = True
                         
                         if self.debug:
-                            print(f"\n  Processing beam splitter at {comp.position}")
+                            print(f"\n  Processing beam splitter at {bs.position}")
                             print(f"    Total accumulated beams: {total_beams}")
+                            port_names = ['A', 'B', 'C', 'D']
+                            for i, beams in enumerate(bs.all_beams_by_port.values()):
+                                if beams:
+                                    print(f"    Port {port_names[i]}: {len(beams)} beams")
                         
-                        # Process with ALL accumulated beams
-                        output_beams = comp.finalize_frame()
+                        # Process the beam splitter
+                        output_beams = bs.finalize_frame()
                         
-                        total_output_intensity = 0
                         for out_beam in output_beams:
-                            intensity = out_beam['amplitude']**2
-                            total_output_intensity += intensity
+                            # Ensure unique ID
+                            out_beam['unique_id'] = f"bs_{id(bs)}_out_{id(out_beam)}"
                             
                             # Visualization
-                            output_path = [comp.position, out_beam['position']]
+                            output_path = [bs.position, out_beam['position']]
                             all_traced_paths.append({
                                 'path': output_path,
                                 'amplitude': abs(out_beam['amplitude']),
@@ -183,72 +206,62 @@ class BeamTracer:
                                 'blocked': False
                             })
                             
-                            new_beams.append(out_beam)
+                            new_beams_from_bs.append(out_beam)
                             
                             if self.debug:
                                 dir_str = self._direction_to_string(out_beam['direction'])
-                                print(f"    Output {dir_str}: amp={abs(out_beam['amplitude']):.3f}, intensity={intensity*100:.1f}%")
+                                print(f"    BS output {dir_str}: amp={abs(out_beam['amplitude']):.3f}")
             
-            # Trace the new beams from beam splitters
-            if new_beams:
-                active_beams = new_beams
+            # Trace the new beams from beam splitters to see if they hit other components
+            if new_beams_from_bs:
+                if self.debug:
+                    print(f"\n  Tracing {len(new_beams_from_bs)} beams from beam splitters")
                 
-                # Trace these new beams to see if they hit other components
-                while active_beams:
-                    next_beams = []
+                for beam in new_beams_from_bs:
+                    # Trace to next component
+                    path, hit_component, path_length, blocked = self._trace_single_beam(beam, components)
                     
-                    for beam in active_beams:
-                        if abs(beam['amplitude']) < 0.01:
+                    if path and len(path) >= 2:
+                        phase_change = self.k * path_length
+                        new_accumulated_phase = beam.get('accumulated_phase', beam['phase']) + phase_change
+                        
+                        all_traced_paths.append({
+                            'path': path,
+                            'amplitude': abs(beam['amplitude']),
+                            'phase': new_accumulated_phase,
+                            'source_type': beam.get('source_type', 'laser'),
+                            'blocked': blocked
+                        })
+                        
+                        if blocked:
+                            if self.debug:
+                                print(f"    Beam blocked at position {path[-1]}")
                             continue
                         
-                        path, hit_component, path_length, blocked = self._trace_single_beam(beam, components)
-                        
-                        if path and len(path) >= 2:
-                            phase_change = self.k * path_length
-                            new_accumulated_phase = beam.get('accumulated_phase', beam['phase']) + phase_change
+                        if hit_component:
+                            beam_at_component = beam.copy()
+                            beam_at_component['accumulated_phase'] = new_accumulated_phase
+                            beam_at_component['total_path_length'] = beam.get('total_path_length', 0) + path_length
+                            beam_at_component['unique_id'] = beam['unique_id']
                             
-                            all_traced_paths.append({
-                                'path': path,
-                                'amplitude': abs(beam['amplitude']),
-                                'phase': new_accumulated_phase,
-                                'source_type': beam.get('source_type', 'laser'),
-                                'blocked': blocked
-                            })
+                            if self.debug:
+                                print(f"    Beam {beam['unique_id']} reached {hit_component.component_type} at {hit_component.position}")
                             
-                            if blocked:
-                                if self.debug:
-                                    print(f"  Beam blocked at position {path[-1]}")
-                                continue
+                            # Add to component
+                            if hasattr(hit_component, 'add_beam'):
+                                hit_component.add_beam(beam_at_component)
                             
-                            if hit_component:
-                                beam_at_component = beam.copy()
-                                beam_at_component['accumulated_phase'] = new_accumulated_phase
-                                beam_at_component['total_path_length'] = beam.get('total_path_length', 0) + path_length
-                                
-                                if hit_component.component_type in ["mirror", "beamsplitter", "detector"]:
-                                    hit_component.add_beam(beam_at_component)
-                                    
-                                    # Process mirrors immediately
-                                    if hit_component.component_type == "mirror" and not hit_component.processed_this_frame:
-                                        mirror_outputs = hit_component.finalize_frame()
-                                        
-                                        for out_beam in mirror_outputs:
-                                            output_path = [hit_component.position, out_beam['position']]
-                                            all_traced_paths.append({
-                                                'path': output_path,
-                                                'amplitude': abs(out_beam['amplitude']),
-                                                'phase': out_beam['phase'],
-                                                'source_type': out_beam.get('source_type', 'laser'),
-                                                'blocked': False
-                                            })
-                                            
-                                            next_beams.append(out_beam)
-                    
-                    active_beams = next_beams
+                            # Process mirrors immediately
+                            if hit_component.component_type == "mirror" and not hit_component.processed_this_frame:
+                                if hasattr(hit_component, 'finalize_frame'):
+                                    mirror_outputs = hit_component.finalize_frame()
+                                    for out_beam in mirror_outputs:
+                                        out_beam['unique_id'] = f"{beam['unique_id']}_mirror_{id(out_beam)}"
+                                        new_beams_from_bs.append(out_beam)
             
             bs_iteration += 1
         
-        # Phase 3: Process all detectors
+        # Process all detectors
         for comp in components:
             if comp.component_type == "detector" and hasattr(comp, 'finalize_frame'):
                 comp.finalize_frame()
@@ -322,7 +335,7 @@ class BeamTracer:
             # Check if beam hits a blocked position
             for blocked_pos in self.blocked_positions:
                 if blocked_pos.distance_to(next_pos) < GRID_SIZE / 2:
-                    # Beam hit a blocked position - calculate exact intersection
+                    # Beam hit a blocked position
                     intersection = self._calculate_blocked_intersection(current_pos, next_pos, blocked_pos)
                     if intersection:
                         path.append(intersection)
