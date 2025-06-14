@@ -4,7 +4,7 @@ import os
 import math
 from components.laser import Laser
 from core.grid import Grid
-from core.physics import BeamTracer
+from core.waveoptics import WaveOpticsEngine
 from core.beam_renderer import BeamRenderer
 from core.component_manager import ComponentManager
 from core.keyboard_handler import KeyboardHandler
@@ -86,7 +86,7 @@ class Game:
         self.sidebar.set_can_add_callback(self._can_add_component)
         
         # Physics
-        self.beam_tracer = BeamTracer()
+        self.beam_tracer = WaveOpticsEngine()
         
         # Keyboard handler
         self.keyboard_handler = KeyboardHandler(self)

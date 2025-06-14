@@ -10,3 +10,4 @@ from .test_utilities import TestUtilities
 from .challenge_manager import ChallengeManager
 from .leaderboard import LeaderboardManager
 from .sound_manager import SoundManager
+from .waveoptics import WaveOpticsEngine

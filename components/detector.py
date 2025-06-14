@@ -22,7 +22,7 @@ class Detector(Component):
         """Reset for new frame processing."""
         self.incoming_beams = []
         self.processed_this_frame = False
-        self.intensity = 0
+        # Don't reset intensity immediately - let it persist until new beams arrive
         self.total_path_length = 0
         self.current_generation = -1
     
@@ -49,15 +49,15 @@ class Detector(Component):
         # Store the beam information
         self.incoming_beams.append({
             'amplitude': beam['amplitude'],
-            'phase': beam.get('accumulated_phase', beam['phase']),
-            'path_length': beam.get('total_path_length', 0),
+            'phase': beam.get('accumulated_phase', beam.get('phase', 0)),
+            'path_length': beam.get('total_path_length', beam.get('path_length', 0)),
             'beam_id': beam.get('beam_id', 'unknown')
         })
         
         if self.debug:
             print(f"  Detector at {self.position} received beam {beam.get('beam_id', 'unknown')}:")
             print(f"    Amplitude: {beam['amplitude']:.3f}")
-            print(f"    Phase: {beam.get('accumulated_phase', beam['phase'])*180/math.pi:.1f}°")
+            print(f"    Phase: {beam.get('accumulated_phase', beam.get('phase', 0))*180/math.pi:.1f}°")
             print(f"    Generation: {beam_generation}")
     
     def process_beam(self, beam):
@@ -73,7 +73,7 @@ class Detector(Component):
         
         self.processed_this_frame = True
         
-        # If no beams reached this detector, intensity remains 0
+        # If no beams reached this detector, set intensity to 0
         if not self.incoming_beams:
             self.intensity = 0
             self.total_path_length = 0
@@ -142,6 +142,10 @@ class Detector(Component):
             'generation': self.current_generation
         }
     
+    def get_intensity_percentage(self):
+        """Get intensity as a percentage for display."""
+        return int(round(self.intensity * 100))
+    
     def draw(self, screen):
         """Draw detector with intensity visualization."""
         # Base circle
@@ -156,7 +160,7 @@ class Detector(Component):
         pygame.draw.circle(screen, CYAN, self.position.tuple(), 10)
         
         # Intensity visualization
-        if self.intensity > 0:
+        if self.intensity > 0.01:  # Show if > 1%
             # Glow effect based on intensity
             # Scale the glow for intensities up to 2.0 (200%)
             glow_radius = int(35 + min(self.intensity, 2.0) * 15)
@@ -171,48 +175,35 @@ class Detector(Component):
             s2 = pygame.Surface((glow_radius * 2 + 10, glow_radius * 2 + 10), pygame.SRCALPHA)
             pygame.draw.circle(s2, ring_color, (glow_radius + 5, glow_radius + 5), glow_radius, 5)
             screen.blit(s2, (self.position.x - glow_radius - 5, self.position.y - glow_radius - 5))
-            
-            # Display percentage
-            display_percent = round(self.intensity * 100)
-            font = pygame.font.Font(None, 20)
-            
-            # Color changes based on intensity
-            if self.intensity > 1.5:  # More than 150%
-                text_color = (255, 255, 255)  # White for high intensity
-            elif self.intensity > 1.0:  # More than 100%
-                text_color = (0, 255, 255)  # Bright cyan
-            elif self.intensity < 0.1:  # Less than 10%
-                text_color = (0, 128, 128)  # Dark cyan
-            else:
-                text_color = (0, 200, 200)  # Normal cyan
-            
-            text = font.render(f"{display_percent}%", True, text_color)
-            text_rect = text.get_rect(center=(self.position.x, self.position.y + 50))
-            
-            # Background for text
-            bg_rect = text_rect.inflate(10, 5)
-            s3 = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            s3.fill((0, 0, 0, 180))
-            screen.blit(s3, bg_rect.topleft)
-            
-            screen.blit(text, text_rect)
-            
-            # Show beam count in debug mode
-            if self.debug and len(self.incoming_beams) > 1:
-                beam_count_font = pygame.font.Font(None, 14)
-                beam_text = beam_count_font.render(f"{len(self.incoming_beams)} beams", True, CYAN)
-                beam_rect = beam_text.get_rect(center=(self.position.x, self.position.y + 70))
-                screen.blit(beam_text, beam_rect)
+        
+        # Always display percentage
+        display_percent = self.get_intensity_percentage()
+        font = pygame.font.Font(None, 20)
+        
+        # Color changes based on intensity
+        if self.intensity > 1.5:  # More than 150%
+            text_color = (255, 255, 255)  # White for high intensity
+        elif self.intensity > 1.0:  # More than 100%
+            text_color = (0, 255, 255)  # Bright cyan
+        elif self.intensity < 0.1:  # Less than 10%
+            text_color = (100, 100, 100)  # Gray for low/no intensity
         else:
-            # Show 0% when no intensity
-            font = pygame.font.Font(None, 20)
-            text = font.render("0%", True, (100, 100, 100))
-            text_rect = text.get_rect(center=(self.position.x, self.position.y + 50))
-            
-            # Background for text
-            bg_rect = text_rect.inflate(10, 5)
-            s3 = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-            s3.fill((0, 0, 0, 180))
-            screen.blit(s3, bg_rect.topleft)
-            
-            screen.blit(text, text_rect)
+            text_color = (0, 200, 200)  # Normal cyan
+        
+        text = font.render(f"{display_percent}%", True, text_color)
+        text_rect = text.get_rect(center=(self.position.x, self.position.y + 50))
+        
+        # Background for text
+        bg_rect = text_rect.inflate(10, 5)
+        s3 = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+        s3.fill((0, 0, 0, 180))
+        screen.blit(s3, bg_rect.topleft)
+        
+        screen.blit(text, text_rect)
+        
+        # Show beam count in debug mode
+        if self.debug and len(self.incoming_beams) > 1:
+            beam_count_font = pygame.font.Font(None, 14)
+            beam_text = beam_count_font.render(f"{len(self.incoming_beams)} beams", True, CYAN)
+            beam_rect = beam_text.get_rect(center=(self.position.x, self.position.y + 70))
+            screen.blit(beam_text, beam_rect)
