@@ -321,185 +321,212 @@ class Game:
         return current_count < max_components
     
     def _handle_control_action(self, action):
-        """Handle control panel actions."""
-        if action == 'Clear All':
-            self.component_manager.clear_all(self.laser)
-            self.score = 0
-            self.controls.score = self.score
-            # Reset gold collection
-            self.beam_tracer.reset_gold_collection()
-            if hasattr(self.controls, 'set_gold_bonus'):
-                self.controls.set_gold_bonus(0)
-            self.last_gold_hits.clear()
-            
-            # Reset completed challenges with Shift
-            if pygame.key.get_mods() & pygame.KMOD_SHIFT:
-                self.completed_challenges.clear()
-                if hasattr(self.controls, 'set_challenge_completed'):
-                    self.controls.set_challenge_completed(False)
-                if hasattr(self.controls, 'set_gold_bonus'):
-                    self.controls.set_gold_bonus(0)
-                self.controls.set_status("Setup cleared and challenges reset!")
-                self.right_panel.add_debug_message("Session reset - challenges can be completed again")
-                self.sound_manager.play('notification')
-                print("Completed challenges reset - you can earn points again")
-            else:
-                self.controls.set_status("Score = Detector Power × 1000 + Gold Bonus")
-                self.right_panel.add_debug_message("Setup cleared")
-                
-        elif action == 'Check Setup':
-            # Check against current challenge
-            success, message, points = self.challenge_manager.check_setup(
-                self.component_manager.components, self.laser, self.beam_tracer)
-            if success:
-                # Check if this challenge was already completed
-                challenge_name = self.challenge_manager.current_challenge
-                if challenge_name and challenge_name not in self.completed_challenges:
-                    # First time completing
-                    self._update_score(points)
-                    self.completed_challenges.add(challenge_name)
-                    self.effects.add_success_message()
-                    self.sound_manager.play('challenge_complete')
-                    
-                    if hasattr(self.controls, 'set_challenge_completed'):
-                        self.controls.set_challenge_completed(True)
-                    
-                    # Check high score
-                    if self.score > self.session_high_score:
-                        self.session_high_score = self.score
-                        self.sound_manager.play('high_score')
-                    
-                    # Show leaderboard
-                    challenge_info = self.challenge_manager.challenges.get(challenge_name, {})
-                    
-                    # Get current field configuration display name
-                    field_configs = self.challenge_manager.get_available_field_configs()
-                    current_field_display = "Default Fields"
-                    for config in field_configs:
-                        if config['name'] == self.challenge_manager.current_field_config:
-                            current_field_display = config['display_name']
-                            break
-                    
-                    self.leaderboard_display.show(
-                        auto_add_score=self.score,
-                        challenge=challenge_info.get('name', 'Unknown'),
-                        components=len(self.component_manager.components),
-                        field_config=current_field_display
-                    )
-                else:
-                    # Already completed
-                    self.controls.set_status("Challenge already completed this session!")
-                    self.effects.add_info_message("Challenge Complete", "No additional points awarded")
-                    self.sound_manager.play('notification')
-                    print("Challenge already completed - no additional points awarded")
-                
-                print(message)
-            else:
-                self.controls.set_status(f"Failed: {message}")
-                self.sound_manager.play('challenge_failed')
-                print(f"Challenge check failed: {message}")
-                
-        elif action == 'Toggle Laser':
-            if self.laser:
-                self.laser.enabled = not self.laser.enabled
-                if self.laser.enabled:
-                    self.sound_manager.play('laser_on')
-                else:
-                    self.sound_manager.play('laser_off')
-                    # Clear per-frame gold field tracking when laser is turned off
-                    if hasattr(self.beam_tracer, 'gold_field_hits_this_frame'):
-                        self.beam_tracer.gold_field_hits_this_frame.clear()
-                    # Clear last gold hits for sound tracking
-                    self.last_gold_hits.clear()
-                    # Note: We do NOT reset gold_field_hits or collected_gold_fields
-                    # The gold bonus persists until explicitly reset
-                    
-        elif action == 'Load Challenge':
-            # Cycle through challenges
-            challenges = self.challenge_manager.get_challenge_list()
-            if challenges:
-                current_idx = -1
-                if self.challenge_manager.current_challenge:
-                    for i, (name, _) in enumerate(challenges):
-                        if name == self.challenge_manager.current_challenge:
-                            current_idx = i
-                            break
-                
-                # Go to next challenge
-                next_idx = (current_idx + 1) % len(challenges)
-                challenge_name, challenge_title = challenges[next_idx]
-                self.challenge_manager.set_current_challenge(challenge_name)
-                self.current_challenge_display_name = challenge_title
-                self.controls.set_challenge(challenge_title)
-                
-                # Update completion status
-                is_completed = challenge_name in self.completed_challenges
-                if hasattr(self.controls, 'set_challenge_completed'):
-                    self.controls.set_challenge_completed(is_completed)
-                
-                # Reset gold collection when loading new challenge
+            """Handle control panel actions."""
+            if action == 'Clear All':
+                self.component_manager.clear_all(self.laser)
+                self.score = 0
+                self.controls.score = self.score
+                # Reset gold collection
                 self.beam_tracer.reset_gold_collection()
                 if hasattr(self.controls, 'set_gold_bonus'):
                     self.controls.set_gold_bonus(0)
                 self.last_gold_hits.clear()
                 
-                self.sound_manager.play('panel_open')
-                print(f"Loaded challenge: {challenge_title}")
-                self.right_panel.add_debug_message(f"Loaded challenge: {challenge_title}")
-                
-        elif action == 'Load Fields':
-            # Cycle through field configurations
-            field_configs = self.challenge_manager.get_available_field_configs()
-            print(f"Available field configurations: {len(field_configs)}")
-            for config in field_configs:
-                print(f"  - {config['name']}: {config['display_name']}")
-            
-            if field_configs:
-                # Find current configuration
-                current_idx = -1
-                current_config = self.challenge_manager.current_field_config
-                for i, config in enumerate(field_configs):
-                    if config['name'] == current_config:
-                        current_idx = i
-                        break
-                
-                # Go to next configuration
-                next_idx = (current_idx + 1) % len(field_configs)
-                next_config = field_configs[next_idx]
-                
-                print(f"Switching from '{current_config}' to '{next_config['name']}'")
-                
-                # Clear components before loading new field configuration
-                self.component_manager.clear_all(self.laser)
-                
-                # Load the new field configuration
-                success = self.challenge_manager.load_field_config(next_config['name'])
-                
-                if success:
-                    # Update UI
-                    self.controls.set_field_config(next_config['display_name'])
-                    self.sound_manager.play('panel_open')
-                    self.right_panel.add_debug_message(f"Loaded fields: {next_config['display_name']}")
+                # Reset completed challenges with Shift
+                if pygame.key.get_mods() & pygame.KMOD_SHIFT:
+                    self.completed_challenges.clear()
+                    if hasattr(self.controls, 'set_challenge_completed'):
+                        self.controls.set_challenge_completed(False)
+                    if hasattr(self.controls, 'set_gold_bonus'):
+                        self.controls.set_gold_bonus(0)
+                    self.controls.set_status("Setup cleared and challenges reset!")
+                    self.right_panel.add_debug_message("Session reset - challenges can be completed again")
+                    self.sound_manager.play('notification')
+                    print("Completed challenges reset - you can earn points again")
+                else:
+                    self.controls.set_status("Score = Detector Power × 1000 + Gold Bonus")
+                    self.right_panel.add_debug_message("Setup cleared")
                     
-                    # Clear score when changing field configuration
-                    self.score = 0
-                    self.controls.score = self.score
-                    # Reset gold collection
+            elif action == 'Check Setup':
+                # Force a complete recalculation before checking
+                self.beam_tracer.reset()
+                for comp in self.component_manager.components:
+                    if hasattr(comp, 'reset_frame'):
+                        comp.reset_frame()
+                
+                # Check against current challenge
+                success, message, points = self.challenge_manager.check_setup(
+                    self.component_manager.components, self.laser, self.beam_tracer)
+                if success:
+                    # Check if this challenge was already completed
+                    challenge_name = self.challenge_manager.current_challenge
+                    if challenge_name and challenge_name not in self.completed_challenges:
+                        # First time completing
+                        self._update_score(points)
+                        self.completed_challenges.add(challenge_name)
+                        self.effects.add_success_message()
+                        self.sound_manager.play('challenge_complete')
+                        
+                        if hasattr(self.controls, 'set_challenge_completed'):
+                            self.controls.set_challenge_completed(True)
+                        
+                        # Check high score
+                        if self.score > self.session_high_score:
+                            self.session_high_score = self.score
+                            self.sound_manager.play('high_score')
+                        
+                        # Show leaderboard
+                        challenge_info = self.challenge_manager.challenges.get(challenge_name, {})
+                        
+                        # Get current field configuration display name
+                        field_configs = self.challenge_manager.get_available_field_configs()
+                        current_field_display = "Default Fields"
+                        for config in field_configs:
+                            if config['name'] == self.challenge_manager.current_field_config:
+                                current_field_display = config['display_name']
+                                break
+                        
+                        self.leaderboard_display.show(
+                            auto_add_score=self.score,
+                            challenge=challenge_info.get('name', 'Unknown'),
+                            components=len(self.component_manager.components),
+                            field_config=current_field_display
+                        )
+                    else:
+                        # Already completed
+                        self.controls.set_status("Challenge already completed this session!")
+                        self.effects.add_info_message("Challenge Complete", "No additional points awarded")
+                        self.sound_manager.play('notification')
+                        print("Challenge already completed - no additional points awarded")
+                    
+                    print(message)
+                else:
+                    self.controls.set_status(f"Failed: {message}")
+                    self.sound_manager.play('challenge_failed')
+                    print(f"Challenge check failed: {message}")
+                    
+            elif action == 'Toggle Laser':
+                if self.laser:
+                    self.laser.enabled = not self.laser.enabled
+                    if self.laser.enabled:
+                        self.sound_manager.play('laser_on')
+                        # Reset all components when laser is turned on
+                        self.beam_tracer.reset()
+                        for comp in self.component_manager.components:
+                            if hasattr(comp, 'reset_frame'):
+                                comp.reset_frame()
+                    else:
+                        self.sound_manager.play('laser_off')
+                        # Clear all beams and reset components when laser is turned off
+                        self.beam_tracer.reset()
+                        for comp in self.component_manager.components:
+                            if hasattr(comp, 'reset_frame'):
+                                comp.reset_frame()
+                            # Clear detector intensities immediately
+                            if comp.component_type == 'detector':
+                                comp.intensity = 0
+                                comp.incoming_beams = []
+                        # Clear per-frame gold field tracking when laser is turned off
+                        if hasattr(self.beam_tracer, 'gold_field_hits_this_frame'):
+                            self.beam_tracer.gold_field_hits_this_frame.clear()
+                        # Clear last gold hits for sound tracking
+                        self.last_gold_hits.clear()
+                        
+            elif action == 'Load Challenge':
+                # Cycle through challenges
+                challenges = self.challenge_manager.get_challenge_list()
+                if challenges:
+                    current_idx = -1
+                    if self.challenge_manager.current_challenge:
+                        for i, (name, _) in enumerate(challenges):
+                            if name == self.challenge_manager.current_challenge:
+                                current_idx = i
+                                break
+                    
+                    # Go to next challenge
+                    next_idx = (current_idx + 1) % len(challenges)
+                    challenge_name, challenge_title = challenges[next_idx]
+                    self.challenge_manager.set_current_challenge(challenge_name)
+                    self.current_challenge_display_name = challenge_title
+                    self.controls.set_challenge(challenge_title)
+                    
+                    # Update completion status
+                    is_completed = challenge_name in self.completed_challenges
+                    if hasattr(self.controls, 'set_challenge_completed'):
+                        self.controls.set_challenge_completed(is_completed)
+                    
+                    # Reset gold collection when loading new challenge
                     self.beam_tracer.reset_gold_collection()
                     if hasattr(self.controls, 'set_gold_bonus'):
                         self.controls.set_gold_bonus(0)
                     self.last_gold_hits.clear()
                     
-                    # Show status message
-                    self.controls.set_status(f"Loaded: {next_config['display_name']}")
-                else:
-                    self.controls.set_status("Failed to load field configuration!")
-                    self.sound_manager.play('error')
-                    self.right_panel.add_debug_message("Error loading field configuration")
-            else:
-                print("No field configurations available!")
-                self.controls.set_status("No field configurations available!")
-                self.sound_manager.play('error')
+                    # Reset all components
+                    self.beam_tracer.reset()
+                    for comp in self.component_manager.components:
+                        if hasattr(comp, 'reset_frame'):
+                            comp.reset_frame()
+                    
+                    self.sound_manager.play('panel_open')
+                    print(f"Loaded challenge: {challenge_title}")
+                    self.right_panel.add_debug_message(f"Loaded challenge: {challenge_title}")
+                    
+            elif action == 'Load Fields':
+                # Cycle through field configurations
+                field_configs = self.challenge_manager.get_available_field_configs()
+                print(f"Available field configurations: {len(field_configs)}")
+                for config in field_configs:
+                    print(f"  - {config['name']}: {config['display_name']}")
+                
+                if field_configs:
+                    # Find current configuration
+                    current_idx = -1
+                    current_config = self.challenge_manager.current_field_config
+                    for i, config in enumerate(field_configs):
+                        if config['name'] == current_config:
+                            current_idx = i
+                            break
+                    
+                    # Go to next configuration
+                    next_idx = (current_idx + 1) % len(field_configs)
+                    next_config = field_configs[next_idx]
+                    
+                    print(f"Switching from '{current_config}' to '{next_config['name']}'")
+                    
+                    # Clear components before loading new field configuration
+                    self.component_manager.clear_all(self.laser)
+                    
+                    # Load the new field configuration
+                    success = self.challenge_manager.load_field_config(next_config['name'])
+                    
+                    if success:
+                        # Update UI
+                        self.controls.set_field_config(next_config['display_name'])
+                        self.sound_manager.play('panel_open')
+                        self.right_panel.add_debug_message(f"Loaded fields: {next_config['display_name']}")
+                        
+                        # Clear score when changing field configuration
+                        self.score = 0
+                        self.controls.score = self.score
+                        # Reset gold collection
+                        self.beam_tracer.reset_gold_collection()
+                        if hasattr(self.controls, 'set_gold_bonus'):
+                            self.controls.set_gold_bonus(0)
+                        self.last_gold_hits.clear()
+                        
+                        # Reset all components
+                        self.beam_tracer.reset()
+                        for comp in self.component_manager.components:
+                            if hasattr(comp, 'reset_frame'):
+                                comp.reset_frame()
+                        
+                        # Show status message
+                        self.controls.set_status(f"Loaded: {next_config['display_name']}")
+                    else:
+                        self.controls.set_status("Failed to load field configuration!")
+                        self.sound_manager.play('error')
+                        self.right_panel.add_debug_message("Error loading field configuration")
+
 
     def _update_score(self, points):
         """Update game score."""
@@ -511,52 +538,88 @@ class Game:
             self.session_high_score = self.score
     
     def update(self, dt):
-        """Update game state."""
-        self.effects.update(dt)
-        
-        # Update keyboard handler (for energy monitor)
-        self.keyboard_handler.update()
-        
-        # Update detector sounds
-        detectors = [c for c in self.component_manager.components if c.component_type == 'detector']
-        for i, detector in enumerate(detectors):
-            self.sound_manager.update_detector_sound(
-                detector_id=id(detector),
-                intensity=detector.intensity,
-                position=detector.position.tuple()
-            )
-        
-        # Check for gold field hits this frame and play sounds
-        if hasattr(self.beam_tracer, 'gold_field_hits_this_frame'):
-            # Play sound only for gold fields that are newly hit (weren't hit last frame)
-            for pos, intensity in self.beam_tracer.gold_field_hits_this_frame.items():
-                if intensity > 0:
-                    # Check if this field was NOT hit in the last frame
-                    last_intensity = self.last_gold_hits.get(pos, 0)
+            """Update game state."""
+            self.effects.update(dt)
+            
+            # Update keyboard handler (for energy monitor)
+            self.keyboard_handler.update()
+            
+            # Only trace beams if laser is enabled
+            if self.laser and self.laser.enabled:
+                # Reset beam tracer at the start of each frame
+                self.beam_tracer.reset()
+                
+                # Reset all components for the new frame
+                for comp in self.component_manager.components:
+                    if hasattr(comp, 'reset_frame'):
+                        comp.reset_frame()
+                
+                # Set blocked and gold positions
+                self.beam_tracer.set_blocked_positions(self.challenge_manager.get_blocked_positions())
+                self.beam_tracer.set_gold_positions(self.challenge_manager.get_gold_positions())
+                
+                # Add laser beam
+                laser_beam = self.laser.emit_beam()
+                if laser_beam:
+                    laser_beam['phase'] = 0
+                    laser_beam['accumulated_phase'] = 0
+                    laser_beam['origin_phase'] = 0
+                    laser_beam['origin_component'] = self.laser
+                    self.beam_tracer.add_beam(laser_beam)
+                
+                # Trace beams through all components
+                self.beam_tracer.trace_beams(self.component_manager.components)
+                
+                # Mark that we've traced beams this frame
+                self._beams_traced_this_frame = True
+                
+                # Check for gold field hits this frame and play sounds
+                if hasattr(self.beam_tracer, 'gold_field_hits_this_frame'):
+                    # Play sound only for gold fields that are newly hit (weren't hit last frame)
+                    for pos, intensity in self.beam_tracer.gold_field_hits_this_frame.items():
+                        if intensity > 0:
+                            # Check if this field was NOT hit in the last frame
+                            last_intensity = self.last_gold_hits.get(pos, 0)
+                            
+                            if last_intensity == 0:  # Field was not hit last frame
+                                # Play coin sound - this is a new hit
+                                volume = min(0.8, 0.5 + intensity * 0.3)
+                                self.sound_manager.play('gold_field_hit', volume=volume)
+                                
+                                # Check if this is a first-time collection for bonus
+                                if pos in self.beam_tracer.collected_gold_fields:
+                                    self.right_panel.add_debug_message(f"Gold bonus collected at {pos}!")
+                                else:
+                                    self.right_panel.add_debug_message(f"Gold field hit at {pos}")
                     
-                    if last_intensity == 0:  # Field was not hit last frame
-                        # Play coin sound - this is a new hit
-                        volume = min(0.8, 0.5 + intensity * 0.3)
-                        self.sound_manager.play('gold_field_hit', volume=volume)
-                        
-                        # Check if this is a first-time collection for bonus
-                        if pos in self.beam_tracer.collected_gold_fields:
-                            self.right_panel.add_debug_message(f"Gold bonus collected at {pos}!")
-                        else:
-                            self.right_panel.add_debug_message(f"Gold field hit at {pos}")
+                    # Clear entries from last_gold_hits that are not hit this frame
+                    # This ensures sounds play again when beams re-enter fields
+                    for pos in list(self.last_gold_hits.keys()):
+                        if pos not in self.beam_tracer.gold_field_hits_this_frame:
+                            del self.last_gold_hits[pos]
+                    
+                    # Update tracking for next frame
+                    self.last_gold_hits = self.beam_tracer.gold_field_hits_this_frame.copy()
+                else:
+                    # No gold field tracking - clear last hits
+                    self.last_gold_hits.clear()
+            else:
+                # Laser is off - ensure all detectors show zero
+                for comp in self.component_manager.components:
+                    if comp.component_type == 'detector':
+                        comp.intensity = 0
+                        comp.incoming_beams = []
+                self._beams_traced_this_frame = False
             
-            # Clear entries from last_gold_hits that are not hit this frame
-            # This ensures sounds play again when beams re-enter fields
-            for pos in list(self.last_gold_hits.keys()):
-                if pos not in self.beam_tracer.gold_field_hits_this_frame:
-                    del self.last_gold_hits[pos]
-            
-            # Update tracking for next frame
-            self.last_gold_hits = self.beam_tracer.gold_field_hits_this_frame.copy()
-        else:
-            # No gold field tracking - clear last hits
-            self.last_gold_hits.clear()
-    
+            # Update detector sounds based on current intensities
+            detectors = [c for c in self.component_manager.components if c.component_type == 'detector']
+            for i, detector in enumerate(detectors):
+                self.sound_manager.update_detector_sound(
+                    detector_id=id(detector),
+                    intensity=detector.intensity,
+                    position=detector.position.tuple()
+                )
+
     def draw(self):
         """Draw the game with fixed rendering order."""
         # Update challenge completion status for controls
@@ -608,6 +671,17 @@ class Game:
         
         # Layer 9: Trace and draw beams
         if self.laser and self.laser.enabled:
+            # IMPORTANT: Always reset and retrace beams every frame
+            # This ensures changes to the setup are immediately reflected
+            
+            # Reset beam tracer for this frame
+            self.beam_tracer.reset()
+            
+            # Reset all components for clean beam tracing
+            for comp in self.component_manager.components:
+                if hasattr(comp, 'reset_frame'):
+                    comp.reset_frame()
+            
             # Set gold positions on beam tracer
             self.beam_tracer.set_gold_positions(self.challenge_manager.get_gold_positions())
             
@@ -616,10 +690,18 @@ class Game:
                 print(f"WARNING: Beam renderer screen mismatch! Updating...")
                 self.beam_renderer.screen = self.screen
             
+            # Draw beams - this will trace and render them
             self.beam_renderer.draw_beams(self.beam_tracer, self.laser,
                                         self.component_manager.components,
                                         0,
                                         self.challenge_manager.get_blocked_positions())
+        else:
+            # Laser is off - ensure all components show zero intensity
+            for comp in self.component_manager.components:
+                if comp.component_type == 'detector':
+                    if comp.intensity != 0:
+                        comp.intensity = 0
+                        comp.incoming_beams = []
         
         # Layer 10: Draw control panel
         self.controls.draw(self.screen)

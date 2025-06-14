@@ -68,47 +68,48 @@ class BeamRenderer:
         return pulse
     
     def draw_beams(self, beam_tracer, laser, components, phase_value=0, blocked_positions=None):
-        """Trace and draw all laser beams."""
-        # Ensure we have a valid screen reference
-        if not self.screen:
-            print("WARNING: BeamRenderer has no screen reference!")
-            return
+            """Draw all laser beams (beams should already be traced in update phase)."""
+            # Ensure we have a valid screen reference
+            if not self.screen:
+                print("WARNING: BeamRenderer has no screen reference!")
+                return
             
-        beam_tracer.reset()
-        
-        # Pass blocked positions to beam tracer
-        if blocked_positions:
-            beam_tracer.set_blocked_positions(blocked_positions)
-        else:
-            beam_tracer.set_blocked_positions([])
-        
-        # Update debug state from beam tracer
-        self.debug = beam_tracer.debug
-        
-        # Add laser beam
-        laser_beam = laser.emit_beam()
-        if laser_beam:
-            # Apply phase shift (now always 0, but kept for compatibility)
-            phase_from_slider = math.radians(phase_value)
-            laser_beam['phase'] += phase_from_slider
-            laser_beam['accumulated_phase'] = laser_beam['phase']
-            laser_beam['origin_phase'] = 0
-            laser_beam['origin_component'] = laser
-            beam_tracer.add_beam(laser_beam)
+            # Update debug state from beam tracer
+            self.debug = beam_tracer.debug
             
-            # Debug: Draw beam start position
-            if self.debug:
-                pygame.draw.circle(self.screen, (255, 255, 0),
-                                 laser_beam['position'].tuple(), scale(3))
-        
-        # Trace beams
-        traced_beams = beam_tracer.trace_beams(components)
-        
-        # Draw beams with slight time offset for each beam to create variation
-        for i, beam_data in enumerate(traced_beams):
-            time_offset = i * 0.3  # Slight phase difference between beams
-            self._draw_beam_path(beam_data, time_offset)
-    
+            # Get the traced beams from the beam tracer
+            # The beam tracer should have already traced the beams in the update phase
+            if hasattr(beam_tracer, '_last_traced_beams'):
+                traced_beams = beam_tracer._last_traced_beams
+            else:
+                # If no traced beams stored, we need to trace them now
+                # This shouldn't happen in normal operation but is a fallback
+                print("WARNING: No pre-traced beams found, tracing now")
+                
+                # Pass blocked positions to beam tracer
+                if blocked_positions:
+                    beam_tracer.set_blocked_positions(blocked_positions)
+                else:
+                    beam_tracer.set_blocked_positions([])
+                
+                # Add laser beam if not already added
+                if len(beam_tracer.active_beams) == 0 and laser and laser.enabled:
+                    laser_beam = laser.emit_beam()
+                    if laser_beam:
+                        laser_beam['phase'] = 0
+                        laser_beam['accumulated_phase'] = 0
+                        laser_beam['origin_phase'] = 0
+                        laser_beam['origin_component'] = laser
+                        beam_tracer.add_beam(laser_beam)
+                
+                # Trace beams
+                traced_beams = beam_tracer.trace_beams(components)
+            
+            # Draw beams with slight time offset for each beam to create variation
+            for i, beam_data in enumerate(traced_beams):
+                time_offset = i * 0.3  # Slight phase difference between beams
+                self._draw_beam_path(beam_data, time_offset)
+
     def _draw_beam_path(self, beam_data, time_offset=0):
         """Draw a single beam path with pulsing and color effects."""
         path = beam_data['path']

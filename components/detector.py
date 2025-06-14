@@ -1,4 +1,4 @@
-"""Detector component."""
+"""Detector component with improved interference calculation."""
 import pygame
 import math
 import cmath
@@ -6,7 +6,7 @@ from components.base import Component
 from config.settings import CYAN, WHITE
 
 class Detector(Component):
-    """Detector that shows total beam intensity."""
+    """Detector that shows total beam intensity with proper interference."""
     
     def __init__(self, x, y):
         super().__init__(x, y, "detector")
@@ -15,33 +15,50 @@ class Detector(Component):
         self.total_path_length = 0
         self.incoming_beams = []  # Store all incoming beams
         self.processed_this_frame = False
-        self.debug = False  # Debug off by default
+        self.debug = False
+        self.current_generation = -1  # Track which generation we're processing
     
     def reset_frame(self):
         """Reset for new frame processing."""
         self.incoming_beams = []
         self.processed_this_frame = False
-        self.intensity = 0  # Reset intensity each frame
+        self.intensity = 0
         self.total_path_length = 0
+        self.current_generation = -1
     
     def add_beam(self, beam):
         """Add a beam to the detector."""
-        if not self.processed_this_frame:
-            # Store the beam information
-            self.incoming_beams.append({
-                'amplitude': beam['amplitude'],
-                'phase': beam.get('accumulated_phase', beam['phase']),
-                'path_length': beam.get('total_path_length', 0)
-            })
-            
-            if self.debug:
-                print(f"  Detector at {self.position} received beam:")
-                print(f"    Amplitude: {beam['amplitude']:.3f}")
-                print(f"    Phase: {beam.get('accumulated_phase', beam['phase'])*180/math.pi:.1f}°")
-        else:
-            # Detector already processed - reject beam to prevent double counting
+        if self.processed_this_frame:
+            # Detector already processed - reject beam
             if self.debug:
                 print(f"  Detector at {self.position}: rejecting beam (already processed)")
+            return
+        
+        # Get beam generation
+        beam_generation = beam.get('generation', 0)
+        
+        # If this is the first beam, set the generation
+        if self.current_generation == -1:
+            self.current_generation = beam_generation
+        elif beam_generation != self.current_generation:
+            # This beam is from a different generation - should not happen with proper tracing
+            if self.debug:
+                print(f"  WARNING: Detector received beam from generation {beam_generation} while processing generation {self.current_generation}")
+            return
+        
+        # Store the beam information
+        self.incoming_beams.append({
+            'amplitude': beam['amplitude'],
+            'phase': beam.get('accumulated_phase', beam['phase']),
+            'path_length': beam.get('total_path_length', 0),
+            'beam_id': beam.get('beam_id', 'unknown')
+        })
+        
+        if self.debug:
+            print(f"  Detector at {self.position} received beam {beam.get('beam_id', 'unknown')}:")
+            print(f"    Amplitude: {beam['amplitude']:.3f}")
+            print(f"    Phase: {beam.get('accumulated_phase', beam['phase'])*180/math.pi:.1f}°")
+            print(f"    Generation: {beam_generation}")
     
     def process_beam(self, beam):
         """Process beam - for detectors, we accumulate in add_beam instead."""
@@ -60,6 +77,8 @@ class Detector(Component):
         if not self.incoming_beams:
             self.intensity = 0
             self.total_path_length = 0
+            if self.debug:
+                print(f"\nDetector at {self.position}: No beams received")
             return
         
         # Calculate intensity using coherent superposition
@@ -68,14 +87,19 @@ class Detector(Component):
         
         complex_sum = 0j
         
-        for beam in self.incoming_beams:
+        if self.debug:
+            print(f"\nDetector at {self.position} - intensity calculation (gen {self.current_generation}):")
+            print(f"  Number of beams: {len(self.incoming_beams)}")
+        
+        for i, beam in enumerate(self.incoming_beams):
             # Add complex amplitudes
             phase = beam['phase']
             complex_amplitude = beam['amplitude'] * cmath.exp(1j * phase)
             complex_sum += complex_amplitude
             
             if self.debug:
-                print(f"    Beam amplitude: {beam['amplitude']:.3f}, phase: {phase*180/math.pi:.1f}°")
+                print(f"  Beam {i+1} ({beam['beam_id']}): A={beam['amplitude']:.3f}, φ={phase*180/math.pi:.1f}°")
+                print(f"    Complex amplitude: {complex_amplitude:.3f}")
         
         # Calculate intensity as magnitude squared
         self.intensity = abs(complex_sum) ** 2
@@ -85,10 +109,13 @@ class Detector(Component):
             self.total_path_length = sum(beam['path_length'] for beam in self.incoming_beams) / len(self.incoming_beams)
         
         if self.debug:
-            print(f"\n  Detector at {self.position} - intensity calculation:")
-            print(f"    Number of beams: {len(self.incoming_beams)}")
-            print(f"    Total intensity: {self.intensity:.3f} = {self.intensity*100:.0f}%")
-            print(f"    (Coherent sum of amplitudes)")
+            print(f"  Total complex amplitude: {complex_sum:.3f}")
+            print(f"  Total intensity: {self.intensity:.3f} = {self.intensity*100:.0f}%")
+            
+            # Show interference effects
+            incoherent_sum = sum(beam['amplitude']**2 for beam in self.incoming_beams)
+            print(f"  Incoherent sum: {incoherent_sum:.3f}")
+            print(f"  Interference factor: {self.intensity/incoherent_sum:.3f}" if incoherent_sum > 0 else "")
     
     def get_energy_info(self):
         """Get detailed energy information for conservation analysis."""
@@ -102,7 +129,8 @@ class Detector(Component):
                 'amplitude': beam['amplitude'],
                 'phase_rad': beam['phase'],
                 'phase_deg': beam['phase'] * 180 / math.pi,
-                'power': beam['amplitude']**2
+                'power': beam['amplitude']**2,
+                'beam_id': beam.get('beam_id', f'beam_{i}')
             })
         
         return {
@@ -110,7 +138,8 @@ class Detector(Component):
             'num_beams': len(self.incoming_beams),
             'coherent_intensity': self.intensity,
             'input_power_sum': incoherent_sum,
-            'beams': beam_details
+            'beams': beam_details,
+            'generation': self.current_generation
         }
     
     def draw(self, screen):
@@ -144,9 +173,7 @@ class Detector(Component):
             screen.blit(s2, (self.position.x - glow_radius - 5, self.position.y - glow_radius - 5))
             
             # Display percentage
-            # For simple intensity addition, 100% = 1 full beam
-            # Multiple beams can exceed 100%
-            display_percent = round(self.intensity * 100)  # FIXED: Use round() instead of int()
+            display_percent = round(self.intensity * 100)
             font = pygame.font.Font(None, 20)
             
             # Color changes based on intensity

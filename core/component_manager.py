@@ -33,8 +33,8 @@ class ComponentManager:
                     self.sound_manager.play('place_component')
                 print(f"Laser moved to grid ({grid_x}, {grid_y})")
                 
-                # Clear OPD from all beam splitters when laser moves
-                self._clear_opd_data()
+                # Reset all components when laser moves
+                self._reset_all_components()
                 
                 return  # No scoring for placement
             else:
@@ -70,9 +70,8 @@ class ComponentManager:
             print(f"Unknown component type: {comp_type}")  # Debug
             return
         
-        # Clear OPD when adding new components that might affect the path
-        if comp_type in ['beamsplitter', 'mirror/', 'mirror\\']:
-            self._clear_opd_data()
+        # Reset all components when adding new ones
+        self._reset_all_components()
         
         self.effects.add_placement_effect(x, y)
         
@@ -84,11 +83,6 @@ class ComponentManager:
         """Remove component at position."""
         for i, comp in enumerate(self.components):
             if comp.contains_point(pos[0], pos[1]):
-                # Clear OPD data if removing a beam splitter
-                if comp.component_type == 'beamsplitter':
-                    comp.last_opd = None
-                    comp.last_phase_diff = None
-                
                 self.components.pop(i)
                 self.component_grid_positions.pop(i)
                 
@@ -96,8 +90,8 @@ class ComponentManager:
                 if self.sound_manager:
                     self.sound_manager.play('remove_component')
                 
-                # Clear OPD from all beam splitters when setup changes
-                self._clear_opd_data()
+                # Reset all remaining components when setup changes
+                self._reset_all_components()
                 
                 return True  # Return success instead of score
         return False  # No component removed
@@ -144,12 +138,21 @@ class ComponentManager:
         for comp in self.components:
             comp.debug = debug_state
     
-    def _clear_opd_data(self):
-        """Clear OPD data from all beam splitters."""
-        for c in self.components:
-            if c.component_type == 'beamsplitter' and hasattr(c, 'last_opd'):
-                c.last_opd = None
-                c.last_phase_diff = None
+    def _reset_all_components(self):
+        """Reset all components to clear their accumulated state."""
+        print("Resetting all components due to setup change")
+        for comp in self.components:
+            if hasattr(comp, 'reset_frame'):
+                comp.reset_frame()
+            # Clear any cached data
+            if hasattr(comp, 'last_opd'):
+                comp.last_opd = None
+            if hasattr(comp, 'last_phase_diff'):
+                comp.last_phase_diff = None
+            # Reset detector intensities immediately
+            if comp.component_type == 'detector':
+                comp.intensity = 0
+                comp.incoming_beams = []
     
     def update_component_positions(self):
         """Update all component positions based on their grid positions and current scale."""
@@ -165,3 +168,6 @@ class ComponentManager:
             comp.position = Vector2(new_x, new_y)
             
             print(f"  Component {i} ({grid_pos['type']}): grid ({grid_pos['grid_x']}, {grid_pos['grid_y']}) -> screen ({new_x}, {new_y}) [was {old_pos}]")
+        
+        # Reset all components after position update
+        self._reset_all_components()

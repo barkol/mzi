@@ -1,22 +1,25 @@
-"""Physics engine for beam propagation with scaling support."""
+"""Physics engine for beam propagation with proper wave optics."""
 import math
 import cmath
 from utils.vector import Vector2
 from config.settings import WAVELENGTH, IDEAL_COMPONENTS, GRID_SIZE, CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT, scale
 
 class BeamTracer:
-    """Traces beam paths through optical components with scaling."""
+    """Traces beam paths through optical components with proper wave interference."""
     
     def __init__(self):
         self.active_beams = []
         self.k = 2 * math.pi / WAVELENGTH  # Wave number
-        self.debug = False  # Debug flag for detailed output
-        self.blocked_positions = []  # Positions that block beams
-        self.gold_positions = []  # Positions that award points
-        self.gold_field_hits = {}  # Track gold field hits: {position: total_intensity}
-        self.collected_gold_fields = set()  # Track which fields have been collected
-        self.gold_field_hits_this_frame = {}  # Track new gold field hits this frame for sounds
-    
+        self.debug = False
+        self.blocked_positions = []
+        self.gold_positions = []
+        self.gold_field_hits = {}
+        self.collected_gold_fields = set()
+        self.gold_field_hits_this_frame = {}
+        
+        # New: Track beam generations to ensure proper ordering
+        self.beam_generation = 0
+        
     def set_blocked_positions(self, blocked_positions):
         """Set positions that block beam propagation."""
         self.blocked_positions = blocked_positions
@@ -28,10 +31,8 @@ class BeamTracer:
     def reset(self):
         """Reset beam tracer for new frame."""
         self.active_beams = []
-        # Clear this frame's gold field hits
         self.gold_field_hits_this_frame = {}
-        # Note: We don't reset gold_field_hits or collected_gold_fields here
-        # They persist across frames until explicitly reset
+        self.beam_generation = 0
     
     def reset_gold_collection(self):
         """Reset gold field collection state."""
@@ -41,17 +42,15 @@ class BeamTracer:
     
     def add_beam(self, beam):
         """Add a beam to trace."""
+        beam['generation'] = 0  # Initial beams are generation 0
+        beam['beam_id'] = f"initial_{len(self.active_beams)}"
         self.active_beams.append(beam)
     
-    def trace_beams(self, components, max_depth=10):
+    def trace_beams(self, components, max_depth=20):
         """
-        Trace all beams through components allowing full interference.
-        
-        Key approach:
-        1. Propagate all beams until they hit components or boundaries
-        2. Let beams accumulate at components without processing
-        3. Once all beams have been traced, process all components
-        4. Repeat until no new beams are generated
+        Trace all beams through components with proper wave interference.
+        Uses a generation-based approach to ensure all beams reaching a component
+        in the same "time step" are processed together.
         """
         # Reset components for new frame
         for comp in components:
@@ -62,25 +61,40 @@ class BeamTracer:
         all_traced_paths = []
         
         if self.debug:
-            print(f"\n=== NEW FRAME - Complete propagation beam tracing ===")
+            print(f"\n=== NEW FRAME - Generation-based beam tracing ===")
         
-        # Keep track of all beams that need processing
-        beams_to_trace = self.active_beams.copy()
-        iteration = 0
+        # Process beams by generation to ensure proper interference
+        current_generation = 0
+        all_beams = self.active_beams.copy()
+        processed_beam_ids = set()
         
-        while beams_to_trace and iteration < max_depth:
+        while current_generation < max_depth:
+            # Get all beams of current generation
+            generation_beams = [b for b in all_beams 
+                              if b.get('generation', 0) == current_generation 
+                              and b.get('beam_id') not in processed_beam_ids]
+            
+            if not generation_beams:
+                # Check if there are beams of higher generation
+                remaining_beams = [b for b in all_beams 
+                                 if b.get('generation', 0) > current_generation 
+                                 and b.get('beam_id') not in processed_beam_ids]
+                if not remaining_beams:
+                    break
+                current_generation += 1
+                continue
+            
             if self.debug:
-                print(f"\n--- Iteration {iteration} ---")
-                print(f"Beams to trace: {len(beams_to_trace)}")
+                print(f"\n--- Generation {current_generation} ---")
+                print(f"Processing {len(generation_beams)} beams")
             
-            # Phase 1: Trace ALL beams to their destinations
-            new_beams_from_mirrors = []
+            # Phase 1: Trace all beams of this generation to their destinations
+            beams_by_component = {}  # component -> list of beams
             
-            while beams_to_trace:
-                beam = beams_to_trace.pop(0)
-                
+            for beam in generation_beams:
                 # Skip very weak beams
                 if abs(beam['amplitude']) < 0.01:
+                    processed_beam_ids.add(beam['beam_id'])
                     continue
                 
                 # Trace beam to next component
@@ -102,7 +116,8 @@ class BeamTracer:
                     
                     if blocked:
                         if self.debug:
-                            print(f"  Beam blocked at position {path[-1]}")
+                            print(f"  Beam {beam['beam_id']} blocked at {path[-1]}")
+                        processed_beam_ids.add(beam['beam_id'])
                         continue
                     
                     if hit_component:
@@ -111,100 +126,82 @@ class BeamTracer:
                         beam_at_component['accumulated_phase'] = new_accumulated_phase
                         beam_at_component['total_path_length'] = beam.get('total_path_length', 0) + path_length
                         
-                        if self.debug:
-                            print(f"  Beam hit {hit_component.component_type} at {hit_component.position}, phase={new_accumulated_phase*180/math.pi:.1f}°")
+                        # Group beams by component
+                        if hit_component not in beams_by_component:
+                            beams_by_component[hit_component] = []
+                        beams_by_component[hit_component].append(beam_at_component)
                         
-                        # Handle component based on type
-                        if hit_component.component_type == "mirror":
-                            # Mirrors process immediately (no interference possible)
-                            if not hit_component.processed_this_frame:
-                                hit_component.add_beam(beam_at_component)
-                                output_beams = hit_component.finalize_frame()
-                                
-                                for out_beam in output_beams:
-                                    # Visualization
-                                    output_path = [hit_component.position, out_beam['position']]
-                                    all_traced_paths.append({
-                                        'path': output_path,
-                                        'amplitude': abs(out_beam['amplitude']),
-                                        'phase': out_beam['phase'],
-                                        'source_type': out_beam.get('source_type', 'laser'),
-                                        'blocked': False
-                                    })
-                                    
-                                    new_beams_from_mirrors.append(out_beam)
-                                    
-                                    if self.debug:
-                                        dir_str = self._direction_to_string(out_beam['direction'])
-                                        print(f"    Mirror output {dir_str}: amp={abs(out_beam['amplitude']):.3f}")
-                        else:
-                            # Beamsplitters and detectors: just accumulate
-                            hit_component.add_beam(beam_at_component)
+                        if self.debug:
+                            print(f"  Beam {beam['beam_id']} hit {hit_component.component_type} at {hit_component.position}")
+                    else:
+                        # Beam left the system
+                        if self.debug:
+                            print(f"  Beam {beam['beam_id']} left the system")
+                
+                processed_beam_ids.add(beam['beam_id'])
             
-            # Add mirror output beams to trace queue
-            beams_to_trace.extend(new_beams_from_mirrors)
+            # Phase 2: Process all components that received beams
+            # This ensures all beams arriving at a component in this generation
+            # are processed together for proper interference
             
-            # Phase 2: Process all beamsplitters that have accumulated beams
-            new_beams = []
-            any_bs_processed = False
+            next_generation_beams = []
             
-            for comp in components:
-                if comp.component_type == "beamsplitter" and not comp.processed_this_frame:
-                    total_beams = sum(len(beams) for beams in comp.all_beams_by_port.values())
+            for component, beams in beams_by_component.items():
+                if self.debug:
+                    print(f"\n  Processing {component.component_type} at {component.position}")
+                    print(f"    Received {len(beams)} beams")
+                
+                # Add all beams to the component
+                for beam in beams:
+                    component.add_beam(beam)
+                
+                # For detectors, we don't generate new beams
+                if component.component_type == "detector":
+                    continue
+                
+                # Process the component (this handles interference)
+                output_beams = component.finalize_frame()
+                
+                # Assign generation number to output beams
+                for i, out_beam in enumerate(output_beams):
+                    out_beam['generation'] = current_generation + 1
+                    out_beam['beam_id'] = f"gen{current_generation+1}_{component.component_type}_{id(component)}_{i}"
+                    next_generation_beams.append(out_beam)
                     
-                    if total_beams > 0:
-                        any_bs_processed = True
-                        
-                        if self.debug:
-                            print(f"\n  Processing beamsplitter at {comp.position}")
-                            print(f"    Total accumulated beams: {total_beams}")
-                            # Show beam details
-                            port_names = ['A', 'B', 'C', 'D']
-                            for port_idx, beams in comp.all_beams_by_port.items():
-                                if beams:
-                                    print(f"    Port {port_names[port_idx]}: {len(beams)} beams")
-                        
-                        output_beams = comp.finalize_frame()
-                        
-                        for out_beam in output_beams:
-                            # Visualization
-                            output_path = [comp.position, out_beam['position']]
-                            all_traced_paths.append({
-                                'path': output_path,
-                                'amplitude': abs(out_beam['amplitude']),
-                                'phase': out_beam['phase'],
-                                'source_type': out_beam.get('source_type', 'laser'),
-                                'blocked': False
-                            })
-                            
-                            new_beams.append(out_beam)
-                            
-                            if self.debug:
-                                dir_str = self._direction_to_string(out_beam['direction'])
-                                print(f"    BS output {dir_str}: amp={abs(out_beam['amplitude']):.3f}, phase={out_beam['phase']*180/math.pi:.1f}°")
+                    # Add visualization path
+                    output_path = [component.position, out_beam['position']]
+                    all_traced_paths.append({
+                        'path': output_path,
+                        'amplitude': abs(out_beam['amplitude']),
+                        'phase': out_beam['phase'],
+                        'source_type': out_beam.get('source_type', 'laser'),
+                        'blocked': False
+                    })
+                    
+                    if self.debug:
+                        dir_str = self._direction_to_string(out_beam['direction'])
+                        print(f"    Output {dir_str}: amp={abs(out_beam['amplitude']):.3f}, phase={out_beam['phase']*180/math.pi:.1f}°")
             
-            # If we processed any beamsplitters, trace their output beams
-            if any_bs_processed:
-                beams_to_trace.extend(new_beams)
+            # Add next generation beams to the pool
+            all_beams.extend(next_generation_beams)
             
-            # If no beamsplitters were processed and no beams to trace, we're done
-            if not any_bs_processed and not beams_to_trace:
-                break
-            
-            iteration += 1
+            # Move to next generation
+            current_generation += 1
         
-        # Phase 3: Process all detectors
+        # Phase 3: Finalize all detectors
+        # This must be done after all beams have been traced
         for comp in components:
             if comp.component_type == "detector" and hasattr(comp, 'finalize_frame'):
                 comp.finalize_frame()
                 
-                if self.debug and (comp.intensity > 0 or len(comp.incoming_beams) > 0):
+                if self.debug and comp.intensity > 0:
                     print(f"\nDetector at {comp.position}:")
                     print(f"  Intensity: {comp.intensity*100:.1f}%")
                     print(f"  Beams: {len(comp.incoming_beams)}")
         
         if self.debug:
-            print(f"\nTotal iterations: {iteration}")
+            print(f"\nTotal generations processed: {current_generation}")
+            print(f"Total beams processed: {len(processed_beam_ids)}")
         
         return all_traced_paths
     
@@ -231,7 +228,7 @@ class BeamTracer:
         direction = beam['direction']
         
         step_size = 2
-        max_distance = 1000
+        max_distance = 2000  # Increased max distance
         distance = 0
         total_path_length = 0
         
@@ -249,7 +246,7 @@ class BeamTracer:
                     gold_key = (grid_x, grid_y)
                     
                     # Calculate beam intensity
-                    intensity = beam['amplitude'] ** 2  # Intensity is amplitude squared
+                    intensity = beam['amplitude'] ** 2
                     
                     # Track for this frame (for sound effects)
                     if gold_key not in self.gold_field_hits_this_frame:
@@ -259,7 +256,6 @@ class BeamTracer:
                     # Only count for scoring if not already collected
                     if gold_key not in self.collected_gold_fields:
                         self.collected_gold_fields.add(gold_key)
-                        # Add beam intensity to total gold field hits
                         if gold_key not in self.gold_field_hits:
                             self.gold_field_hits[gold_key] = 0
                         self.gold_field_hits[gold_key] += intensity
@@ -270,7 +266,6 @@ class BeamTracer:
             # Check if beam hits a blocked position
             for blocked_pos in self.blocked_positions:
                 if blocked_pos.distance_to(next_pos) < GRID_SIZE / 2:
-                    # Beam hit a blocked position - calculate exact intersection
                     intersection = self._calculate_blocked_intersection(current_pos, next_pos, blocked_pos)
                     if intersection:
                         path.append(intersection)
@@ -281,10 +276,10 @@ class BeamTracer:
                     return path, None, total_path_length, True
             
             # Check grid bounds
-            if (next_pos.x < CANVAS_OFFSET_X or
-                next_pos.x > CANVAS_OFFSET_X + CANVAS_WIDTH or
-                next_pos.y < CANVAS_OFFSET_Y or
-                next_pos.y > CANVAS_OFFSET_Y + CANVAS_HEIGHT):
+            if (next_pos.x < CANVAS_OFFSET_X - GRID_SIZE or
+                next_pos.x > CANVAS_OFFSET_X + CANVAS_WIDTH + GRID_SIZE or
+                next_pos.y < CANVAS_OFFSET_Y - GRID_SIZE or
+                next_pos.y > CANVAS_OFFSET_Y + CANVAS_HEIGHT + GRID_SIZE):
                 # Calculate exact intersection with grid boundary
                 edge_pos = self._calculate_edge_intersection(current_pos, next_pos,
                     CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
@@ -300,6 +295,10 @@ class BeamTracer:
             min_distance = float('inf')
             
             for comp in components:
+                # Skip detectors that have already been finalized
+                if comp.component_type == "detector" and hasattr(comp, 'processed_this_frame') and comp.processed_this_frame:
+                    continue
+                    
                 dist_to_comp = comp.position.distance_to(next_pos)
                 if dist_to_comp < comp.radius and dist_to_comp < min_distance:
                     hit_component = comp
