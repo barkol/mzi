@@ -83,10 +83,6 @@ class WaveOpticsEngine:
         self.collected_gold_fields.clear()
         self.gold_field_hits_this_frame.clear()
     
-    def invalidate_network(self):
-        """Mark the network as needing rebuild."""
-        self._network_valid = False
-    
     def solve_interferometer(self, laser, components):
         """
         Solve for steady-state beam amplitudes in the interferometer.
@@ -119,7 +115,7 @@ class WaveOpticsEngine:
         if self.debug:
             print(f"\n=== SOLVING INTERFEROMETER ===")
             print(f"Components: {len(components)}")
-            print(f"Network valid: {self._network_valid}")
+            print(f"Laser at: {laser.position}")
             for comp in components:
                 print(f"  - {comp.component_type} at {comp.position}")
             
@@ -139,42 +135,21 @@ class WaveOpticsEngine:
         # Build the optical network
         self._build_network(laser, sorted_components)
         
-        # Check for unconnected components and try alternative build if needed
-        unconnected = self._has_unconnected_components(laser, sorted_components)
-        if unconnected:
+        # Check if we have any connections
+        if len(self.connections) == 0:
             if self.debug:
-                print("\nWARNING: Some components unconnected, trying direct grid-based connections")
-            
-            # Try a more aggressive connection strategy for unconnected components
-            self._connect_unconnected_components(laser, sorted_components)
-        
-        # Additional check: if still no connections and we have components, 
-        # create direct laser-to-first-component connection
-        if len(self.connections) == 0 and len(sorted_components) > 0:
-            if self.debug:
-                print("\nNo connections found - attempting direct laser trace")
-            # Find the first component in the laser's path
-            laser_port = self._create_ports_for_component(laser)[0]
-            if laser_port:
-                hit_port, path, distance, blocked = self._trace_to_first_component(laser_port)
-                if hit_port and not blocked:
-                    # Create a direct connection
-                    connection = OpticalConnection(laser_port, hit_port, path, distance)
-                    self.connections.append(connection)
-                    laser_port.connected_to = hit_port
-                    laser_port.connection = connection
-                    hit_port.connected_to = laser_port
-                    hit_port.connection = connection
-                    if self.debug:
-                        print(f"Created direct connection: laser -> {hit_port.component.component_type}")
-        
-        self._network_valid = True
+                print("\nNo connections found - using simple ray tracing")
+            # Use simple ray tracing as fallback
+            self._simple_ray_trace_with_amplitudes(laser, sorted_components)
+            return self._last_traced_beams
         
         # Set up and solve the linear system
         amplitudes = self._solve_beam_equations(laser)
         
         if self.debug:
             print(f"\nBeam amplitudes solved: {len(amplitudes)} beams")
+            non_zero = sum(1 for amp in amplitudes.values() if abs(amp) > 0.01)
+            print(f"Non-zero amplitudes: {non_zero}")
             for beam_id, amp in amplitudes.items():
                 if abs(amp) > 0.01:
                     print(f"  {beam_id}: |A|={abs(amp):.3f}, φ={cmath.phase(amp)*180/math.pi:.1f}°")
@@ -192,31 +167,6 @@ class WaveOpticsEngine:
         self._last_traced_beams = paths
         
         return paths
-    
-    def _has_unconnected_components(self, laser, components):
-        """Check if any components are not connected to the network."""
-        # Do a simple reachability check from laser
-        reachable = {laser}
-        to_check = [laser]
-        
-        while to_check:
-            current = to_check.pop()
-            if hasattr(current, '_ports'):
-                for port in current._ports:
-                    if port.connected_to:
-                        other = port.connected_to.component
-                        if other not in reachable:
-                            reachable.add(other)
-                            to_check.append(other)
-        
-        # Check if all non-detector components are reachable
-        for comp in components:
-            if comp.component_type != 'detector' and comp not in reachable:
-                if self.debug:
-                    print(f"Component {comp.component_type} at {comp.position} is not reachable!")
-                return True
-        
-        return False
     
     def _build_network(self, laser, components):
         """Build the network of ports and connections."""
@@ -236,43 +186,44 @@ class WaveOpticsEngine:
         
         if self.debug:
             print(f"\nBuilt network with {len(self.ports)} ports and {len(self.connections)} connections")
-            connection_summary = {}
-            for conn in self.connections:
-                key = f"{conn.port1.component.component_type} -> {conn.port2.component.component_type}"
-                connection_summary[key] = connection_summary.get(key, 0) + 1
-            for conn_type, count in sorted(connection_summary.items()):
-                print(f"  {conn_type}: {count}")
-            
-            # Check for mirror chains
-            mirror_chain_broken = False
-            for comp in components:
-                if comp.component_type == "mirror":
-                    # Check if this mirror has incoming connections
-                    has_input = any(conn.port2.component == comp for conn in self.connections)
-                    if not has_input:
-                        # Check if it should be reachable
-                        # This is a simple check - in reality we'd need path analysis
-                        print(f"  WARNING: Mirror at {comp.position} has no input connection!")
-                        mirror_chain_broken = True
-            
-            if mirror_chain_broken:
-                print("  Mirror chain appears to be broken - check alternating mirror setup")
+            if len(self.connections) == 0:
+                print("WARNING: No connections found!")
+            else:
+                connection_summary = {}
+                for conn in self.connections:
+                    key = f"{conn.port1.component.component_type} -> {conn.port2.component.component_type}"
+                    connection_summary[key] = connection_summary.get(key, 0) + 1
+                for conn_type, count in sorted(connection_summary.items()):
+                    print(f"  {conn_type}: {count}")
     
     def _create_ports_for_component(self, component):
         """Create optical ports for a component - GRID ALIGNED."""
         ports = []
         
         if component.component_type == "laser":
-            # Laser has one output port at its right edge
+            # Laser has one output port - beam should start from edge of laser
+            # The laser is placed on grid, so ensure port aligns with grid
+            port_x = component.position.x + component.radius + 5  # Small offset from edge
+            port_y = component.position.y  # Same Y as laser center
+            
+            # Ensure the port position is on a grid line if desired
+            # For now, keep it as-is for smooth beam start
             port = OpticalPort(component, 0, 
-                             component.position + Vector2(component.radius + GRID_SIZE//4, 0),
+                             Vector2(port_x, port_y),
                              Vector2(1, 0))  # Emits to the right
             ports.append(port)
             
         elif component.component_type in ["beamsplitter", "mirror", "tunable_beamsplitter", "partial_mirror"]:
-            # These components have 4 ports aligned with grid
-            # Use GRID_SIZE for consistent port placement
-            offset_dist = GRID_SIZE
+            # These components have 4 ports at grid edges
+            # Component is centered on grid, ports should be at half-grid distance
+            offset_dist = GRID_SIZE // 2  # Half grid size to reach edge of grid cell
+            
+            # Ensure component is on grid center
+            grid_x = round((component.position.x - CANVAS_OFFSET_X) / GRID_SIZE)
+            grid_y = round((component.position.y - CANVAS_OFFSET_Y) / GRID_SIZE)
+            center_x = CANVAS_OFFSET_X + grid_x * GRID_SIZE + GRID_SIZE // 2
+            center_y = CANVAS_OFFSET_Y + grid_y * GRID_SIZE + GRID_SIZE // 2
+            
             port_configs = [
                 (0, Vector2(-offset_dist, 0), Vector2(-1, 0)),   # Port A (left) - beams exit left
                 (1, Vector2(0, offset_dist), Vector2(0, 1)),     # Port B (bottom) - beams exit down
@@ -281,14 +232,21 @@ class WaveOpticsEngine:
             ]
             
             for idx, offset, direction in port_configs:
-                port = OpticalPort(component, idx,
-                                 component.position + offset,
-                                 direction)
+                # Use the grid-aligned center for port calculation
+                port_pos = Vector2(center_x + offset.x, center_y + offset.y)
+                port = OpticalPort(component, idx, port_pos, direction)
                 ports.append(port)
                 
         elif component.component_type == "detector":
-            # Detector has 4 input ports aligned with grid
-            offset_dist = component.radius + GRID_SIZE//4
+            # Detector has 4 input ports at edges
+            offset_dist = GRID_SIZE // 2  # Half grid size for consistency
+            
+            # Ensure detector is on grid center
+            grid_x = round((component.position.x - CANVAS_OFFSET_X) / GRID_SIZE)
+            grid_y = round((component.position.y - CANVAS_OFFSET_Y) / GRID_SIZE)
+            center_x = CANVAS_OFFSET_X + grid_x * GRID_SIZE + GRID_SIZE // 2
+            center_y = CANVAS_OFFSET_Y + grid_y * GRID_SIZE + GRID_SIZE // 2
+            
             port_configs = [
                 (0, Vector2(-offset_dist, 0), Vector2(1, 0)),    # From left
                 (1, Vector2(0, offset_dist), Vector2(0, -1)),    # From bottom
@@ -297,9 +255,9 @@ class WaveOpticsEngine:
             ]
             
             for idx, offset, in_direction in port_configs:
-                port = OpticalPort(component, idx,
-                                 component.position + offset,
-                                 in_direction)
+                # Use the grid-aligned center for port calculation
+                port_pos = Vector2(center_x + offset.x, center_y + offset.y)
+                port = OpticalPort(component, idx, port_pos, in_direction)
                 ports.append(port)
         
         return ports
@@ -334,6 +292,7 @@ class WaveOpticsEngine:
             # Trace a ray from this port
             hit_port, path, distance, blocked = self._trace_to_first_component(port1)
             
+            # Only create connection if not blocked and hit a valid port
             if hit_port and not blocked and hit_port.component != port1.component:
                 # Valid connection found
                 priority = self._calculate_connection_priority(port1, hit_port)
@@ -347,6 +306,10 @@ class WaveOpticsEngine:
                 
                 if self.debug:
                     print(f"  Potential: {port1.component.component_type}:{port1.port_index} -> {hit_port.component.component_type}:{hit_port.port_index} (dist={distance:.0f})")
+            elif blocked and self.debug:
+                print(f"  Blocked: {port1.component.component_type}:{port1.port_index} blocked after {distance:.0f}")
+            elif not hit_port and self.debug:
+                print(f"  No hit: {port1.component.component_type}:{port1.port_index} -> edge")
         
         # Sort by priority and distance
         potential_connections.sort(key=lambda x: (x['priority'], x['distance']))
@@ -375,42 +338,6 @@ class WaveOpticsEngine:
             
             if self.debug:
                 print(f"  Created: {port1.component.component_type}:{port1.port_index} <-> {port2.component.component_type}:{port2.port_index}")
-        
-        # Second pass: try to connect any unconnected laser outputs
-        for port in self.ports:
-            if (port.component.component_type == "laser" and 
-                port not in connected_ports):
-                # Try to find ANY reachable component
-                if self.debug:
-                    print(f"  Laser port {port.port_index} unconnected, searching for target...")
-                
-                hit_port, path, distance, blocked = self._trace_to_first_component(port)
-                if hit_port and not blocked and hit_port not in connected_ports:
-                    connection = OpticalConnection(port, hit_port, path, distance)
-                    self.connections.append(connection)
-                    port.connected_to = hit_port
-                    port.connection = connection
-                    hit_port.connected_to = port
-                    hit_port.connection = connection
-                    
-                    connected_ports.add(port)
-                    connected_ports.add(hit_port)
-                    
-                    if self.debug:
-                        print(f"  Laser connected to {hit_port.component.component_type}")
-        
-        if self.debug:
-            print(f"\nTotal connections created: {len(self.connections)}")
-            # Show unconnected components
-            unconnected_components = set()
-            for port in self.ports:
-                if port not in connected_ports and port.component.component_type != "detector":
-                    unconnected_components.add(port.component)
-            
-            if unconnected_components:
-                print("  Unconnected components:")
-                for comp in unconnected_components:
-                    print(f"    - {comp.component_type} at {comp.position}")
     
     def _calculate_connection_priority(self, port1, port2):
         """Calculate priority for a connection (lower is better) - GRID AWARE."""
@@ -443,26 +370,12 @@ class WaveOpticsEngine:
         distance = port1.component.position.distance_to(port2.component.position)
         priority += int(distance / GRID_SIZE)  # Add penalty based on grid distance
         
-        # Special handling for mirrors - they should connect in chains
-        if (port1.component.component_type == "mirror" and 
-            port2.component.component_type == "mirror"):
-            # Mirrors in a line should have lower priority
-            if dx < GRID_SIZE / 2 or dy < GRID_SIZE / 2:
-                priority -= 200
-        
         return priority
     
     def _trace_to_first_component(self, from_port: OpticalPort) -> Tuple[Optional[OpticalPort], List[Vector2], float, bool]:
         """Trace from one port to find the FIRST component it hits - GRID ALIGNED."""
-        # Start from the component center
-        start_component = from_port.component
-        if start_component.component_type == "laser":
-            # For laser, start from its edge
-            start_pos = from_port.position
-        else:
-            # For other components, start from center
-            start_pos = start_component.position
-        
+        # Start from the port position
+        start_pos = from_port.position
         direction = from_port.direction
         
         # Ensure we're using exact grid directions
@@ -473,33 +386,41 @@ class WaveOpticsEngine:
             # Vertical movement
             direction = Vector2(0, 1 if direction.y > 0 else -1)
         
-        # Build the path starting from component center
+        # Build the path starting from port position
         path = [start_pos]
+        current_pos = Vector2(start_pos.x, start_pos.y)
         
-        # Move out from the component before tracing - use grid-aligned offset
-        initial_offset = GRID_SIZE if start_component.component_type != "laser" else 0
-        current_pos = start_pos + direction * initial_offset
-        if initial_offset > 0:
-            path.append(current_pos)
+        # Use small steps to ensure we don't miss blocked fields
+        step_size = 2  # Small step for accurate blocked field detection
+        distance = 0
         
-        # Step along the ray - use grid-aligned steps
-        step_size = GRID_SIZE // 2  # Half grid size for better precision
-        distance = initial_offset
-        
-        # Track all hits along the path
-        component_hits = []
+        # Track which grid cells we've visited to check for blocked fields
+        visited_cells = set()
         
         while distance < self.max_distance:
             # Move forward by step size
             next_pos = current_pos + direction * step_size
             distance += step_size
             
-            # Check if blocked
+            # Get the grid cell this position is in
+            grid_x = round((next_pos.x - CANVAS_OFFSET_X) / GRID_SIZE)
+            grid_y = round((next_pos.y - CANVAS_OFFSET_Y) / GRID_SIZE)
+            grid_cell = (grid_x, grid_y)
+            
+            # Check if this grid cell is blocked
             for blocked_pos in self.blocked_positions:
-                # Check if we're in the same grid cell as the blocked position
-                if (abs(next_pos.x - blocked_pos.x) < GRID_SIZE / 2 and
-                    abs(next_pos.y - blocked_pos.y) < GRID_SIZE / 2):
-                    path.append(blocked_pos)
+                blocked_grid_x = round((blocked_pos.x - CANVAS_OFFSET_X) / GRID_SIZE)
+                blocked_grid_y = round((blocked_pos.y - CANVAS_OFFSET_Y) / GRID_SIZE)
+                
+                if (grid_x, grid_y) == (blocked_grid_x, blocked_grid_y):
+                    # Beam hit a blocked field - end path here
+                    # Use the center of the blocked grid cell
+                    blocked_center_x = CANVAS_OFFSET_X + blocked_grid_x * GRID_SIZE + GRID_SIZE // 2
+                    blocked_center_y = CANVAS_OFFSET_Y + blocked_grid_y * GRID_SIZE + GRID_SIZE // 2
+                    blocked_center = Vector2(blocked_center_x, blocked_center_y)
+                    path.append(blocked_center)
+                    if self.debug:
+                        print(f"  Beam blocked at grid ({grid_x}, {grid_y})")
                     return None, path, distance, True
             
             # Check bounds
@@ -515,68 +436,48 @@ class WaveOpticsEngine:
                 return None, path, distance, False
             
             # Check if we hit another component
+            hit_component = None
+            min_distance = float('inf')
+            
             for comp in [p.component for p in self.ports if p.component != from_port.component]:
-                # More forgiving collision detection - use component radius
-                component_radius = getattr(comp, 'radius', GRID_SIZE // 2)
+                # Check distance to component center
                 distance_to_comp = comp.position.distance_to(next_pos)
                 
-                # Check if beam passes through component's effective area
-                if distance_to_comp < component_radius:
-                    # We're hitting this component
-                    comp_distance = start_pos.distance_to(comp.position)
-                    already_recorded = any(h['component'] == comp for h in component_hits)
-                    
-                    if not already_recorded:
-                        component_hits.append({
-                            'component': comp,
-                            'distance': comp_distance,
-                            'position': comp.position
-                        })
-                        
-                        # If this is the first component we hit, we can stop here
-                        if not component_hits or comp_distance < component_hits[0]['distance']:
-                            # End the path at this component
-                            path.append(comp.position)
-                            
-                            # Find the correct input port
-                            best_port = self._find_best_input_port(comp, direction)
-                            if best_port:
-                                if self.debug:
-                                    print(f"  Direct hit: {from_port.component.component_type} -> {comp.component_type}")
-                                return best_port, path, comp_distance, False
-                            else:
-                                # Component hit but no suitable port - treat as blocked
-                                if self.debug:
-                                    print(f"  Hit {comp.component_type} but no suitable port")
-                                return None, path, comp_distance, True
+                # Get component's effective radius for collision
+                if comp.component_type == "detector":
+                    effective_radius = getattr(comp, 'radius', GRID_SIZE // 2)
+                else:
+                    # For beam splitters and mirrors, use smaller radius for more precise collision
+                    effective_radius = GRID_SIZE // 3
+                
+                # Check if beam hits this component
+                if distance_to_comp < effective_radius and distance_to_comp < min_distance:
+                    hit_component = comp
+                    min_distance = distance_to_comp
             
-            # Add intermediate points at grid boundaries
-            if int(distance) % GRID_SIZE == 0:
+            if hit_component:
+                # End the path at the component's center
+                path.append(hit_component.position)
+                
+                # Find the correct input port based on incoming direction
+                best_port = self._find_best_input_port(hit_component, direction)
+                if best_port:
+                    if self.debug:
+                        print(f"  Ray hit: {from_port.component.component_type} -> {hit_component.component_type}")
+                    return best_port, path, distance, False
+                else:
+                    # Component hit but no suitable port
+                    if self.debug:
+                        print(f"  Hit {hit_component.component_type} but no suitable port for direction {direction}")
+                    return None, path, distance, True
+            
+            # Add intermediate points periodically for smooth rendering
+            if int(distance) % 20 == 0:
                 path.append(Vector2(next_pos.x, next_pos.y))
             
             current_pos = next_pos
         
-        # Process hits - find the closest one
-        if component_hits:
-            # Sort by distance
-            component_hits.sort(key=lambda h: h['distance'])
-            closest_hit = component_hits[0]
-            
-            # Complete path to component
-            path.append(closest_hit['position'])
-            
-            # Find the correct input port based on incoming direction
-            best_port = self._find_best_input_port(closest_hit['component'], direction)
-            if best_port:
-                if self.debug:
-                    print(f"  Connection: {from_port.component.component_type} port {from_port.port_index} -> {closest_hit['component'].component_type} port {best_port.port_index}")
-                return best_port, path, closest_hit['distance'], False
-            else:
-                if self.debug:
-                    print(f"  WARNING: No suitable input port found on {closest_hit['component'].component_type}")
-                return None, path, closest_hit['distance'], False
-        
-        # No hit found
+        # No hit found - beam went maximum distance
         path.append(current_pos)
         return None, path, distance, False
     
@@ -664,20 +565,17 @@ class WaveOpticsEngine:
             self.beam_amplitudes[beam_id] = 0j
         
         if not beam_segments:
-            # No connections - fall back to simple ray tracing
-            if laser and laser.enabled:
-                if self.debug:
-                    print("\nNo connections - using fallback ray tracing")
-                
-                # Perform simple ray tracing through components
-                self._simple_ray_trace(laser, self.ports)
-                
+            if self.debug:
+                print("\nNo beam segments to solve")
             return {}
         
         # Build system matrix
         n = len(beam_segments)
         A = np.zeros((n, n), dtype=complex)
         b = np.zeros(n, dtype=complex)
+        
+        if self.debug:
+            print(f"\nBuilding system with {n} beam segments")
         
         # Add equations for each connection
         for i, conn in enumerate(self.connections):
@@ -689,6 +587,8 @@ class WaveOpticsEngine:
             # Source term (only for laser output)
             if conn.port1.component.component_type == "laser":
                 b[i] = 1.0  # Unit amplitude from laser
+                if self.debug:
+                    print(f"  Beam {i} starts from laser with amplitude 1.0")
             
             # Add scattering contributions
             self._add_scattering_terms(A, i, conn, beam_segments, phase)
@@ -697,14 +597,21 @@ class WaveOpticsEngine:
         try:
             if n > 0:
                 # For steady state, we solve (I - A)x = b
-                # Add small diagonal term for numerical stability
-                I_minus_A = np.eye(n) - A + np.eye(n) * 1e-10
+                I_minus_A = np.eye(n) - A
                 
-                # Check if system is singular
-                det = np.linalg.det(I_minus_A)
-                if abs(det) < 1e-10:
-                    if self.debug:
-                        print("WARNING: System matrix is nearly singular!")
+                if self.debug:
+                    print(f"\nSolving {n}x{n} system...")
+                    # Check condition number
+                    try:
+                        cond = np.linalg.cond(I_minus_A)
+                        print(f"Condition number: {cond:.2e}")
+                        if cond > 1e10:
+                            print("WARNING: System is ill-conditioned!")
+                    except:
+                        pass
+                
+                # Add small regularization for numerical stability
+                I_minus_A += np.eye(n) * 1e-10
                 
                 # Solve the system
                 x = np.linalg.solve(I_minus_A, b)
@@ -712,20 +619,26 @@ class WaveOpticsEngine:
                 # Store solutions
                 for i, beam_id in enumerate(beam_segments):
                     self.beam_amplitudes[beam_id] = x[i]
-                    
+                
                 if self.debug:
                     print(f"\nSolved for {n} beam amplitudes")
                     total_power = sum(abs(amp)**2 for amp in x)
                     print(f"Total power in system: {total_power:.3f}")
                     
+                    # Check if solution is reasonable
+                    if total_power < 0.1:
+                        print("WARNING: Very low total power - check system setup")
+                    elif total_power > 10:
+                        print("WARNING: Very high total power - possible numerical issues")
+                    
         except np.linalg.LinAlgError as e:
-            print(f"Warning: Could not solve beam equations - {e}")
-            # Try a simpler approach for debugging
-            if self.debug:
-                print("Matrix A:")
-                print(A)
-                print("Vector b:")
-                print(b)
+            print(f"ERROR: Could not solve beam equations - {e}")
+            # Fallback: set laser output beam to unit amplitude
+            for i, conn in enumerate(self.connections):
+                if conn.port1.component.component_type == "laser":
+                    self.beam_amplitudes[beam_segments[i]] = 1.0
+                else:
+                    self.beam_amplitudes[beam_segments[i]] = 0.0
             
         return self.beam_amplitudes
     
@@ -754,38 +667,53 @@ class WaveOpticsEngine:
                         # This input beam contributes to the output beam
                         # The phase factor accounts for propagation to the component
                         A[other_conn_idx, row_idx] += s_coeff * phase
+                        
+                        if self.debug and abs(s_coeff) > 0.1:
+                            port_names = ['A', 'B', 'C', 'D']
+                            in_name = port_names[input_port_idx] if input_port_idx < 4 else str(input_port_idx)
+                            out_name = port_names[output_port_idx] if output_port_idx < 4 else str(output_port_idx)
+                            print(f"    {port2_component.component_type} scatters port {in_name} -> {out_name} with coeff {s_coeff:.3f}")
     
     def _generate_beam_paths(self, amplitudes):
-        """Generate beam paths for visualization - including edge/blocked beams."""
+        """Generate beam paths for visualization - ensuring proper start positions."""
         paths = []
         
         for conn_idx, conn in enumerate(self.connections):
             beam_id = f"beam_{conn_idx}"
             amplitude = amplitudes.get(beam_id, 0j)
             
-            if abs(amplitude) < 0.01:
+            # Include beams with small amplitudes for debugging
+            if abs(amplitude) < 0.001 and not self.debug:
                 continue
             
             # Use the full path stored in the connection
+            # Make sure the path starts from the correct port position
+            path = conn.path.copy() if conn.path else []
+            
+            # If path is empty or doesn't start at port1 position, fix it
+            if not path or (path[0].distance_to(conn.port1.position) > 1):
+                # Rebuild path from port1 to port2
+                path = [conn.port1.position]
+                if conn.path and len(conn.path) > 1:
+                    # Keep intermediate points
+                    path.extend(conn.path[1:-1])
+                path.append(conn.port2.position)
+            
             paths.append({
-                'path': conn.path,
+                'path': path,
                 'amplitude': abs(amplitude),
                 'phase': cmath.phase(amplitude),
                 'source_type': 'laser' if conn.port1.component.component_type == 'laser' else 'mixed',
                 'blocked': False
             })
+            
+            if self.debug and abs(amplitude) > 0.01:
+                print(f"  Path {conn_idx}: {conn.port1.component.component_type} -> {conn.port2.component.component_type}, |A|={abs(amplitude):.3f}")
+                print(f"    Start: {path[0]}, End: {path[-1]}")
         
-        # Also check for any beams that hit edges or blocked positions
-        # This is important for showing the full beam path even if it doesn't connect
-        if hasattr(self, '_blocked_beam_paths'):
-            for blocked_path in self._blocked_beam_paths:
-                paths.append({
-                    'path': blocked_path['path'],
-                    'amplitude': blocked_path.get('amplitude', 1.0),
-                    'phase': blocked_path.get('phase', 0),
-                    'source_type': blocked_path.get('source_type', 'laser'),
-                    'blocked': True
-                })
+        # Also add any blocked beam paths
+        for blocked_path in self._blocked_beam_paths:
+            paths.append(blocked_path)
         
         return paths
     
@@ -797,6 +725,10 @@ class WaveOpticsEngine:
             path = path_data['path']
             amplitude = path_data['amplitude']
             intensity = amplitude ** 2
+            
+            # Skip very weak beams
+            if intensity < 0.001:
+                continue
             
             # Check all segments of the path
             for i in range(len(path) - 1):
@@ -847,22 +779,15 @@ class WaveOpticsEngine:
         for comp in components:
             if comp.component_type == "detector":
                 comp.reset_frame()
-                if self.debug:
-                    print(f"Reset detector at {comp.position}")
         
         # Collect all beams going to each detector
         detector_beams = {}  # detector -> list of beams
-        connections_to_detectors = 0
         
         # Check all connections
         for conn_idx, conn in enumerate(self.connections):
             if conn.port2.component.component_type == "detector":
-                connections_to_detectors += 1
                 beam_id = f"beam_{conn_idx}"
                 amplitude = amplitudes.get(beam_id, 0j)
-                
-                if self.debug:
-                    print(f"Connection {conn_idx} to detector: amplitude = {abs(amplitude):.3f}")
                 
                 if abs(amplitude) > 0.001:
                     detector = conn.port2.component
@@ -885,7 +810,6 @@ class WaveOpticsEngine:
                     detector_beams[detector].append(beam_data)
         
         if self.debug:
-            print(f"Found {connections_to_detectors} connections to detectors")
             print(f"Detectors receiving beams: {len(detector_beams)}")
         
         # Update each detector with its beams
@@ -905,18 +829,218 @@ class WaveOpticsEngine:
             
             if self.debug:
                 print(f"  Final intensity: {detector.intensity:.3f}")
-                print(f"  Incoming beams: {len(detector.incoming_beams)}")
-        
-        # Also finalize detectors that didn't receive any beams
-        for comp in components:
-            if comp.component_type == "detector" and comp not in detector_beams:
-                comp.finalize_frame()
-                if self.debug:
-                    print(f"Finalized detector at {comp.position} with no beams: intensity={comp.intensity}")
     
+    def _simple_ray_trace_with_amplitudes(self, laser, components):
+        """Simple ray tracing fallback with proper amplitude calculation."""
+        if self.debug:
+            print("\nUsing simple ray trace with amplitudes")
+        
+        # Ensure all components have ports created
+        for comp in [laser] + components:
+            if not hasattr(comp, '_ports') or comp._ports is None:
+                comp._ports = self._create_ports_for_component(comp)
+        
+        # Create laser port
+        laser_port = laser._ports[0] if hasattr(laser, '_ports') and laser._ports else self._create_ports_for_component(laser)[0]
+        
+        # Reset all components
+        for comp in components:
+            if hasattr(comp, 'reset_frame'):
+                comp.reset_frame()
+        
+        # Trace from laser - starting from port position, not laser center
+        traced_paths = []
+        active_rays = [{
+            'position': laser_port.position,  # Start from port, not center
+            'direction': laser_port.direction,
+            'amplitude': 1.0 + 0j,  # Complex amplitude
+            'path': [laser.position, laser_port.position],  # Include both center and port
+            'path_length': 0,
+            'generation': 0,
+            'processed': set()
+        }]
+        
+        max_bounces = 20
+        
+        while active_rays and active_rays[0]['generation'] < max_bounces:
+            new_rays = []
+            
+            for ray in active_rays:
+                # Trace to next component
+                hit_comp, hit_pos, distance, blocked = self._trace_ray_to_component(
+                    ray['position'], ray['direction'], ray['processed'], components
+                )
+                
+                # Check if beam was blocked before reaching component
+                if blocked and not hit_comp:
+                    # Ray was blocked - add blocked path
+                    ray['path'].append(hit_pos)
+                    
+                    if abs(ray['amplitude']) > 0.01:
+                        traced_paths.append({
+                            'path': ray['path'].copy(),
+                            'amplitude': abs(ray['amplitude']),
+                            'phase': cmath.phase(ray['amplitude']),
+                            'source_type': 'laser',
+                            'blocked': True
+                        })
+                    continue  # Don't process this ray further
+                
+                if hit_comp:
+                    # Complete path to component
+                    ray['path'].append(hit_comp.position)
+                    ray['path_length'] += distance
+                    
+                    # Store the path for visualization
+                    if abs(ray['amplitude']) > 0.01:
+                        traced_paths.append({
+                            'path': ray['path'].copy(),
+                            'amplitude': abs(ray['amplitude']),
+                            'phase': cmath.phase(ray['amplitude']),
+                            'source_type': 'laser',
+                            'blocked': False
+                        })
+                    
+                    # Handle component interaction
+                    if hit_comp.component_type == "detector":
+                        # Add beam to detector
+                        detector_beam = {
+                            'amplitude': abs(ray['amplitude']),
+                            'phase': cmath.phase(ray['amplitude']),
+                            'accumulated_phase': cmath.phase(ray['amplitude']),
+                            'total_path_length': ray['path_length'],
+                            'beam_id': f"ray_{len(traced_paths)}",
+                            'source_type': 'laser'
+                        }
+                        hit_comp.add_beam(detector_beam)
+                        
+                    elif hasattr(hit_comp, 'S'):
+                        # Handle scattering
+                        # Find input port based on ray direction
+                        input_port = self._find_best_input_port(hit_comp, ray['direction'])
+                        if input_port:
+                            input_idx = input_port.port_index
+                            S = hit_comp.S
+                            
+                            # Calculate phase from propagation
+                            phase_shift = self.k * distance
+                            propagated_amplitude = ray['amplitude'] * cmath.exp(1j * phase_shift)
+                            
+                            # Generate output rays
+                            port_directions = [Vector2(-1, 0), Vector2(0, 1), Vector2(1, 0), Vector2(0, -1)]
+                            
+                            for output_idx in range(4):
+                                s_coeff = S[output_idx, input_idx]
+                                if abs(s_coeff) > 0.01:
+                                    output_amplitude = propagated_amplitude * s_coeff
+                                    
+                                    new_ray = {
+                                        'position': hit_comp.position,
+                                        'direction': port_directions[output_idx],
+                                        'amplitude': output_amplitude,
+                                        'path': [hit_comp.position],
+                                        'path_length': ray['path_length'] + distance,
+                                        'generation': ray['generation'] + 1,
+                                        'processed': ray['processed'] | {hit_comp}
+                                    }
+                                    new_rays.append(new_ray)
+                else:
+                    # Ray goes to edge or is blocked
+                    final_pos = self._trace_to_edge(ray['position'], ray['direction'])
+                    ray['path'].append(final_pos)
+                    
+                    if abs(ray['amplitude']) > 0.01:
+                        traced_paths.append({
+                            'path': ray['path'].copy(),
+                            'amplitude': abs(ray['amplitude']),
+                            'phase': cmath.phase(ray['amplitude']),
+                            'source_type': 'laser',
+                            'blocked': blocked
+                        })
+            
+            active_rays = new_rays
+        
+        # Finalize all detectors
+        for comp in components:
+            if comp.component_type == "detector":
+                comp.finalize_frame()
+        
+        # Store traced paths
+        self._last_traced_beams = traced_paths
+        
+        # Check gold fields
+        self._check_gold_fields(traced_paths)
+    
+    def _trace_ray_to_component(self, start_pos, direction, processed, components):
+        """Trace a ray until it hits a component, respecting blocked fields."""
+        current_pos = Vector2(start_pos.x, start_pos.y)
+        path_length = 0
+        step_size = 2  # Small steps to ensure we don't miss blocked fields
+        
+        while path_length < self.max_distance:
+            next_pos = current_pos + direction * step_size
+            path_length += step_size
+            
+            # Check if we're in a blocked grid cell
+            grid_x = round((next_pos.x - CANVAS_OFFSET_X) / GRID_SIZE)
+            grid_y = round((next_pos.y - CANVAS_OFFSET_Y) / GRID_SIZE)
+            
+            for blocked_pos in self.blocked_positions:
+                blocked_grid_x = round((blocked_pos.x - CANVAS_OFFSET_X) / GRID_SIZE)
+                blocked_grid_y = round((blocked_pos.y - CANVAS_OFFSET_Y) / GRID_SIZE)
+                
+                if (grid_x, grid_y) == (blocked_grid_x, blocked_grid_y):
+                    # Beam hit a blocked field
+                    return None, blocked_pos, path_length, True
+            
+            # Check bounds
+            if (next_pos.x < CANVAS_OFFSET_X - GRID_SIZE or
+                next_pos.x > CANVAS_OFFSET_X + CANVAS_WIDTH + GRID_SIZE or
+                next_pos.y < CANVAS_OFFSET_Y - GRID_SIZE or
+                next_pos.y > CANVAS_OFFSET_Y + CANVAS_HEIGHT + GRID_SIZE):
+                return None, next_pos, path_length, False
+            
+            # Check components
+            for comp in components:
+                if comp in processed:
+                    continue
+                
+                # Use appropriate collision radius based on component type
+                if comp.component_type == "detector":
+                    comp_radius = getattr(comp, 'radius', GRID_SIZE // 2)
+                else:
+                    comp_radius = GRID_SIZE // 3  # Smaller radius for optical components
+                
+                if comp.position.distance_to(next_pos) < comp_radius:
+                    return comp, comp.position, path_length, False
+            
+            current_pos = next_pos
+        
+        return None, current_pos, path_length, False
+    
+    def _trace_to_edge(self, start_pos, direction):
+        """Trace to edge of canvas."""
+        current_pos = Vector2(start_pos.x, start_pos.y)
+        step_size = 2
+        
+        while True:
+            next_pos = current_pos + direction * step_size
+            
+            if (next_pos.x < CANVAS_OFFSET_X or
+                next_pos.x > CANVAS_OFFSET_X + CANVAS_WIDTH or
+                next_pos.y < CANVAS_OFFSET_Y or
+                next_pos.y > CANVAS_OFFSET_Y + CANVAS_HEIGHT):
+                return current_pos
+            
+            current_pos = next_pos
+            
+            if current_pos.distance_to(start_pos) > self.max_distance:
+                return current_pos
+    
+    # Compatibility methods
     def trace_beams(self, components):
         """Compatibility method - finds laser and redirects to solve_interferometer."""
-        # Find laser - it might be in the components list or passed separately
+        # Find laser
         laser = None
         actual_components = []
         
@@ -926,7 +1050,6 @@ class WaveOpticsEngine:
             else:
                 actual_components.append(comp)
         
-        # If no laser found in components, return empty
         if not laser:
             if self.debug:
                 print("WARNING: No laser found in trace_beams")
@@ -936,381 +1059,4 @@ class WaveOpticsEngine:
     
     def add_beam(self, beam):
         """Compatibility method - not used in wave optics approach."""
-        # The wave optics engine doesn't add individual beams
-        # It solves for all beams simultaneously
         pass
-    
-    def remove_component(self, component):
-        """Remove a component from the network."""
-        # Mark network as invalid
-        self._network_valid = False
-        
-        # Remove ports associated with this component
-        if hasattr(component, '_ports'):
-            for port in component._ports:
-                # Remove connections involving this port
-                self.connections = [conn for conn in self.connections 
-                                  if conn.port1 != port and conn.port2 != port]
-                # Clear port references
-                if port.connected_to:
-                    port.connected_to.connected_to = None
-                    port.connected_to = None
-            
-            # Remove ports from main list
-            self.ports = [p for p in self.ports if p.component != component]
-            
-            # Clear component's port list
-            component._ports = None
-    
-    def force_rebuild(self):
-        """Force a complete network rebuild on next solve."""
-        self.reset()
-        self._network_valid = False
-        # Clear all component port caches
-        for port in self.ports:
-            if hasattr(port.component, '_ports'):
-                port.component._ports = None
-    
-    def _connect_unconnected_components(self, laser, components):
-        """Try to connect any remaining unconnected components using direct grid paths."""
-        # Find all unconnected non-detector components
-        connected_components = set()
-        for conn in self.connections:
-            connected_components.add(conn.port1.component)
-            connected_components.add(conn.port2.component)
-        
-        unconnected = []
-        for comp in components:
-            if comp not in connected_components and comp.component_type != "detector":
-                unconnected.append(comp)
-        
-        if not unconnected:
-            return
-        
-        if self.debug:
-            print(f"\nAttempting to connect {len(unconnected)} unconnected components:")
-            for comp in unconnected:
-                print(f"  - {comp.component_type} at {comp.position}")
-        
-        # For each unconnected component, try to find a connection
-        # by checking all four directions
-        connected_ports = set()
-        for conn in self.connections:
-            connected_ports.add(conn.port1)
-            connected_ports.add(conn.port2)
-        
-        for comp in unconnected:
-            if not hasattr(comp, '_ports'):
-                continue
-            
-            # Try each port of the unconnected component
-            for port in comp._ports:
-                if port in connected_ports:
-                    continue
-                
-                # Trace from this port
-                hit_port, path, distance, blocked = self._trace_to_first_component(port)
-                
-                if hit_port and not blocked and hit_port not in connected_ports:
-                    # Create connection
-                    connection = OpticalConnection(port, hit_port, path, distance)
-                    self.connections.append(connection)
-                    port.connected_to = hit_port
-                    port.connection = connection
-                    hit_port.connected_to = port
-                    hit_port.connection = connection
-                    
-                    connected_ports.add(port)
-                    connected_ports.add(hit_port)
-                    
-                    if self.debug:
-                        print(f"  Connected: {comp.component_type} -> {hit_port.component.component_type}")
-                    
-                    break  # Move to next component
-    
-    def diagnose_network(self, laser, components):
-        """Diagnose network connectivity issues."""
-        print("\n=== NETWORK DIAGNOSTIC ===")
-        
-        # Build network if needed
-        if not self._network_valid:
-            self.reset()
-            self._build_network(laser, components)
-        
-        # 1. Check component reachability
-        print("\n1. Component Reachability:")
-        reachable = self._find_reachable_components(laser)
-        
-        for comp in [laser] + components:
-            status = "✓ Reachable" if comp in reachable else "✗ UNREACHABLE"
-            print(f"   {comp.component_type} at {comp.position}: {status}")
-        
-        # 2. Check port connections
-        print("\n2. Port Connections:")
-        for comp in [laser] + components:
-            if hasattr(comp, '_ports'):
-                print(f"\n   {comp.component_type} at {comp.position}:")
-                for i, port in enumerate(comp._ports):
-                    if port.connected_to:
-                        other = port.connected_to.component
-                        print(f"     Port {i} -> {other.component_type} port {port.connected_to.port_index}")
-                    else:
-                        print(f"     Port {i} -> [Not connected]")
-        
-        # 3. Find isolated components
-        print("\n3. Isolated Components:")
-        isolated = []
-        for comp in components:
-            if comp not in reachable and comp.component_type != "detector":
-                isolated.append(comp)
-        
-        if isolated:
-            print("   Found isolated components:")
-            for comp in isolated:
-                print(f"     - {comp.component_type} at {comp.position}")
-                # Try to trace from each port
-                if hasattr(comp, '_ports'):
-                    for i, port in enumerate(comp._ports):
-                        hit_port, path, distance, blocked = self._trace_to_first_component(port)
-                        if hit_port:
-                            print(f"       Port {i} CAN reach {hit_port.component.component_type}")
-                        elif blocked:
-                            print(f"       Port {i} blocked at distance {distance}")
-                        else:
-                            print(f"       Port {i} reaches edge at distance {distance}")
-        else:
-            print("   No isolated components found")
-        
-        return reachable
-    
-    def _simple_ray_trace(self, laser, all_ports):
-        """Simple ray tracing fallback when no connections exist."""
-        if self.debug:
-            print("\nStarting simple ray trace fallback")
-        
-        # Start with laser beam
-        laser_port = self._create_ports_for_component(laser)[0]
-        
-        # Clear all components
-        all_components = set(port.component for port in all_ports)
-        for comp in all_components:
-            if hasattr(comp, 'reset_frame'):
-                comp.reset_frame()
-        
-        active_beams = [{
-            'position': laser_port.position,
-            'direction': laser_port.direction,
-            'amplitude': 1.0,
-            'phase': 0,
-            'path_length': 0,
-            'path': [laser_port.position],
-            'processed_components': set(),
-            'generation': 0
-        }]
-        
-        max_generations = 20
-        generation = 0
-        
-        # Process beams generation by generation
-        while active_beams and generation < max_generations:
-            generation += 1
-            next_generation_beams = []
-            
-            if self.debug:
-                print(f"\n  Generation {generation}: {len(active_beams)} beams")
-            
-            for beam in active_beams:
-                # Trace this beam to next component
-                hit_comp, hit_pos, distance = self._trace_beam_to_component(
-                    beam['position'], beam['direction'], beam['processed_components']
-                )
-                
-                if hit_comp:
-                    # Complete the path to this component
-                    beam['path'].append(hit_pos)
-                    beam['path_length'] += distance
-                    
-                    # Store visualization path
-                    self._blocked_beam_paths.append({
-                        'path': beam['path'].copy(),
-                        'amplitude': beam['amplitude'],
-                        'phase': beam['phase'],
-                        'source_type': 'laser',
-                        'blocked': False
-                    })
-                    
-                    if self.debug:
-                        print(f"    Beam hit {hit_comp.component_type} at {hit_pos}")
-                    
-                    # Add beam to component based on incoming direction
-                    incoming_beam = {
-                        'position': hit_pos,
-                        'direction': beam['direction'],
-                        'amplitude': beam['amplitude'],
-                        'phase': beam['phase'],
-                        'accumulated_phase': beam['phase'],
-                        'path_length': distance,
-                        'total_path_length': beam['path_length'],
-                        'source_type': 'laser',
-                        'generation': generation
-                    }
-                    
-                    # For detectors, just add the beam
-                    if hit_comp.component_type == "detector":
-                        hit_comp.add_beam(incoming_beam)
-                    else:
-                        # For other components, add beam and get outputs
-                        hit_comp.add_beam(incoming_beam)
-                        beam['processed_components'].add(hit_comp)
-                        
-                        # Components will output beams when finalized
-                        # We'll collect them after all beams of this generation are processed
-                else:
-                    # Beam goes to edge or blocked
-                    final_pos = self._trace_to_edge_or_blocked(beam['position'], beam['direction'])
-                    beam['path'].append(final_pos)
-                    
-                    self._blocked_beam_paths.append({
-                        'path': beam['path'].copy(),
-                        'amplitude': beam['amplitude'],
-                        'phase': beam['phase'],
-                        'source_type': 'laser',
-                        'blocked': self._is_blocked(final_pos)
-                    })
-            
-            # After processing all beams of this generation, finalize components
-            # and collect output beams
-            for comp in all_components:
-                if comp.component_type != "detector" and hasattr(comp, 'finalize_frame'):
-                    output_beams = comp.finalize_frame()
-                    
-                    if output_beams:
-                        if self.debug:
-                            print(f"    {comp.component_type} at {comp.position} outputs {len(output_beams)} beams")
-                        
-                        for out_beam in output_beams:
-                            # Skip if this would go back to a processed component
-                            will_hit_processed = False
-                            test_comp, _, _ = self._trace_beam_to_component(
-                                out_beam['position'], out_beam['direction'], set()
-                            )
-                            
-                            # Create new beam for next generation
-                            new_beam = {
-                                'position': out_beam['position'],
-                                'direction': out_beam['direction'],
-                                'amplitude': out_beam['amplitude'],
-                                'phase': out_beam.get('accumulated_phase', out_beam['phase']),
-                                'path_length': out_beam.get('total_path_length', 0),
-                                'path': [comp.position, out_beam['position']],
-                                'processed_components': set([comp]),
-                                'generation': generation
-                            }
-                            next_generation_beams.append(new_beam)
-                
-                # Reset for next generation
-                if comp.component_type != "detector" and hasattr(comp, 'reset_frame'):
-                    comp.reset_frame()
-            
-            active_beams = next_generation_beams
-        
-        # Finalize all detectors
-        for comp in all_components:
-            if comp.component_type == "detector" and hasattr(comp, 'finalize_frame'):
-                comp.finalize_frame()
-                if self.debug:
-                    print(f"\n  Detector at {comp.position}: intensity = {comp.intensity:.3f}")
-    
-    def _trace_beam_to_component(self, start_pos, direction, processed_components):
-        """Trace a beam until it hits a component."""
-        current_pos = Vector2(start_pos.x, start_pos.y)
-        step_size = 2
-        distance = 0
-        
-        while distance < self.max_distance:
-            current_pos = current_pos + direction * step_size
-            distance += step_size
-            
-            # Check bounds
-            if (current_pos.x < CANVAS_OFFSET_X - GRID_SIZE or
-                current_pos.x > CANVAS_OFFSET_X + CANVAS_WIDTH + GRID_SIZE or
-                current_pos.y < CANVAS_OFFSET_Y - GRID_SIZE or
-                current_pos.y > CANVAS_OFFSET_Y + CANVAS_HEIGHT + GRID_SIZE):
-                return None, current_pos, distance
-            
-            # Check for component collision
-            for port in self.ports:
-                comp = port.component
-                
-                # Skip laser - it should be invisible to beams
-                if comp.component_type == "laser":
-                    continue
-                    
-                # Skip already processed components
-                if comp in processed_components:
-                    continue
-                    
-                # Check if beam hits this component
-                comp_radius = getattr(comp, 'radius', GRID_SIZE // 2)
-                if comp.position.distance_to(current_pos) < comp_radius:
-                    return comp, comp.position, distance
-            
-            # Check if blocked
-            for blocked_pos in self.blocked_positions:
-                if blocked_pos.distance_to(current_pos) < GRID_SIZE / 2:
-                    return None, blocked_pos, distance
-        
-        return None, current_pos, distance
-    
-    def _trace_to_edge_or_blocked(self, start_pos, direction):
-        """Trace until hitting edge or blocked position."""
-        current_pos = Vector2(start_pos.x, start_pos.y)
-        step_size = 2
-        
-        while True:
-            next_pos = current_pos + direction * step_size
-            
-            # Check if blocked
-            for blocked_pos in self.blocked_positions:
-                if blocked_pos.distance_to(next_pos) < GRID_SIZE / 2:
-                    return blocked_pos
-            
-            # Check bounds
-            if (next_pos.x < CANVAS_OFFSET_X or
-                next_pos.x > CANVAS_OFFSET_X + CANVAS_WIDTH or
-                next_pos.y < CANVAS_OFFSET_Y or
-                next_pos.y > CANVAS_OFFSET_Y + CANVAS_HEIGHT):
-                # Return edge position
-                return current_pos
-            
-            current_pos = next_pos
-            
-            if current_pos.distance_to(start_pos) > self.max_distance:
-                return current_pos
-    
-    def _is_blocked(self, pos):
-        """Check if a position is blocked."""
-        for blocked_pos in self.blocked_positions:
-            if blocked_pos.distance_to(pos) < GRID_SIZE / 2:
-                return True
-        return False
-    
-    def _find_reachable_components(self, laser):
-        """Find all components reachable from the laser."""
-        reachable = {laser}
-        to_visit = [laser]
-        
-        while to_visit:
-            current = to_visit.pop(0)
-            
-            # Find all components connected to current
-            if hasattr(current, '_ports'):
-                for port in current._ports:
-                    if port.connected_to:
-                        other_comp = port.connected_to.component
-                        if other_comp not in reachable:
-                            reachable.add(other_comp)
-                            if other_comp.component_type != "detector":
-                                to_visit.append(other_comp)
-        
-        return reachable
