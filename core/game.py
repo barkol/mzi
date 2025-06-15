@@ -59,11 +59,13 @@ class Game:
         
         # Game components - use dynamic positioning
         # Center laser vertically based on actual canvas rows
-        laser_x = CANVAS_OFFSET_X + GRID_SIZE
-        laser_row = CANVAS_GRID_ROWS // 2  # Center vertically in dynamic grid
-        laser_y = CANVAS_OFFSET_Y + laser_row * GRID_SIZE
+        laser_grid_x = 1  # Grid column 1
+        laser_grid_row = CANVAS_GRID_ROWS // 2  # Center vertically in dynamic grid
+        # Center the laser in the grid cell
+        laser_x = CANVAS_OFFSET_X + laser_grid_x * GRID_SIZE + GRID_SIZE // 2
+        laser_y = CANVAS_OFFSET_Y + laser_grid_row * GRID_SIZE + GRID_SIZE // 2
         self.laser = Laser(laser_x, laser_y)
-        
+
         # Helper modules
         self.effects = EffectsManager()
         self.component_manager = ComponentManager(self.effects, self.sound_manager)

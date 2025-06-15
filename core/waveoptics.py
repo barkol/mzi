@@ -188,17 +188,25 @@ class WaveOpticsEngine:
             print(f"\nBuilt network with {len(self.ports)} ports and {len(self.connections)} connections")
             if len(self.connections) == 0:
                 print("WARNING: No connections found!")
+                print("Port summary:")
+                for comp in all_components:
+                    if hasattr(comp, '_ports'):
+                        print(f"  {comp.component_type} at {comp.position}: {len(comp._ports)} ports")
             else:
                 connection_summary = {}
                 for conn in self.connections:
                     key = f"{conn.port1.component.component_type} -> {conn.port2.component.component_type}"
                     connection_summary[key] = connection_summary.get(key, 0) + 1
+                print("Connection summary:")
                 for conn_type, count in sorted(connection_summary.items()):
                     print(f"  {conn_type}: {count}")
     
     def _create_ports_for_component(self, component):
         """Create optical ports for a component - GRID ALIGNED."""
         ports = []
+        
+        if self.debug:
+            print(f"\nCreating ports for {component.component_type} at {component.position}")
         
         if component.component_type == "laser":
             # Laser has one output port - beam should start from edge of laser
@@ -213,16 +221,17 @@ class WaveOpticsEngine:
                              Vector2(1, 0))  # Emits to the right
             ports.append(port)
             
+            if self.debug:
+                print(f"  Laser port at {port.position}")
+            
         elif component.component_type in ["beamsplitter", "mirror", "tunable_beamsplitter", "partial_mirror"]:
             # These components have 4 ports at grid edges
             # Component is centered on grid, ports should be at half-grid distance
             offset_dist = GRID_SIZE // 2  # Half grid size to reach edge of grid cell
             
-            # Ensure component is on grid center
-            grid_x = round((component.position.x - CANVAS_OFFSET_X) / GRID_SIZE)
-            grid_y = round((component.position.y - CANVAS_OFFSET_Y) / GRID_SIZE)
-            center_x = CANVAS_OFFSET_X + grid_x * GRID_SIZE + GRID_SIZE // 2
-            center_y = CANVAS_OFFSET_Y + grid_y * GRID_SIZE + GRID_SIZE // 2
+            # Use the component's actual position (should already be grid-aligned)
+            center_x = component.position.x
+            center_y = component.position.y
             
             port_configs = [
                 (0, Vector2(-offset_dist, 0), Vector2(-1, 0)),   # Port A (left) - beams exit left
@@ -232,20 +241,21 @@ class WaveOpticsEngine:
             ]
             
             for idx, offset, direction in port_configs:
-                # Use the grid-aligned center for port calculation
+                # Use the component's actual position for port calculation
                 port_pos = Vector2(center_x + offset.x, center_y + offset.y)
                 port = OpticalPort(component, idx, port_pos, direction)
                 ports.append(port)
+                
+                if self.debug:
+                    print(f"    Created port {idx} at {port_pos} for {component.component_type}")
                 
         elif component.component_type == "detector":
             # Detector has 4 input ports at edges
             offset_dist = GRID_SIZE // 2  # Half grid size for consistency
             
-            # Ensure detector is on grid center
-            grid_x = round((component.position.x - CANVAS_OFFSET_X) / GRID_SIZE)
-            grid_y = round((component.position.y - CANVAS_OFFSET_Y) / GRID_SIZE)
-            center_x = CANVAS_OFFSET_X + grid_x * GRID_SIZE + GRID_SIZE // 2
-            center_y = CANVAS_OFFSET_Y + grid_y * GRID_SIZE + GRID_SIZE // 2
+            # Use the component's actual position
+            center_x = component.position.x
+            center_y = component.position.y
             
             port_configs = [
                 (0, Vector2(-offset_dist, 0), Vector2(1, 0)),    # From left
@@ -255,10 +265,13 @@ class WaveOpticsEngine:
             ]
             
             for idx, offset, in_direction in port_configs:
-                # Use the grid-aligned center for port calculation
+                # Use the component's actual position for port calculation
                 port_pos = Vector2(center_x + offset.x, center_y + offset.y)
                 port = OpticalPort(component, idx, port_pos, in_direction)
                 ports.append(port)
+                
+                if self.debug:
+                    print(f"    Created detector port {idx} at {port_pos}")
         
         return ports
     
@@ -269,6 +282,9 @@ class WaveOpticsEngine:
             port.connected_to = None
             port.connection = None
         self.connections.clear()
+        
+        if self.debug:
+            print("\n=== Finding connections ===")
         
         # Collect all potential connections
         potential_connections = []
@@ -281,13 +297,12 @@ class WaveOpticsEngine:
             if port1.component.component_type == "detector":
                 continue
             
-            # For non-laser components, check if this port can output based on the S matrix
-            if port1.component.component_type != "laser" and hasattr(port1.component, 'S'):
-                output_port_idx = port1.port_index
-                can_output = any(abs(port1.component.S[output_port_idx, j]) > 1e-10 
-                               for j in range(port1.component.S.shape[1]))
-                if not can_output:
-                    continue
+            # For non-laser components, we need to trace from ALL ports to find connections
+            # The S matrix will handle which paths actually carry amplitude
+            if port1.component.component_type != "laser" and port1.component.component_type != "detector":
+                # Trace from all non-detector ports
+                if self.debug:
+                    print(f"  Tracing from {port1.component.component_type} port {port1.port_index} at {port1.position}")
             
             # Trace a ray from this port
             hit_port, path, distance, blocked = self._trace_to_first_component(port1)
@@ -378,6 +393,9 @@ class WaveOpticsEngine:
         start_pos = from_port.position
         direction = from_port.direction
         
+        if self.debug:
+            print(f"\n    Tracing from {from_port.component.component_type} port {from_port.port_index} at {start_pos} direction {direction}")
+        
         # Ensure we're using exact grid directions
         if abs(direction.x) > abs(direction.y):
             # Horizontal movement
@@ -420,7 +438,7 @@ class WaveOpticsEngine:
                     blocked_center = Vector2(blocked_center_x, blocked_center_y)
                     path.append(blocked_center)
                     if self.debug:
-                        print(f"  Beam blocked at grid ({grid_x}, {grid_y})")
+                        print(f"      Beam blocked at grid ({grid_x}, {grid_y})")
                     return None, path, distance, True
             
             # Check bounds
@@ -435,25 +453,29 @@ class WaveOpticsEngine:
                     path.append(next_pos)
                 return None, path, distance, False
             
-            # Check if we hit another component
+            # Check if we hit another component using grid metrics
             hit_component = None
-            min_distance = float('inf')
+            min_grid_distance = float('inf')
             
             for comp in [p.component for p in self.ports if p.component != from_port.component]:
-                # Check distance to component center
-                distance_to_comp = comp.position.distance_to(next_pos)
+                # Calculate grid distance (Manhattan distance)
+                dx = abs(comp.position.x - next_pos.x)
+                dy = abs(comp.position.y - next_pos.y)
+                grid_distance = dx + dy
                 
-                # Get component's effective radius for collision
-                if comp.component_type == "detector":
-                    effective_radius = getattr(comp, 'radius', GRID_SIZE // 2)
-                else:
-                    # For beam splitters and mirrors, use smaller radius for more precise collision
-                    effective_radius = GRID_SIZE // 3
+                # Check if we're in the same grid cell as the component
+                comp_grid_x = round((comp.position.x - CANVAS_OFFSET_X) / GRID_SIZE)
+                comp_grid_y = round((comp.position.y - CANVAS_OFFSET_Y) / GRID_SIZE)
+                beam_grid_x = round((next_pos.x - CANVAS_OFFSET_X) / GRID_SIZE)
+                beam_grid_y = round((next_pos.y - CANVAS_OFFSET_Y) / GRID_SIZE)
                 
-                # Check if beam hits this component
-                if distance_to_comp < effective_radius and distance_to_comp < min_distance:
-                    hit_component = comp
-                    min_distance = distance_to_comp
+                # Component is hit if beam is in same grid cell
+                if comp_grid_x == beam_grid_x and comp_grid_y == beam_grid_y:
+                    if grid_distance < min_grid_distance:
+                        hit_component = comp
+                        min_grid_distance = grid_distance
+                        if self.debug:
+                            print(f"      Hit {comp.component_type} at grid ({comp_grid_x}, {comp_grid_y})")
             
             if hit_component:
                 # End the path at the component's center
@@ -463,12 +485,12 @@ class WaveOpticsEngine:
                 best_port = self._find_best_input_port(hit_component, direction)
                 if best_port:
                     if self.debug:
-                        print(f"  Ray hit: {from_port.component.component_type} -> {hit_component.component_type}")
+                        print(f"      Ray hit: {from_port.component.component_type} -> {hit_component.component_type} port {best_port.port_index}")
                     return best_port, path, distance, False
                 else:
                     # Component hit but no suitable port
                     if self.debug:
-                        print(f"  Hit {hit_component.component_type} but no suitable port for direction {direction}")
+                        print(f"      Hit {hit_component.component_type} but no suitable port for direction {direction}")
                     return None, path, distance, True
             
             # Add intermediate points periodically for smooth rendering
@@ -1009,7 +1031,8 @@ class WaveOpticsEngine:
                 if comp.component_type == "detector":
                     comp_radius = getattr(comp, 'radius', GRID_SIZE // 2)
                 else:
-                    comp_radius = GRID_SIZE // 3  # Smaller radius for optical components
+                    # For optical components, use radius that accounts for port positions
+                    comp_radius = GRID_SIZE // 2 + 5  # Ports are at GRID_SIZE//2 from center
                 
                 if comp.position.distance_to(next_pos) < comp_radius:
                     return comp, comp.position, path_length, False

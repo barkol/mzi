@@ -24,11 +24,18 @@ class ComponentManager:
         grid_x = round((x - CANVAS_OFFSET_X) / GRID_SIZE)
         grid_y = round((y - CANVAS_OFFSET_Y) / GRID_SIZE)
         
+        # Ensure the component is centered in the grid cell
+        centered_x = CANVAS_OFFSET_X + grid_x * GRID_SIZE + GRID_SIZE // 2
+        centered_y = CANVAS_OFFSET_Y + grid_y * GRID_SIZE + GRID_SIZE // 2
+        
+        print(f"Grid position: ({grid_x}, {grid_y})")
+        print(f"Centered position: ({centered_x}, {centered_y})")
+        
         if comp_type == 'laser':
             # Move existing laser instead of creating new one
             if laser:
-                laser.position = Vector2(x, y)
-                self.effects.add_placement_effect(x, y)
+                laser.position = Vector2(centered_x, centered_y)  # Use centered position
+                self.effects.add_placement_effect(centered_x, centered_y)
                 if self.sound_manager:
                     self.sound_manager.play('place_component')
                 print(f"Laser moved to grid ({grid_x}, {grid_y})")
@@ -43,25 +50,25 @@ class ComponentManager:
                 return
         elif comp_type == 'beamsplitter':
             # Beam splitters always include π/2 phase shift on reflection
-            comp = BeamSplitter(x, y)
+            comp = BeamSplitter(centered_x, centered_y)  # Use centered position
             self.components.append(comp)
             self.component_grid_positions.append({'type': comp_type, 'grid_x': grid_x, 'grid_y': grid_y})
             if self.sound_manager:
                 self.sound_manager.play('place_component')
         elif comp_type == 'mirror/':
-            comp = Mirror(x, y, '/')
+            comp = Mirror(centered_x, centered_y, '/')  # Use centered position
             self.components.append(comp)
             self.component_grid_positions.append({'type': 'mirror/', 'grid_x': grid_x, 'grid_y': grid_y})
             if self.sound_manager:
                 self.sound_manager.play('place_component')
         elif comp_type == 'mirror\\':
-            comp = Mirror(x, y, '\\')
+            comp = Mirror(centered_x, centered_y, '\\')  # Use centered position
             self.components.append(comp)
             self.component_grid_positions.append({'type': 'mirror\\', 'grid_x': grid_x, 'grid_y': grid_y})
             if self.sound_manager:
                 self.sound_manager.play('place_component')
         elif comp_type == 'detector':
-            comp = Detector(x, y)
+            comp = Detector(centered_x, centered_y)  # Use centered position
             self.components.append(comp)
             self.component_grid_positions.append({'type': comp_type, 'grid_x': grid_x, 'grid_y': grid_y})
             if self.sound_manager:
@@ -73,7 +80,7 @@ class ComponentManager:
         # Reset all components when adding new ones
         self._reset_all_components()
         
-        self.effects.add_placement_effect(x, y)
+        self.effects.add_placement_effect(centered_x, centered_y)
         
         if comp_type != 'laser':
             print(f"Total components: {len(self.components)}")  # Debug
@@ -121,11 +128,14 @@ class ComponentManager:
         self.components.clear()
         self.component_grid_positions.clear()
         
-        # Keep the laser but move it back to default position
+        # Keep the laser but move it back to default position (centered in grid cell)
         if laser:
-            # Use current scaled values
-            laser.position = Vector2(CANVAS_OFFSET_X + GRID_SIZE, 
-                                   CANVAS_OFFSET_Y + 7 * GRID_SIZE)
+            # Calculate centered position for default laser location
+            default_grid_x = 1
+            default_grid_y = 7
+            centered_x = CANVAS_OFFSET_X + default_grid_x * GRID_SIZE + GRID_SIZE // 2
+            centered_y = CANVAS_OFFSET_Y + default_grid_y * GRID_SIZE + GRID_SIZE // 2
+            laser.position = Vector2(centered_x, centered_y)
         
         # Play clear sound
         if self.sound_manager:
@@ -160,9 +170,9 @@ class ComponentManager:
         print(f"Canvas offset: ({CANVAS_OFFSET_X}, {CANVAS_OFFSET_Y}), Grid size: {GRID_SIZE}")
         
         for i, (comp, grid_pos) in enumerate(zip(self.components, self.component_grid_positions)):
-            # Calculate new screen position from grid position
-            new_x = CANVAS_OFFSET_X + grid_pos['grid_x'] * GRID_SIZE
-            new_y = CANVAS_OFFSET_Y + grid_pos['grid_y'] * GRID_SIZE
+            # Calculate new screen position from grid position (centered in cell)
+            new_x = CANVAS_OFFSET_X + grid_pos['grid_x'] * GRID_SIZE + GRID_SIZE // 2
+            new_y = CANVAS_OFFSET_Y + grid_pos['grid_y'] * GRID_SIZE + GRID_SIZE // 2
             
             old_pos = comp.position.tuple()
             comp.position = Vector2(new_x, new_y)

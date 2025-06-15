@@ -212,9 +212,9 @@ class ChallengeManager:
                             try:
                                 x = int(parts[0])
                                 y = int(parts[1])
-                                # Convert grid coordinates to screen coordinates
-                                screen_x = CANVAS_OFFSET_X + x * GRID_SIZE
-                                screen_y = CANVAS_OFFSET_Y + y * GRID_SIZE
+                                # Convert grid coordinates to screen coordinates - CENTER in grid cell
+                                screen_x = CANVAS_OFFSET_X + x * GRID_SIZE + GRID_SIZE // 2
+                                screen_y = CANVAS_OFFSET_Y + y * GRID_SIZE + GRID_SIZE // 2
                                 new_pos = Vector2(screen_x, screen_y)
                                 
                                 # Check if this position is already a gold field
@@ -257,9 +257,9 @@ class ChallengeManager:
                             try:
                                 x = int(parts[0])
                                 y = int(parts[1])
-                                # Convert grid coordinates to screen coordinates
-                                screen_x = CANVAS_OFFSET_X + x * GRID_SIZE
-                                screen_y = CANVAS_OFFSET_Y + y * GRID_SIZE
+                                # Convert grid coordinates to screen coordinates - CENTER in grid cell
+                                screen_x = CANVAS_OFFSET_X + x * GRID_SIZE + GRID_SIZE // 2
+                                screen_y = CANVAS_OFFSET_Y + y * GRID_SIZE + GRID_SIZE // 2
                                 new_pos = Vector2(screen_x, screen_y)
                                 
                                 # Check if this position is already blocked
@@ -426,7 +426,7 @@ class ChallengeManager:
 8,5
 9,5
 
-# Lower path rewards
+# Lower path rewards  
 7,11
 8,11
 9,11
@@ -655,10 +655,10 @@ class ChallengeManager:
             for blocked_pos in self.blocked_positions:
                 if gold_pos.distance_to(blocked_pos) < GRID_SIZE / 2:
                     # Convert back to grid coordinates for reporting
-                    gold_grid_x = round((gold_pos.x - CANVAS_OFFSET_X) / GRID_SIZE)
-                    gold_grid_y = round((gold_pos.y - CANVAS_OFFSET_Y) / GRID_SIZE)
-                    blocked_grid_x = round((blocked_pos.x - CANVAS_OFFSET_X) / GRID_SIZE)
-                    blocked_grid_y = round((blocked_pos.y - CANVAS_OFFSET_Y) / GRID_SIZE)
+                    gold_grid_x = round((gold_pos.x - CANVAS_OFFSET_X - GRID_SIZE // 2) / GRID_SIZE)
+                    gold_grid_y = round((gold_pos.y - CANVAS_OFFSET_Y - GRID_SIZE // 2) / GRID_SIZE)
+                    blocked_grid_x = round((blocked_pos.x - CANVAS_OFFSET_X - GRID_SIZE // 2) / GRID_SIZE)
+                    blocked_grid_y = round((blocked_pos.y - CANVAS_OFFSET_Y - GRID_SIZE // 2) / GRID_SIZE)
                     
                     conflicts.append({
                         'gold': (gold_grid_x, gold_grid_y),
