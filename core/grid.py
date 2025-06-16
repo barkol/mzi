@@ -45,9 +45,12 @@ class Grid:
     def set_hover(self, pos):
         """Set hover position for drag preview."""
         if pos and self.canvas_rect.collidepoint(pos):
-            # Snap to grid
-            x = round((pos[0] - CANVAS_OFFSET_X) / GRID_SIZE) * GRID_SIZE + CANVAS_OFFSET_X
-            y = round((pos[1] - CANVAS_OFFSET_Y) / GRID_SIZE) * GRID_SIZE + CANVAS_OFFSET_Y
+            # Snap to grid CENTER
+            grid_x = round((pos[0] - CANVAS_OFFSET_X) / GRID_SIZE)
+            grid_y = round((pos[1] - CANVAS_OFFSET_Y) / GRID_SIZE)
+            # Center in the grid cell
+            x = CANVAS_OFFSET_X + grid_x * GRID_SIZE + GRID_SIZE // 2
+            y = CANVAS_OFFSET_Y + grid_y * GRID_SIZE + GRID_SIZE // 2
             self.hover_pos = (x, y)
         else:
             self.hover_pos = None
@@ -351,6 +354,12 @@ class Grid:
         """Draw hover highlight for component placement."""
         x, y = self.hover_pos
         
+        # Calculate the grid cell bounds
+        grid_x = round((x - CANVAS_OFFSET_X) / GRID_SIZE)
+        grid_y = round((y - CANVAS_OFFSET_Y) / GRID_SIZE)
+        cell_x = CANVAS_OFFSET_X + grid_x * GRID_SIZE
+        cell_y = CANVAS_OFFSET_Y + grid_y * GRID_SIZE
+        
         # Check if position is occupied or blocked
         occupied = self._is_position_occupied(x, y, components, laser_pos)
         blocked = False
@@ -367,19 +376,22 @@ class Grid:
         alpha = pulse_alpha(80)
         color = HOVER_INVALID_COLOR if (occupied or blocked) else HOVER_VALID_COLOR
         
-        # Draw highlight square
+        # Draw highlight square for the entire grid cell
         s = pygame.Surface((GRID_SIZE, GRID_SIZE), pygame.SRCALPHA)
         pygame.draw.rect(s, (color[0], color[1], color[2], alpha), 
                         pygame.Rect(0, 0, GRID_SIZE, GRID_SIZE))
-        screen.blit(s, (x - GRID_SIZE // 2, y - GRID_SIZE // 2))
+        screen.blit(s, (cell_x, cell_y))
         
-        # Draw border
-        rect = pygame.Rect(x - GRID_SIZE // 2, y - GRID_SIZE // 2, GRID_SIZE, GRID_SIZE)
+        # Draw border around the grid cell
+        rect = pygame.Rect(cell_x, cell_y, GRID_SIZE, GRID_SIZE)
         pygame.draw.rect(screen, color[:3], rect, 2)
         
-        # Draw crosshair
+        # Draw center crosshair to show exact placement position
         pygame.draw.line(screen, color[:3], (x - 10, y), (x + 10, y), 1)
         pygame.draw.line(screen, color[:3], (x, y - 10), (x, y + 10), 1)
+        
+        # Draw small circle at center to emphasize placement point
+        pygame.draw.circle(screen, color[:3], (int(x), int(y)), 3)
         
         # Draw status text
         if blocked:
@@ -465,9 +477,9 @@ class Grid:
         except:
             font = pygame.font.Font(None, 14)
             
-        # Convert to grid coordinates
-        grid_x = (x - CANVAS_OFFSET_X) // GRID_SIZE
-        grid_y = (y - CANVAS_OFFSET_Y) // GRID_SIZE
+        # Convert to grid coordinates - x,y are already centered in cell
+        grid_x = round((x - CANVAS_OFFSET_X - GRID_SIZE // 2) / GRID_SIZE)
+        grid_y = round((y - CANVAS_OFFSET_Y - GRID_SIZE // 2) / GRID_SIZE)
         coords_text = f"({grid_x}, {grid_y})"
         text = font.render(coords_text, True, CYAN)
         text_rect = text.get_rect(topleft=(x + 15, y - 25))

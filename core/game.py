@@ -152,9 +152,11 @@ class Game:
         self.scale_factor = new_scale_factor
         
         # Update laser position based on new grid dimensions
-        laser_x = CANVAS_OFFSET_X + GRID_SIZE
+        laser_grid_x = 1
         laser_row = CANVAS_GRID_ROWS // 2  # Use dynamic row count
-        laser_y = CANVAS_OFFSET_Y + laser_row * GRID_SIZE
+        # Center the laser in the grid cell
+        laser_x = CANVAS_OFFSET_X + laser_grid_x * GRID_SIZE + GRID_SIZE // 2
+        laser_y = CANVAS_OFFSET_Y + laser_row * GRID_SIZE + GRID_SIZE // 2
         self.laser.position = Vector2(laser_x, laser_y)
         
         # Clear components to avoid scaling issues
@@ -242,9 +244,12 @@ class Game:
         if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
             # Check if we were dragging something
             if self.sidebar.dragging and self.sidebar.selected and self._is_in_canvas(event.pos):
-                # Place component at grid position
-                x = round((event.pos[0] - CANVAS_OFFSET_X) / GRID_SIZE) * GRID_SIZE + CANVAS_OFFSET_X
-                y = round((event.pos[1] - CANVAS_OFFSET_Y) / GRID_SIZE) * GRID_SIZE + CANVAS_OFFSET_Y
+                # Place component at grid position CENTER
+                grid_x = round((event.pos[0] - CANVAS_OFFSET_X) / GRID_SIZE)
+                grid_y = round((event.pos[1] - CANVAS_OFFSET_Y) / GRID_SIZE)
+                # Center in the grid cell
+                x = CANVAS_OFFSET_X + grid_x * GRID_SIZE + GRID_SIZE // 2
+                y = CANVAS_OFFSET_Y + grid_y * GRID_SIZE + GRID_SIZE // 2
                 
                 # Check component limits
                 if self.sidebar.selected != 'laser' and not self._can_add_component():
@@ -941,7 +946,12 @@ class Game:
     
     def _draw_drag_preview(self):
         """Draw preview of component being dragged."""
-        x, y = self.mouse_pos
+        # Use grid hover position if available, otherwise mouse position
+        if self.grid.hover_pos and self._is_in_canvas(self.mouse_pos):
+            x, y = self.grid.hover_pos
+        else:
+            x, y = self.mouse_pos
+        
         comp_type = self.sidebar.selected
         
         # Semi-transparent preview

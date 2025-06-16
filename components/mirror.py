@@ -28,21 +28,32 @@ class Mirror(TunableBeamSplitter):
         
         # Override the scattering matrix for proper mirror behavior
         # Port order: [A (left), B (bottom), C (right), D (top)]
+        # IMPORTANT: In pygame, y increases downward!
+        
+        # The mirror types appear to be swapped, so we'll reverse them
         if mirror_type == '/':
-            # '/' mirror: A↔D, B↔C (with π phase shift)
+            # '/' mirror - but behaves like '\' due to pygame coordinates
+            # - Beam from top (D) → goes right (C)
+            # - Beam from right (C) → goes top (D)
+            # - Beam from bottom (B) → goes left (A)
+            # - Beam from left (A) → goes bottom (B)
             self.S = np.array([
-                [0,  0,  0, -1],  # A reflects to/from D
-                [0,  0, -1,  0],  # B reflects to/from C
-                [0, -1,  0,  0],  # C reflects to/from B
-                [-1, 0,  0,  0]   # D reflects to/from A
+                [0, -1,  0,  0],  # A (left) reflects to/from B (bottom)
+                [-1, 0,  0,  0],  # B (bottom) reflects to/from A (left)
+                [0,  0,  0, -1],  # C (right) reflects to/from D (top)
+                [0,  0, -1,  0]   # D (top) reflects to/from C (right)
             ], dtype=complex)
         else:  # '\'
-            # '\' mirror: A↔B, C↔D (with π phase shift)
+            # '\' mirror - but behaves like '/' due to pygame coordinates
+            # - Beam from top (D) → goes left (A)
+            # - Beam from left (A) → goes top (D)
+            # - Beam from bottom (B) → goes right (C)
+            # - Beam from right (C) → goes bottom (B)
             self.S = np.array([
-                [0, -1,  0,  0],  # A reflects to/from B
-                [-1, 0,  0,  0],  # B reflects to/from A
-                [0,  0,  0, -1],  # C reflects to/from D
-                [0,  0, -1,  0]   # D reflects to/from C
+                [0,  0,  0, -1],  # A (left) reflects to/from D (top)
+                [0,  0, -1,  0],  # B (bottom) reflects to/from C (right)
+                [0, -1,  0,  0],  # C (right) reflects to/from B (bottom)
+                [-1, 0,  0,  0]   # D (top) reflects to/from A (left)
             ], dtype=complex)
     
     def draw(self, screen):
