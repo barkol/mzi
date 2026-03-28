@@ -123,9 +123,9 @@ class Grid:
         try:
             font_size = scale_font(14) if 'scale_font' in globals() else 14
             font = pygame.font.Font(None, font_size)
-        except:
+        except Exception:
             font = pygame.font.Font(None, 14)
-            
+
         info_text = f"Grid: {CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} cells ({GRID_SIZE}px)"
         text_surface = font.render(info_text, True, WHITE)
         text_rect = text_surface.get_rect(
@@ -181,7 +181,7 @@ class Grid:
         for pos in gold_positions:
             try:
                 x, y = int(pos.x), int(pos.y)
-            except:
+            except Exception:
                 print(f"Invalid gold position: {pos}")
                 continue
             
@@ -422,9 +422,9 @@ class Grid:
         try:
             font_size = scale_font(14) if 'scale_font' in globals() else 14
             font = pygame.font.Font(None, font_size)
-        except:
+        except Exception:
             font = pygame.font.Font(None, 14)
-            
+
         text = font.render("BEAM OBSTACLE", True, (255, 0, 0))
         text_rect = text.get_rect(topleft=(x + 15, y - 25))
         
@@ -447,9 +447,9 @@ class Grid:
         try:
             font_size = scale_font(14) if 'scale_font' in globals() else 14
             font = pygame.font.Font(None, font_size)
-        except:
+        except Exception:
             font = pygame.font.Font(None, 14)
-            
+
         text = font.render("OCCUPIED", True, (255, 0, 0))
         text_rect = text.get_rect(topleft=(x + 15, y - 25))
         
@@ -474,9 +474,9 @@ class Grid:
         try:
             font_size = scale_font(14) if 'scale_font' in globals() else 14
             font = pygame.font.Font(None, font_size)
-        except:
+        except Exception:
             font = pygame.font.Font(None, 14)
-            
+
         # Convert to grid coordinates - x,y are already centered in cell
         grid_x = round((x - CANVAS_OFFSET_X - GRID_SIZE // 2) / GRID_SIZE)
         grid_y = round((y - CANVAS_OFFSET_Y - GRID_SIZE // 2) / GRID_SIZE)

@@ -235,7 +235,7 @@ class SoundManager:
                         channel.fadeout(fade_ms)
                     else:
                         channel.stop()
-            except:
+            except Exception:
                 pass
             del self.active_channels[sound_name]
     
@@ -246,7 +246,7 @@ class SoundManager:
                 pygame.mixer.fadeout(fade_ms)
             else:
                 pygame.mixer.stop()
-        except:
+        except Exception:
             pass
         self.active_channels.clear()
         self.detector_channels.clear()
@@ -262,7 +262,7 @@ class SoundManager:
         for sound in self.sounds.values():
             try:
                 sound.set_volume(self.master_volume)
-            except:
+            except Exception:
                 pass
     
     def toggle_enabled(self):
@@ -281,7 +281,7 @@ class SoundManager:
             try:
                 if channel.get_busy():
                     channel.stop()
-            except:
+            except Exception:
                 pass
             del self.detector_channels[detector_id]
         
@@ -303,7 +303,7 @@ class SoundManager:
                 try:
                     if channel.get_busy():
                         channel.stop()
-                except:
+                except Exception:
                     pass
             self.detector_channels.clear()
             self.active_detectors.clear()

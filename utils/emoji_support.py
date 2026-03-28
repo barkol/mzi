@@ -40,7 +40,7 @@ class EmojiSupport:
                 test_surface = cls._emoji_font.render("🏆", True, (255, 255, 255))
                 if test_surface.get_width() > 5:  # Basic check if something was rendered
                     return cls._emoji_font
-            except:
+            except Exception:
                 continue
         
         # If no emoji font found, return default font

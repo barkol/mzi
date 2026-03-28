@@ -629,7 +629,7 @@ class WaveOpticsEngine:
                         print(f"Condition number: {cond:.2e}")
                         if cond > 1e10:
                             print("WARNING: System is ill-conditioned!")
-                    except:
+                    except Exception:
                         pass
                 
                 # Add small regularization for numerical stability
