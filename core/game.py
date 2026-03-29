@@ -130,6 +130,15 @@ class Game:
         
         # Track gold field hits for sound
         self.last_gold_hits = {}
+
+        # Canvas component dragging state
+        self._dragging_component = None   # component being dragged
+        self._dragging_comp_type = None   # its type string for re-placement
+
+        # Double-click detection
+        self._last_click_time = 0
+        self._last_click_pos = (0, 0)
+        self._double_click_ms = 400       # max ms between clicks
         
         # Load gold fields first
         self.challenge_manager.load_gold_fields()
@@ -256,58 +265,60 @@ class Game:
         if event.type == pygame.MOUSEMOTION:
             self.mouse_pos = event.pos
             
-            # Update grid hover if dragging
-            if self.sidebar.dragging:
+            # Update grid hover if dragging (from sidebar or canvas)
+            if self.sidebar.dragging or self._dragging_component:
                 self.grid.set_hover(event.pos)
             else:
                 self.grid.set_hover(None)
         
-        # Handle component drop BEFORE sidebar processes the event
+        # Handle component drop (from sidebar OR canvas drag)
         if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-            # Check if we were dragging something
-            if self.sidebar.dragging and self.sidebar.selected and self._is_in_canvas(event.pos):
-                # Place component at grid position CENTER
-                grid_x = round((event.pos[0] - CANVAS_OFFSET_X) / GRID_SIZE)
-                grid_y = round((event.pos[1] - CANVAS_OFFSET_Y) / GRID_SIZE)
-                # Center in the grid cell
-                x = CANVAS_OFFSET_X + grid_x * GRID_SIZE + GRID_SIZE // 2
-                y = CANVAS_OFFSET_Y + grid_y * GRID_SIZE + GRID_SIZE // 2
-                
-                # Check component limits
-                if self.sidebar.selected != 'laser' and not self._can_add_component():
-                    self.controls.set_status("Component limit reached for this challenge!")
-                    self.right_panel.add_debug_message("Cannot add component - limit reached")
-                    self.sound_manager.play('invalid_placement')
-                elif self.challenge_manager.is_position_blocked(x, y):
-                    self.controls.set_status("Cannot place component here - position blocked!")
-                    self.sound_manager.play('beam_blocked')
-                    logger.debug("Position (%d, %d) is blocked", x, y)
-                elif not self.component_manager.is_position_occupied(x, y, self.laser,
-                                                                  self.sidebar.selected == 'laser'):
-                    # Clear quantum packets when network changes
-                    if self.quantum_mode:
-                        self.packet_engine.families.clear()
-                    # Reset gold collection when any component is placed (changes beam paths)
-                    self.beam_tracer.reset_gold_collection()
-                    if hasattr(self.controls, 'set_gold_bonus'):
-                        self.controls.set_gold_bonus(0)
-                    self.last_gold_hits.clear()
-                    
-                    if self.sidebar.selected == 'laser':
-                        self.right_panel.add_debug_message("Gold bonus reset - laser moved")
+            # Determine what we're dropping and its type
+            drop_type = None
+            if self.sidebar.dragging and self.sidebar.selected:
+                drop_type = self.sidebar.selected
+            elif self._dragging_component:
+                drop_type = self._dragging_comp_type
+
+            if drop_type:
+                if self._is_in_canvas(event.pos):
+                    # Place component at grid position CENTER
+                    grid_x = round((event.pos[0] - CANVAS_OFFSET_X) / GRID_SIZE)
+                    grid_y = round((event.pos[1] - CANVAS_OFFSET_Y) / GRID_SIZE)
+                    x = CANVAS_OFFSET_X + grid_x * GRID_SIZE + GRID_SIZE // 2
+                    y = CANVAS_OFFSET_Y + grid_y * GRID_SIZE + GRID_SIZE // 2
+
+                    # Check placement validity
+                    if drop_type != 'laser' and not self._dragging_component and not self._can_add_component():
+                        self.controls.set_status("Component limit reached for this challenge!")
+                        self.sound_manager.play('invalid_placement')
+                    elif self.challenge_manager.is_position_blocked(x, y):
+                        self.controls.set_status("Cannot place here - blocked!")
+                        self.sound_manager.play('beam_blocked')
+                    elif not self.component_manager.is_position_occupied(
+                            x, y, self.laser, drop_type == 'laser'):
+                        # Valid drop
+                        if self.quantum_mode:
+                            self.packet_engine.families.clear()
+                            self.packet_engine.reset_histogram()
+                        self.beam_tracer.reset_gold_collection()
+                        if hasattr(self.controls, 'set_gold_bonus'):
+                            self.controls.set_gold_bonus(0)
+                        self.last_gold_hits.clear()
+
+                        self.component_manager.add_component(drop_type, x, y, self.laser)
+                        self.sound_manager.play('drag_end')
                     else:
-                        self.right_panel.add_debug_message("Gold bonus reset - beam path changed")
-                    
-                    self.component_manager.add_component(
-                        self.sidebar.selected, x, y, self.laser)
-                    if self.quantum_mode:
-                        self.packet_engine.reset_histogram()
-                    self.sound_manager.play('drag_end')
-                    logger.debug("Placed %s at (%d, %d)", self.sidebar.selected, x, y)
-                    self.right_panel.add_debug_message(f"Placed {self.sidebar.selected} at grid ({(x-CANVAS_OFFSET_X)//GRID_SIZE}, {(y-CANVAS_OFFSET_Y)//GRID_SIZE})")
+                        self.sound_manager.play('invalid_placement')
                 else:
-                    self.sound_manager.play('invalid_placement')
-            
+                    # Dropped outside canvas — component is deleted
+                    if self._dragging_component:
+                        self.sound_manager.play('remove_component')
+
+                # Clear dragging state
+                self._dragging_component = None
+                self._dragging_comp_type = None
+
             # Clear grid hover after drop
             self.grid.set_hover(None)
         
@@ -324,20 +335,66 @@ class Game:
             self._handle_control_action(action)
             return
         
-        # Handle canvas clicks (for removing components)
+        # Handle canvas clicks: single-click picks up component, double-click deletes
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if self._is_in_canvas(event.pos) and not self.sidebar.selected:
-                if self.component_manager.remove_component_at(event.pos):
-                    # Clear quantum packets and histogram when network changes
-                    if self.quantum_mode:
-                        self.packet_engine.families.clear()
-                        self.packet_engine.reset_histogram()
-                    # Reset gold collection when component is removed (changes beam paths)
-                    self.beam_tracer.reset_gold_collection()
-                    if hasattr(self.controls, 'set_gold_bonus'):
-                        self.controls.set_gold_bonus(0)
-                    self.last_gold_hits.clear()
-                    self.right_panel.add_debug_message("Component removed - gold bonus reset")
+            if self._is_in_canvas(event.pos) and not self.sidebar.selected and not self._dragging_component:
+                now_ms = pygame.time.get_ticks()
+                is_double = (now_ms - self._last_click_time < self._double_click_ms
+                             and abs(event.pos[0] - self._last_click_pos[0]) < 10
+                             and abs(event.pos[1] - self._last_click_pos[1]) < 10)
+                self._last_click_time = now_ms
+                self._last_click_pos = event.pos
+
+                # Find the component under the cursor
+                hit_comp = None
+                hit_idx = -1
+                is_primary_laser = False
+                if self.laser and self.laser.contains_point(event.pos[0], event.pos[1]):
+                    hit_comp = self.laser
+                    is_primary_laser = True
+                else:
+                    for i, comp in enumerate(self.component_manager.components):
+                        if comp.contains_point(event.pos[0], event.pos[1]):
+                            hit_comp = comp
+                            hit_idx = i
+                            break
+
+                if hit_comp:
+                    # Determine the type string
+                    ct = hit_comp.component_type
+                    if ct == 'mirror':
+                        ct = 'mirror' + getattr(hit_comp, 'mirror_type', '/')
+                    elif ct == 'flat_mirror':
+                        ct = 'mirror' + getattr(hit_comp, 'orientation', '|')
+                    elif ct == 'laser' and not is_primary_laser:
+                        d = getattr(hit_comp, 'emit_direction', 'right')
+                        ct = f'laser_{d}' if d != 'right' else 'laser'
+
+                    if is_double:
+                        # Double-click: delete the component
+                        if not is_primary_laser:
+                            self.component_manager.components.pop(hit_idx)
+                            self.component_manager.component_grid_positions.pop(hit_idx)
+                            self.component_manager._reset_all_components()
+                        self.sound_manager.play('remove_component')
+                        if self.quantum_mode:
+                            self.packet_engine.families.clear()
+                            self.packet_engine.reset_histogram()
+                        self.beam_tracer.reset_gold_collection()
+                        self.last_gold_hits.clear()
+                    else:
+                        # Single-click: pick up for dragging
+                        if not is_primary_laser:
+                            self.component_manager.components.pop(hit_idx)
+                            self.component_manager.component_grid_positions.pop(hit_idx)
+                            self.component_manager._reset_all_components()
+                        self._dragging_component = hit_comp
+                        self._dragging_comp_type = ct if not is_primary_laser else 'laser'
+                        self.grid.set_hover(event.pos)
+                        self.sound_manager.play('drag_start')
+                        if self.quantum_mode:
+                            self.packet_engine.families.clear()
+                            self.packet_engine.reset_histogram()
     
     def _is_in_canvas(self, pos):
         """Check if position is within game canvas."""
