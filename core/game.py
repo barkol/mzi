@@ -700,19 +700,20 @@ class Game:
         },
         {
             'name': 'Rarity-Tapster',
-            'desc': 'Two-photon interferometer — entanglement witness',
+            'desc': 'Two-photon entanglement — coincidences show interference',
             'laser': (1, 7),
             'quantum': 2,
             'components': [
-                ('beamsplitter',  4, 7),   # source BS – splits into two arms
-                ('beamsplitter/', 8, 7),   # upper arm turn  (RIGHT → UP, semi-transparent)
-                ('beamsplitter',  4, 11),  # lower arm turn  (DOWN  → RIGHT, semi-transparent)
-                ('beamsplitter/', 8, 4),   # upper analyzer BS
-                ('beamsplitter',  8, 11),  # lower analyzer BS
-                ('detector',     5, 4),   # upper-left output
-                ('detector',     8, 1),   # upper-top output
-                ('detector',    11, 11),  # lower-right output
-                ('detector',     8, 13),  # lower-bottom output
+                # Source BS — splits pump into entangled pair
+                ('beamsplitter',  5, 7),
+                # Upper arm: RIGHT from source → analyzer BSa
+                ('beamsplitter',  9, 7),   # BSa
+                ('detector',     12, 7),   # Det_2a (right of BSa)
+                ('detector',      9, 10),  # Det_1a (below BSa)
+                # Lower arm: DOWN from source → analyzer BSb
+                ('beamsplitter',  5, 11),  # BSb
+                ('detector',      8, 11),  # Det_1b (right of BSb)
+                ('detector',      5, 14),  # Det_2b (below BSb)
             ],
         },
     ]
