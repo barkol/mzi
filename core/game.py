@@ -440,9 +440,11 @@ class Game:
                     self.sound_manager.play('challenge_failed')
                     logger.debug("Challenge check failed: %s", message)
                     
-            elif action == 'Toggle Laser':
+            elif action in ('Laser ON', 'Laser OFF'):
                 if self.laser:
                     self.laser.enabled = not self.laser.enabled
+                    # Update button label to reflect new state
+                    self._update_laser_button_label()
                     if self.laser.enabled:
                         self.sound_manager.play('laser_on')
                         # Reset all components when laser is turned on
@@ -470,7 +472,7 @@ class Game:
                         # Clear last gold hits for sound tracking
                         self.last_gold_hits.clear()
                         
-            elif action == 'Load Challenge':
+            elif action == 'Challenge >':
                 # Cycle through challenges
                 challenges = self.challenge_manager.get_challenge_list()
                 if challenges:
@@ -509,7 +511,7 @@ class Game:
                     logger.debug("Loaded challenge: %s", challenge_title)
                     self.right_panel.add_debug_message(f"Loaded challenge: {challenge_title}")
                     
-            elif action == 'Load Fields':
+            elif action == 'Map >':
                 # Cycle through field configurations
                 field_configs = self.challenge_manager.get_available_field_configs()
                 logger.debug("Available field configurations: %d", len(field_configs))
@@ -563,7 +565,7 @@ class Game:
                         self.sound_manager.play('error')
                         self.right_panel.add_debug_message("Error loading field configuration")
 
-            elif action == 'Load Classic':
+            elif action == 'Classic >':
                 self._classic_setup_index = (self._classic_setup_index + 1) % len(self.CLASSIC_SETUPS)
                 self._load_classic_setup(self._classic_setup_index)
 
@@ -807,9 +809,11 @@ class Game:
         
         # Layer 6: Draw grid (includes gold fields, blocked fields, and grid lines)
         laser_pos = self.laser.position.tuple() if self.laser else None
+        gold_hits = getattr(self.beam_tracer, 'gold_field_hits', None)
         self.grid.draw(self.screen, self.component_manager.components, laser_pos,
                       self.challenge_manager.get_blocked_positions(),
-                      self.challenge_manager.get_gold_positions())
+                      self.challenge_manager.get_gold_positions(),
+                      gold_hits=gold_hits)
         
         # Layer 7: Draw laser
         if self.laser:
@@ -904,6 +908,14 @@ class Game:
             
             self.screen.blit(text_surface, text_rect)
     
+    def _update_laser_button_label(self):
+        """Update the laser toggle button text to reflect current state."""
+        label = 'Laser ON' if self.laser.enabled else 'Laser OFF'
+        for btn in self.controls.buttons:
+            if btn['name'] in ('Laser ON', 'Laser OFF'):
+                btn['name'] = label
+                break
+
     def _draw_challenge_name(self):
         """Draw the current challenge name above the grid."""
         if self.current_challenge_display_name:
@@ -931,13 +943,22 @@ class Game:
             
             # Draw the main text
             self.screen.blit(text, text_rect)
-            
+
+            # Requirements subtitle
+            req_str = self.challenge_manager.get_requirements_summary()
+            if req_str:
+                req_font = pygame.font.Font(None, scale_font(18))
+                req_surface = req_font.render(req_str, True, (180, 180, 180))
+                req_rect = req_surface.get_rect(
+                    centerx=bg_rect.centerx, top=bg_rect.bottom + scale(2))
+                self.screen.blit(req_surface, req_rect)
+
             # Add decorative elements
             # Left decoration
             deco_left = pygame.Rect(bg_rect.left - scale(50), bg_rect.centery - scale(1), scale(40), scale(2))
             pygame.draw.rect(self.screen, color, deco_left)
             pygame.draw.circle(self.screen, color, (deco_left.left, deco_left.centery), scale(3))
-            
+
             # Right decoration
             deco_right = pygame.Rect(bg_rect.right + scale(10), bg_rect.centery - scale(1), scale(40), scale(2))
             pygame.draw.rect(self.screen, color, deco_right)

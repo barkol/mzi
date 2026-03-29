@@ -1,6 +1,11 @@
 """Control panel UI with responsive sizing for fullscreen."""
 import pygame
-from config.settings import *
+from config.settings import (
+    get_control_panel_height, IS_FULLSCREEN, WINDOW_HEIGHT, scale,
+    scale_font, CANVAS_OFFSET_Y, CANVAS_HEIGHT, WINDOW_WIDTH,
+    get_sidebar_width, get_right_panel_width, CANVAS_OFFSET_X,
+    CANVAS_WIDTH, DARK_PURPLE, PURPLE, CYAN, WHITE, GOLD,
+)
 
 class ControlPanel:
     """Bottom control panel with responsive height and button sizing."""
@@ -70,10 +75,10 @@ class ControlPanel:
         button_configs = [
             ('Clear All', scale(110) if IS_FULLSCREEN else scale(100)),
             ('Check Setup', scale(120) if IS_FULLSCREEN else scale(110)),
-            ('Toggle Laser', scale(120) if IS_FULLSCREEN else scale(110)),
-            ('Load Challenge', scale(130) if IS_FULLSCREEN else scale(115)),
-            ('Load Fields', scale(110) if IS_FULLSCREEN else scale(95)),
-            ('Load Classic', scale(120) if IS_FULLSCREEN else scale(100))
+            ('Laser ON', scale(110) if IS_FULLSCREEN else scale(100)),
+            ('Challenge >', scale(120) if IS_FULLSCREEN else scale(110)),
+            ('Map >', scale(80) if IS_FULLSCREEN else scale(70)),
+            ('Classic >', scale(100) if IS_FULLSCREEN else scale(90))
         ]
         
         current_x = start_x

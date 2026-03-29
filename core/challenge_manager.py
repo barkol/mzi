@@ -507,6 +507,22 @@ class ChallengeManager:
             self.current_challenge = challenge_name
             return True
         return False
+
+    def get_requirements_summary(self):
+        """Return a short string describing the current challenge requirements."""
+        if not self.current_challenge or self.current_challenge not in self.challenges:
+            return ""
+        ch = self.challenges[self.current_challenge]
+        reqs = ch.get("requirements", {})
+        abbrev = {"beamsplitter": "BS", "mirror": "M", "detector": "D",
+                  "flat_mirror": "FM", "partial_mirror": "PM"}
+        parts = [f"{reqs[k]}{abbrev.get(k, k)}" for k in reqs]
+        summary = " ".join(parts)
+        lo = ch.get("min_components", 0)
+        hi = ch.get("max_components", 99)
+        if lo and hi and hi < 99:
+            summary += f"  ({lo}-{hi} total)"
+        return summary
     
     def check_setup(self, components, laser, beam_tracer=None):
         """Check if current setup meets challenge requirements."""

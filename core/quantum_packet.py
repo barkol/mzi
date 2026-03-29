@@ -277,7 +277,11 @@ class QuantumPacketEngine:
             if pkt.state != PacketState.TRAVELING:
                 continue
 
-            conn_info = self._network_graph['connections'][pkt.connection_index]
+            conns = self._network_graph['connections']
+            if pkt.connection_index >= len(conns):
+                pkt.state = PacketState.EXPIRED
+                continue
+            conn_info = conns[pkt.connection_index]
             length = conn_info['length']
             if length < 1:
                 length = 1

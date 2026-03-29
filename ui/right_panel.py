@@ -1,6 +1,10 @@
 """Right panel for help and debug information with responsive width."""
 import pygame
-from config.settings import *
+from config.settings import (
+    get_right_panel_width, IS_FULLSCREEN, WINDOW_WIDTH, WINDOW_HEIGHT,
+    CANVAS_OFFSET_X, CANVAS_WIDTH, scale, scale_font,
+    DARK_PURPLE, PURPLE, CYAN, WHITE, CANVAS_GRID_COLS, CANVAS_GRID_ROWS,
+)
 
 class RightPanel:
     """Right panel displaying help and debug information with responsive sizing."""
@@ -144,12 +148,18 @@ class RightPanel:
             ("Shift+H", "Toggle help/debug"),
             ("Shift+N", "New session"),
             ("", ""),
+            ("QUANTUM MODE", ""),
+            ("Q", "Toggle quantum packets"),
+            ("P", "Cycle photons/pulse"),
+            ("E", "Toggle energy monitor"),
+            ("", ""),
             ("BUTTONS", ""),
-            ("Clear All", "Remove all components"),
-            ("Check Setup", "Verify challenge"),
-            ("Toggle Laser", "Turn laser on/off"),
-            ("Load Challenge", "Cycle challenges"),
-            ("Load Fields", "Cycle map layouts"),
+            ("Clear All", "Remove all placed"),
+            ("Check Setup", "Score challenge"),
+            ("Laser ON/OFF", "Toggle laser"),
+            ("Challenge >", "Next challenge"),
+            ("Map >", "Next map layout"),
+            ("Classic >", "Classic interferometer"),
             ("", ""),
             ("SOUND CONTROLS", ""),
             ("Shift+S", "Toggle sound"),

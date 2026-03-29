@@ -3,7 +3,12 @@ import logging
 import pygame
 import math
 import random
-from config.settings import *
+from config.settings import (
+    GRID_SIZE, CANVAS_GRID_COLS, CANVAS_GRID_ROWS, IS_FULLSCREEN,
+    scale, scale_font, CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
+    CANVAS_WIDTH, CANVAS_HEIGHT, GRID_MAJOR_COLOR, GRID_COLOR,
+    WHITE, DARK_PURPLE, BLACK, CYAN,
+)
 from utils.colors import pulse_alpha
 from utils.vector import Vector2
 
@@ -58,34 +63,46 @@ class Grid:
         else:
             self.hover_pos = None
     
-    def draw(self, screen, components, laser_pos=None, blocked_positions=None, gold_positions=None):
-        """Draw grid with hover effects, blocked positions, and gold fields."""
+    def draw(self, screen, components, laser_pos=None, blocked_positions=None,
+             gold_positions=None, gold_hits=None):
+        """Draw grid with hover effects, blocked positions, and gold fields.
+
+        Parameters
+        ----------
+        gold_hits : dict, optional
+            ``{(x, y): intensity}`` for gold fields currently being hit by beams.
+            Hit fields get a pulsing highlight.
+        """
         # Update canvas rect in case it changed
         self.canvas_rect = pygame.Rect(
             CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
             CANVAS_WIDTH, CANVAS_HEIGHT
         )
-        
+
         if gold_positions and len(gold_positions) > 0:
             if not hasattr(self, '_gold_logged'):
                 self._gold_logged = True
                 logger.debug("Grid.draw called with %d gold positions", len(gold_positions))
-        
+
         # Draw grid lines
         self._draw_grid_lines(screen)
-        
+
         # Draw grid info in fullscreen mode
         if IS_FULLSCREEN:
             self._draw_grid_info(screen)
-        
+
         # Draw gold positions (draw before blocked so blocked are on top)
         if gold_positions:
             self._draw_gold_positions(screen, gold_positions)
-        
+
+        # Highlight gold fields that are being hit by beams
+        if gold_hits:
+            self._draw_gold_hit_highlights(screen, gold_hits)
+
         # Draw blocked positions
         if blocked_positions:
             self._draw_blocked_positions(screen, blocked_positions)
-        
+
         # Draw hover highlight
         if self.hover_pos:
             self._draw_hover_highlight(screen, components, laser_pos, blocked_positions)
@@ -258,6 +275,40 @@ class Grid:
                 logger.warning("Error drawing text: %s", e)
                 pass  # Skip text if there's an error
     
+    def _draw_gold_hit_highlights(self, screen, gold_hits):
+        """Draw pulsing highlight on gold fields that are being hit by beams."""
+        if not gold_hits:
+            return
+        import time as _time
+        pulse = int(80 + 60 * math.sin(_time.time() * 6))  # 0-140 range pulsing
+        field_size = GRID_SIZE - 4
+
+        for pos_key, intensity in gold_hits.items():
+            if isinstance(pos_key, tuple) and len(pos_key) == 2:
+                x, y = int(pos_key[0]), int(pos_key[1])
+            elif hasattr(pos_key, 'x'):
+                x, y = int(pos_key.x), int(pos_key.y)
+            else:
+                continue
+
+            alpha = min(180, int(pulse * min(intensity, 1.5)))
+            s = pygame.Surface((field_size, field_size), pygame.SRCALPHA)
+            s.fill((255, 215, 0, alpha))
+            screen.blit(s, (x - field_size // 2, y - field_size // 2))
+
+            # Bright border
+            border_rect = pygame.Rect(x - field_size // 2, y - field_size // 2,
+                                      field_size, field_size)
+            pygame.draw.rect(screen, (255, 215, 0), border_rect, 2)
+
+            # Show bonus value
+            bonus = round(intensity * 100)
+            if bonus > 0:
+                font = pygame.font.Font(None, scale_font(14))
+                txt = font.render(f"+{bonus}", True, (255, 255, 200))
+                txt_rect = txt.get_rect(centerx=x, bottom=y - field_size // 2 - 2)
+                screen.blit(txt, txt_rect)
+
     def _draw_vine(self, screen, start_x, start_y, length, direction, thickness=1):
         """Draw a curvy vine."""
         points = []

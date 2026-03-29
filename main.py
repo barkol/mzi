@@ -10,7 +10,12 @@ import pygame
 import sys
 import platform
 from core.game import Game
-from config.settings import *
+from config.settings import (
+    DESIGN_WIDTH, DESIGN_HEIGHT, update_scaled_values, FPS,
+    WINDOW_WIDTH, WINDOW_HEIGHT, CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
+    CANVAS_WIDTH, CANVAS_HEIGHT, get_sidebar_width, get_right_panel_width,
+    get_control_panel_height, scale,
+)
 
 logger = logging.getLogger(__name__)
 

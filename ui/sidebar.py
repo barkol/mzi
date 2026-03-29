@@ -1,7 +1,10 @@
 """Sidebar UI for component selection with responsive width support."""
 import pygame
 import math
-from config.settings import *
+from config.settings import (
+    get_sidebar_width, WINDOW_HEIGHT, IS_FULLSCREEN, scale, scale_font,
+    DARK_PURPLE, PURPLE, CYAN, WHITE,
+)
 
 class Sidebar:
     """Component selection sidebar with responsive width for fullscreen."""
