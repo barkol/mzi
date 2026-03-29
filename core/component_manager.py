@@ -37,12 +37,15 @@ class ComponentManager:
         if comp_type == 'laser':
             # Move existing laser instead of creating new one
             if laser:
-                laser.position = Vector2(centered_x, centered_y)  # Use centered position
+                laser.position = Vector2(centered_x, centered_y)
+                # Clear cached ports so they're rebuilt at new position
+                if hasattr(laser, '_ports'):
+                    laser._ports = None
                 self.effects.add_placement_effect(centered_x, centered_y)
                 if self.sound_manager:
                     self.sound_manager.play('place_component')
                 logger.debug("Laser moved to grid (%d, %d)", grid_x, grid_y)
-                
+
                 # Reset all components when laser moves
                 self._reset_all_components()
                 

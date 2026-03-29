@@ -329,6 +329,7 @@ class Game:
                         self.last_gold_hits.clear()
 
                         self.component_manager.add_component(drop_type, x, y, self.laser)
+                        self.beam_tracer._network_valid = False
                         self.sound_manager.play('drag_end')
                     else:
                         self.sound_manager.play('invalid_placement')
