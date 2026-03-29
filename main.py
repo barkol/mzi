@@ -152,15 +152,17 @@ def main():
                                scale_factor, CANVAS_WIDTH, CANVAS_HEIGHT, CANVAS_OFFSET_X, CANVAS_OFFSET_Y)
                     continue
             elif event.type == pygame.VIDEORESIZE and not is_fullscreen:
-                # Handle window resize
+                # Handle window resize — pass actual window size
                 new_scale_x = event.w / DESIGN_WIDTH
                 new_scale_y = event.h / DESIGN_HEIGHT
                 scale_factor = min(new_scale_x, new_scale_y)
-                update_scaled_values(scale_factor, fullscreen=False)
+                update_scaled_values(scale_factor, window_width=event.w,
+                                     window_height=event.h, fullscreen=False)
                 screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
                 game.update_scale(scale_factor)
                 game.update_screen_references(screen, screen)
-                logger.debug("Window resized, new scale: %.2f", scale_factor)
+                logger.debug("Window resized to %dx%d, scale: %.2f",
+                             event.w, event.h, scale_factor)
             
             game.handle_event(event)
         

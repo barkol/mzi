@@ -178,23 +178,29 @@ class Game:
         self.right_panel.add_debug_message(f"Display: {'Fullscreen' if IS_FULLSCREEN else 'Windowed'}")
 
     def update_scale(self, new_scale_factor):
-        """Update the scale factor and all dependent values."""
+        """Update the scale factor and rebuild UI layout."""
         self.scale_factor = new_scale_factor
-        
-        # Update laser position based on new grid dimensions
+
+        # Reposition laser to stay in the grid
         laser_grid_x = 1
-        laser_row = CANVAS_GRID_ROWS // 2  # Use dynamic row count
-        # Center the laser in the grid cell
+        laser_row = min(CANVAS_GRID_ROWS // 2, CANVAS_GRID_ROWS - 1)
         laser_x = CANVAS_OFFSET_X + laser_grid_x * GRID_SIZE + GRID_SIZE // 2
         laser_y = CANVAS_OFFSET_Y + laser_row * GRID_SIZE + GRID_SIZE // 2
         self.laser.position = Vector2(laser_x, laser_y)
-        
-        # Clear components to avoid scaling issues
-        self.component_manager.clear_all(self.laser)
-        
-        # Update UI components
+
+        # Reposition placed components to nearest valid grid cell
+        for i, comp in enumerate(self.component_manager.components):
+            gp = self.component_manager.component_grid_positions[i]
+            gx = min(gp['grid_x'], CANVAS_GRID_COLS - 1)
+            gy = min(gp['grid_y'], CANVAS_GRID_ROWS - 1)
+            comp.position = Vector2(
+                CANVAS_OFFSET_X + gx * GRID_SIZE + GRID_SIZE // 2,
+                CANVAS_OFFSET_Y + gy * GRID_SIZE + GRID_SIZE // 2)
+
+        # Rebuild UI panels
         self.grid = Grid()
         self.sidebar = Sidebar(self.sound_manager)
+        self.sidebar.set_can_add_callback(self._can_add_component)
         self.controls = ControlPanel(self.sound_manager)
         self.right_panel = RightPanel(self.sound_manager)
         

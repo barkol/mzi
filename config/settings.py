@@ -210,25 +210,32 @@ def update_scaled_values(scale_factor, window_width=None, window_height=None, fu
         )
         
     else:
-        # Windowed mode - use traditional scaling
+        # Windowed mode
         FONT_SCALE = min(2.0, max(0.5, scale_factor))
         GRID_SIZE = scale(BASE_GRID_SIZE)
-        CANVAS_WIDTH = scale(BASE_CANVAS_WIDTH)
-        CANVAS_HEIGHT = scale(BASE_CANVAS_HEIGHT)
-        CANVAS_OFFSET_X = scale(BASE_CANVAS_OFFSET_X)
-        CANVAS_OFFSET_Y = scale(BASE_CANVAS_OFFSET_Y)
-        
-        # Component radius maintains proper ratio to grid size
         COMPONENT_RADIUS = scale(BASE_COMPONENT_RADIUS)
         BEAM_WIDTH = scale(BASE_BEAM_WIDTH)
-        
-        # Update window size
-        WINDOW_WIDTH = int(DESIGN_WIDTH * scale_factor)
-        WINDOW_HEIGHT = int(DESIGN_HEIGHT * scale_factor)
-        
-        # Calculate grid dimensions
-        CANVAS_GRID_COLS = CANVAS_WIDTH // GRID_SIZE
-        CANVAS_GRID_ROWS = CANVAS_HEIGHT // GRID_SIZE
+
+        # Use actual window size if provided, otherwise compute from scale
+        WINDOW_WIDTH = window_width if window_width else int(DESIGN_WIDTH * scale_factor)
+        WINDOW_HEIGHT = window_height if window_height else int(DESIGN_HEIGHT * scale_factor)
+
+        # Compute layout from actual window size
+        sidebar_w = min(scale(230), int(WINDOW_WIDTH * 0.18))
+        right_panel_w = min(scale(200), int(WINDOW_WIDTH * 0.16))
+        top_margin = scale(BASE_CANVAS_OFFSET_Y)
+        control_h = scale(80)
+
+        CANVAS_OFFSET_X = sidebar_w + scale(15)
+        CANVAS_OFFSET_Y = top_margin
+        available_w = WINDOW_WIDTH - CANVAS_OFFSET_X - right_panel_w - scale(15)
+        available_h = WINDOW_HEIGHT - CANVAS_OFFSET_Y - control_h - scale(15)
+
+        # Fit grid cells in available space
+        CANVAS_GRID_COLS = max(10, available_w // GRID_SIZE)
+        CANVAS_GRID_ROWS = max(8, available_h // GRID_SIZE)
+        CANVAS_WIDTH = CANVAS_GRID_COLS * GRID_SIZE
+        CANVAS_HEIGHT = CANVAS_GRID_ROWS * GRID_SIZE
         
         logger.debug(
             "Windowed mode: %dx%d | Scale: %.2f | Canvas: %dx%d cells",
@@ -242,7 +249,8 @@ def get_sidebar_width():
         min_width = scale(280)
         return max(sidebar_width, min_width)
     else:
-        return CANVAS_OFFSET_X - scale(50)
+        # Sidebar fills space left of canvas
+        return max(scale(100), CANVAS_OFFSET_X - scale(10))
 
 def get_right_panel_width():
     """Get the current right panel width based on display mode."""
@@ -251,7 +259,7 @@ def get_right_panel_width():
         min_width = scale(250)
         return max(panel_width, min_width)
     else:
-        return WINDOW_WIDTH - (CANVAS_OFFSET_X + CANVAS_WIDTH + scale(50))
+        return max(scale(80), WINDOW_WIDTH - CANVAS_OFFSET_X - CANVAS_WIDTH - scale(10))
 
 def get_control_panel_height():
     """Get the current control panel height based on display mode."""
