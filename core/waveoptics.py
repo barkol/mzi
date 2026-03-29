@@ -897,8 +897,13 @@ class WaveOpticsEngine:
             if not hasattr(comp, '_ports') or comp._ports is None:
                 comp._ports = self._create_ports_for_component(comp)
         
-        # Create laser port
-        laser_port = laser._ports[0] if hasattr(laser, '_ports') and laser._ports else self._create_ports_for_component(laser)[0]
+        # Use the laser's emission port (port C / index 2 for 4-port laser,
+        # or port 0 for legacy single-port laser)
+        emission_idx = getattr(laser, 'EMISSION_PORT', 0)
+        if hasattr(laser, '_ports') and laser._ports and emission_idx < len(laser._ports):
+            laser_port = laser._ports[emission_idx]
+        else:
+            laser_port = self._create_ports_for_component(laser)[emission_idx]
         
         # Reset all components
         for comp in components:
