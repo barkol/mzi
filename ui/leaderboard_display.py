@@ -2,9 +2,10 @@
 import pygame
 import math
 from datetime import datetime
+import config.settings as _settings
 from config.settings import (
-    CANVAS_OFFSET_X, CANVAS_OFFSET_Y, scale, scale_font,
-    WINDOW_WIDTH, WINDOW_HEIGHT, DARK_PURPLE, CYAN, RED, WHITE,
+    scale, scale_font,
+    DARK_PURPLE, CYAN, RED, WHITE,
     PURPLE, GREEN, GOLD, BLACK,
 )
 
@@ -28,8 +29,8 @@ class LeaderboardDisplay:
     def update_scale(self):
         """Update scaled dimensions - call this when scale factor changes."""
         self.rect = pygame.Rect(
-            CANVAS_OFFSET_X + scale(20),  # Moved left to ensure it fits
-            CANVAS_OFFSET_Y + scale(50),
+            _settings.CANVAS_OFFSET_X + scale(20),  # Moved left to ensure it fits
+            _settings.CANVAS_OFFSET_Y + scale(50),
             scale(650),  # Slightly smaller to ensure it fits
             scale(500)
         )
@@ -201,7 +202,7 @@ class LeaderboardDisplay:
             return
         
         # Background overlay
-        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        overlay = pygame.Surface((_settings.WINDOW_WIDTH, _settings.WINDOW_HEIGHT), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 180))
         screen.blit(overlay, (0, 0))
         

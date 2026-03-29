@@ -1,10 +1,10 @@
 """Control panel UI with responsive sizing for fullscreen."""
 import pygame
+import config.settings as _settings
 from config.settings import (
-    get_control_panel_height, IS_FULLSCREEN, WINDOW_HEIGHT, scale,
-    scale_font, CANVAS_OFFSET_Y, CANVAS_HEIGHT, WINDOW_WIDTH,
-    get_sidebar_width, get_right_panel_width, CANVAS_OFFSET_X,
-    CANVAS_WIDTH, DARK_PURPLE, PURPLE, CYAN, WHITE, GOLD,
+    get_control_panel_height, scale, scale_font,
+    get_sidebar_width, get_right_panel_width,
+    DARK_PURPLE, PURPLE, CYAN, WHITE, GOLD,
 )
 
 class ControlPanel:
@@ -32,34 +32,34 @@ class ControlPanel:
         # Use responsive height from settings
         panel_height = get_control_panel_height()
         
-        if IS_FULLSCREEN:
+        if _settings.IS_FULLSCREEN:
             # In fullscreen, control panel is at the very bottom of the screen
-            panel_y = WINDOW_HEIGHT - panel_height - scale(20)  # Small margin from bottom
+            panel_y = _settings.WINDOW_HEIGHT - panel_height - scale(20)  # Small margin from bottom
             
             # Panel spans the width between sidebar and right panel
             sidebar_width = get_sidebar_width()
             right_panel_width = get_right_panel_width()
             panel_x = sidebar_width
-            panel_width = WINDOW_WIDTH - sidebar_width - right_panel_width
+            panel_width = _settings.WINDOW_WIDTH - sidebar_width - right_panel_width
             
             self.rect = pygame.Rect(panel_x, panel_y, panel_width, panel_height)
         else:
             # Windowed mode - below the canvas
-            panel_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT + scale(15)
+            panel_y = _settings.CANVAS_OFFSET_Y + _settings.CANVAS_HEIGHT + scale(15)
             
             # Make sure panel doesn't go off screen
-            if panel_y + panel_height > WINDOW_HEIGHT:
-                panel_y = WINDOW_HEIGHT - panel_height - scale(10)
+            if panel_y + panel_height > _settings.WINDOW_HEIGHT:
+                panel_y = _settings.WINDOW_HEIGHT - panel_height - scale(10)
             
             self.rect = pygame.Rect(
-                CANVAS_OFFSET_X,
+                _settings.CANVAS_OFFSET_X,
                 panel_y,
-                CANVAS_WIDTH,
+                _settings.CANVAS_WIDTH,
                 panel_height
             )
         
         # Scale button dimensions - larger in fullscreen
-        if IS_FULLSCREEN:
+        if _settings.IS_FULLSCREEN:
             button_height = scale(50)
             button_spacing = scale(15)
             button_y_offset = (panel_height - button_height) // 2  # Center vertically
@@ -74,12 +74,12 @@ class ControlPanel:
         # Calculate button positions with responsive widths
         self.buttons = []
         button_configs = [
-            ('Clear All', scale(110) if IS_FULLSCREEN else scale(100)),
-            ('Check Setup', scale(120) if IS_FULLSCREEN else scale(110)),
-            ('Laser ON', scale(110) if IS_FULLSCREEN else scale(100)),
-            ('Challenge >', scale(120) if IS_FULLSCREEN else scale(110)),
-            ('Map >', scale(80) if IS_FULLSCREEN else scale(70)),
-            ('Classic >', scale(100) if IS_FULLSCREEN else scale(90))
+            ('Clear All', scale(110) if _settings.IS_FULLSCREEN else scale(100)),
+            ('Check Setup', scale(120) if _settings.IS_FULLSCREEN else scale(110)),
+            ('Laser ON', scale(110) if _settings.IS_FULLSCREEN else scale(100)),
+            ('Challenge >', scale(120) if _settings.IS_FULLSCREEN else scale(110)),
+            ('Map >', scale(80) if _settings.IS_FULLSCREEN else scale(70)),
+            ('Classic >', scale(100) if _settings.IS_FULLSCREEN else scale(90))
         ]
         
         current_x = start_x
@@ -156,7 +156,7 @@ class ControlPanel:
         pygame.draw.rect(screen, PURPLE, self.rect, scale(2), border_radius=scale(10))
         
         # Buttons
-        button_font_size = scale_font(20) if IS_FULLSCREEN else scale_font(18)
+        button_font_size = scale_font(20) if _settings.IS_FULLSCREEN else scale_font(18)
         font = pygame.font.Font(None, button_font_size)
         
         for button in self.buttons:
@@ -186,7 +186,7 @@ class ControlPanel:
         bg_color = (40, 40, 40)  # Dark gray background
         
         # Score text
-        score_font_size = scale_font(28) if IS_FULLSCREEN else scale_font(24)
+        score_font_size = scale_font(28) if _settings.IS_FULLSCREEN else scale_font(24)
         font = pygame.font.Font(None, score_font_size)
         score_text = font.render(f"Score: {self.score}", True, score_color)
         score_rect = score_text.get_rect(right=self.rect.right - scale(20),
@@ -202,7 +202,7 @@ class ControlPanel:
         
         # Gold bonus if present
         if self.gold_bonus > 0:
-            bonus_font_size = scale_font(20) if IS_FULLSCREEN else scale_font(18)
+            bonus_font_size = scale_font(20) if _settings.IS_FULLSCREEN else scale_font(18)
             bonus_font = pygame.font.Font(None, bonus_font_size)
             bonus_text = bonus_font.render(f"Gold Bonus: +{self.gold_bonus}", True, GOLD)
             bonus_rect = bonus_text.get_rect(right=self.rect.right - scale(20),
@@ -218,7 +218,7 @@ class ControlPanel:
         
         # WIN indicator if completed
         if self.challenge_completed:
-            win_font_size = scale_font(20) if IS_FULLSCREEN else scale_font(18)
+            win_font_size = scale_font(20) if _settings.IS_FULLSCREEN else scale_font(18)
             win_font = pygame.font.Font(None, win_font_size)
             win_text = win_font.render("WIN!", True, GOLD)
             win_rect = win_text.get_rect(right=bg_rect.left - scale(10), centery=bg_rect.centery)
@@ -233,7 +233,7 @@ class ControlPanel:
     
     def _draw_field_config(self, screen):
         """Draw current field configuration name."""
-        config_font_size = scale_font(18) if IS_FULLSCREEN else scale_font(16)
+        config_font_size = scale_font(18) if _settings.IS_FULLSCREEN else scale_font(16)
         font = pygame.font.Font(None, config_font_size)
         
         # Color code the field config

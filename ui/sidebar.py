@@ -1,8 +1,9 @@
 """Sidebar UI for component selection with responsive width support."""
 import pygame
 import math
+import config.settings as _settings
 from config.settings import (
-    get_sidebar_width, WINDOW_HEIGHT, IS_FULLSCREEN, scale, scale_font,
+    get_sidebar_width, scale, scale_font,
     DARK_PURPLE, PURPLE, CYAN, WHITE,
 )
 
@@ -40,7 +41,7 @@ class Sidebar:
         # Never extend past the canvas left edge
         sidebar_width = min(sidebar_width, CANVAS_OFFSET_X - scale(5))
         sidebar_width = max(sidebar_width, scale(100))  # minimum usable width
-        self.rect = pygame.Rect(0, 0, sidebar_width, WINDOW_HEIGHT)
+        self.rect = pygame.Rect(0, 0, sidebar_width, _settings.WINDOW_HEIGHT)
     
     def handle_event(self, event):
         """Handle mouse events."""
@@ -113,12 +114,12 @@ class Sidebar:
     
     def _get_component_rect(self, index):
         """Get rectangle for component at index - responsive sizing."""
-        margin = scale(20) if IS_FULLSCREEN else scale(10)
-        y_offset = scale(70) if IS_FULLSCREEN else scale(55)
+        margin = scale(20) if _settings.IS_FULLSCREEN else scale(10)
+        y_offset = scale(70) if _settings.IS_FULLSCREEN else scale(55)
 
         # Spacing adapts to fit all components with a gap between cards
         n = len(self.components)
-        available = WINDOW_HEIGHT - y_offset - scale(10)
+        available = _settings.WINDOW_HEIGHT - y_offset - scale(10)
         component_spacing = available // max(n, 1)
         component_height = max(scale(35), int(component_spacing * 0.75))
 
@@ -151,18 +152,18 @@ class Sidebar:
         # Border
         pygame.draw.line(screen, PURPLE,
                         (self.rect.right, 0),
-                        (self.rect.right, WINDOW_HEIGHT), scale(2))
+                        (self.rect.right, _settings.WINDOW_HEIGHT), scale(2))
         
         # Title
-        title_size = scale_font(28) if IS_FULLSCREEN else scale_font(24)
+        title_size = scale_font(28) if _settings.IS_FULLSCREEN else scale_font(24)
         font_title = pygame.font.Font(None, title_size)
         title = font_title.render("Components", True, CYAN)
         title_rect = title.get_rect(centerx=self.rect.centerx, y=scale(35))
         screen.blit(title, title_rect)
         
         # Component cards
-        name_size = scale_font(22) if IS_FULLSCREEN else scale_font(20)
-        desc_size = scale_font(18) if IS_FULLSCREEN else scale_font(16)
+        name_size = scale_font(22) if _settings.IS_FULLSCREEN else scale_font(20)
+        desc_size = scale_font(18) if _settings.IS_FULLSCREEN else scale_font(16)
         font_name = pygame.font.Font(None, name_size)
         font_desc = pygame.font.Font(None, desc_size)
         
@@ -236,7 +237,7 @@ class Sidebar:
         color = override_color if override_color else CYAN
         
         # Scale icons up in fullscreen
-        icon_scale = 1.2 if IS_FULLSCREEN else 1.0
+        icon_scale = 1.2 if _settings.IS_FULLSCREEN else 1.0
         
         if comp_type == 'laser' or comp_type.startswith('laser_'):
             # Laser icon - circle with direction arrow
