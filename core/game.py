@@ -181,6 +181,7 @@ class Game:
         laser_x = _settings.CANVAS_OFFSET_X + laser_grid_x * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
         laser_y = _settings.CANVAS_OFFSET_Y + laser_row * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
         self.laser.position = Vector2(laser_x, laser_y)
+        self.laser.radius = _settings.COMPONENT_RADIUS
 
         # Reposition placed components to nearest valid grid cell
         for i, comp in enumerate(self.component_manager.components):
@@ -190,6 +191,21 @@ class Game:
             comp.position = Vector2(
                 _settings.CANVAS_OFFSET_X + gx * _settings.GRID_SIZE + _settings.GRID_SIZE // 2,
                 _settings.CANVAS_OFFSET_Y + gy * _settings.GRID_SIZE + _settings.GRID_SIZE // 2)
+            comp.radius = _settings.COMPONENT_RADIUS
+
+        # Force wave engine to rebuild network with new port positions
+        self.beam_tracer.reset()
+        self.beam_tracer._network_valid = False
+        self.beam_tracer._last_component_set = None
+        self.beam_tracer._last_component_positions = None
+        # Clear cached port data on all components
+        for comp in [self.laser] + self.component_manager.components:
+            if hasattr(comp, '_ports'):
+                comp._ports = None
+
+        # Reset quantum packets
+        if self.quantum_mode:
+            self.packet_engine.reset()
 
         # Rebuild UI panels
         self.grid = Grid()
