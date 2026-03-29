@@ -592,8 +592,8 @@ class Game:
             'laser': (1, 5),
             'components': [
                 ('beamsplitter', 4, 5),   # BS1 – splits input beam
-                ('mirror/',      8, 5),   # upper-right corner  (RIGHT → DOWN)
-                ('mirror/',      4, 9),   # lower-left corner   (DOWN  → RIGHT)
+                ('mirror\\',     8, 5),   # upper-right corner  (RIGHT → DOWN)
+                ('mirror\\',     4, 9),   # lower-left corner   (DOWN  → RIGHT)
                 ('beamsplitter', 8, 9),   # BS2 – recombines
                 ('detector',    11, 9),   # output port C (RIGHT)
                 ('detector',     8, 12),  # output port B (DOWN)
@@ -616,8 +616,8 @@ class Game:
             'laser': (1, 6),
             'components': [
                 ('beamsplitter', 4, 6),   # BS1 – splits
-                ('mirror/',      8, 6),   # upper-right  (RIGHT → DOWN)
-                ('mirror/',      4, 10),  # lower-left   (DOWN  → RIGHT)
+                ('mirror\\',     8, 6),   # upper-right  (RIGHT → DOWN)
+                ('mirror\\',     4, 10),  # lower-left   (DOWN  → RIGHT)
                 ('beamsplitter', 8, 10),  # BS2 – HOM beam splitter
                 ('detector',    11, 10),  # output RIGHT
                 ('detector',     8, 13),  # output DOWN
@@ -629,8 +629,8 @@ class Game:
             'laser': (1, 7),
             'components': [
                 ('beamsplitter', 4, 7),   # source BS – splits into two arms
-                ('mirror\\',     8, 7),   # upper arm turn  (RIGHT → UP)
-                ('mirror/',      4, 11),  # lower arm turn  (DOWN  → RIGHT)
+                ('mirror/',      8, 7),   # upper arm turn  (RIGHT → UP)
+                ('mirror\\',     4, 11),  # lower arm turn  (DOWN  → RIGHT)
                 ('beamsplitter', 8, 4),   # upper analyzer BS
                 ('beamsplitter', 8, 11),  # lower analyzer BS
                 ('detector',     5, 4),   # upper-left output

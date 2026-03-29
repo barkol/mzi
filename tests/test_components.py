@@ -160,20 +160,20 @@ class TestMirror:
             assert np.sum(np.abs(v_out) ** 2) == pytest.approx(1.0, abs=1e-10)
 
     def test_slash_mirror_port_mapping(self):
-        """'/' mirror: A<->B and C<->D."""
+        """'/' mirror: RIGHT(A)→UP(D), DOWN(B)→LEFT(A), LEFT(C)→DOWN(B), UP(D)→RIGHT(C)."""
         m = Mirror(0, 0, mirror_type="/")
-        # Port A (left) input should reflect to Port B (bottom)
-        v_in = np.array([1, 0, 0, 0], dtype=complex)
-        v_out = m.S @ v_in
-        assert abs(v_out[1]) == pytest.approx(1.0, abs=1e-10)
-
-    def test_backslash_mirror_port_mapping(self):
-        r"""'\\' mirror: A<->D and B<->C."""
-        m = Mirror(0, 0, mirror_type="\\")
-        # Port A (left) input should reflect to Port D (top)
+        # Port A input → Port D output (RIGHT → UP)
         v_in = np.array([1, 0, 0, 0], dtype=complex)
         v_out = m.S @ v_in
         assert abs(v_out[3]) == pytest.approx(1.0, abs=1e-10)
+
+    def test_backslash_mirror_port_mapping(self):
+        r"""'\\' mirror: RIGHT(A)→DOWN(B), DOWN(B)→RIGHT(C), LEFT(C)→UP(D), UP(D)→LEFT(A)."""
+        m = Mirror(0, 0, mirror_type="\\")
+        # Port A input → Port B output (RIGHT → DOWN)
+        v_in = np.array([1, 0, 0, 0], dtype=complex)
+        v_out = m.S @ v_in
+        assert abs(v_out[1]) == pytest.approx(1.0, abs=1e-10)
 
 
 # ---------------------------------------------------------------------------

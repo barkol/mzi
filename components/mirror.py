@@ -36,20 +36,22 @@ class Mirror(TunableBeamSplitter):
         #   '/' on screen reflects left↔bottom and right↔top
         #   '\' on screen reflects left↔top and bottom↔right
         if mirror_type == '/':
-            # '/' on screen: A↔B (left↔bottom), C↔D (right↔top)
+            # '/' on screen (lower-left to upper-right):
+            #   RIGHT(A)→UP(D), DOWN(B)→LEFT(A), LEFT(C)→DOWN(B), UP(D)→RIGHT(C)
             self.S = np.array([
                 [0, -1,  0,  0],
-                [-1, 0,  0,  0],
+                [0,  0, -1,  0],
                 [0,  0,  0, -1],
-                [0,  0, -1,  0]
+                [-1, 0,  0,  0]
             ], dtype=complex)
         else:  # '\'
-            # '\' on screen: A↔D (left↔top), B↔C (bottom↔right)
+            # '\' on screen (upper-left to lower-right):
+            #   RIGHT(A)→DOWN(B), DOWN(B)→RIGHT(C), LEFT(C)→UP(D), UP(D)→LEFT(A)
             self.S = np.array([
                 [0,  0,  0, -1],
-                [0,  0, -1,  0],
+                [-1, 0,  0,  0],
                 [0, -1,  0,  0],
-                [-1, 0,  0,  0]
+                [0,  0, -1,  0]
             ], dtype=complex)
     
     def draw(self, screen):
