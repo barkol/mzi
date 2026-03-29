@@ -750,6 +750,7 @@ class Game:
         else:
             # Disable quantum mode for non-quantum setups
             self.quantum_mode = False
+            self.packet_engine.photons_per_pulse = 1
             self.packet_engine.reset()
 
         # UI feedback
