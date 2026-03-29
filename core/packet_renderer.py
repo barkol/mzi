@@ -350,7 +350,11 @@ class PacketRenderer:
     # ------------------------------------------------------------------
 
     def _draw_histogram(self, engine: QuantumPacketEngine):
-        """Draw bar charts near each detector with empirical rate and theory marker."""
+        """Draw bar charts near each detector with empirical rate and theory marker.
+
+        In multi-photon mode the bar shows the average photon number per
+        pulse at each detector (e.g. 1.0 out of 2 photons = 50%).
+        """
         stats = engine.get_detection_stats()
         if not stats or engine._total_detections < 1:
             return
@@ -359,6 +363,7 @@ class PacketRenderer:
         font = pygame.font.Font(None, scale_font(14))
         bar_w = scale(30)
         bar_max_h = scale(40)
+        n_ph = engine.photons_per_pulse
 
         screen_h = self.screen.get_height()
 
@@ -367,9 +372,17 @@ class PacketRenderer:
                 continue
             pos = det.position.tuple()
 
-            total_h = bar_max_h + scale(30)  # bar + labels
+            # In multi-photon mode, show mean photons per pulse / n_photons
+            if n_ph > 1 and engine._total_pulses > 0:
+                mean_per_pulse = count / engine._total_pulses
+                display_frac = mean_per_pulse / n_ph
+                pct_text = f"{mean_per_pulse:.1f}/{n_ph}"
+            else:
+                display_frac = frac
+                pct_text = f"{int(frac * 100)}%"
 
-            # Choose position: below detector, or above if near bottom
+            total_h = bar_max_h + scale(30)
+
             if pos[1] + scale(65) + total_h > screen_h - scale(10):
                 by = pos[1] - scale(85) - bar_max_h
             else:
@@ -385,22 +398,21 @@ class PacketRenderer:
             self.screen.blit(s, bg_rect.topleft)
 
             # Empirical bar
-            bar_h = max(1, int(bar_max_h * frac))
+            bar_h = max(1, int(bar_max_h * min(1.0, display_frac)))
             bar_rect = pygame.Rect(bx, by + bar_max_h - bar_h, bar_w, bar_h)
-            bar_g = int(min(255, 150 + frac * 105))
+            bar_g = int(min(255, 150 + display_frac * 105))
             pygame.draw.rect(self.screen, (0, bar_g, 200), bar_rect)
             pygame.draw.rect(self.screen, CYAN, bar_rect, 1)
 
             # Theoretical probability marker (gold horizontal line)
             theo_p = theory.get(det, None)
             if theo_p is not None:
-                theo_y = int(by + bar_max_h - bar_max_h * theo_p)
+                theo_y = int(by + bar_max_h - bar_max_h * min(1.0, theo_p))
                 pygame.draw.line(self.screen, GOLD,
                                  (bx - scale(3), theo_y),
                                  (bx + bar_w + scale(3), theo_y), 2)
 
-            # Empirical percentage label
-            pct_text = f"{int(frac * 100)}%"
+            # Label
             label = font.render(pct_text, True, WHITE)
             label_rect = label.get_rect(centerx=bx + bar_w // 2, top=by + bar_max_h + scale(2))
             self.screen.blit(label, label_rect)
