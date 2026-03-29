@@ -29,6 +29,9 @@ class Grid:
     
     def set_hover(self, pos):
         """Set hover position for drag preview."""
+        self.canvas_rect = pygame.Rect(
+            _settings.CANVAS_OFFSET_X, _settings.CANVAS_OFFSET_Y,
+            _settings.CANVAS_WIDTH, _settings.CANVAS_HEIGHT)
         if pos and self.canvas_rect.collidepoint(pos):
             # Snap to grid CENTER
             grid_x = round((pos[0] - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
