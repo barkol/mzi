@@ -620,8 +620,9 @@ class Game:
         },
         {
             'name': 'Hong-Ou-Mandel',
-            'desc': 'Two sources at one BS — press Q then P for quantum 2-photon mode',
+            'desc': 'Two sources at one BS — photon bunching in quantum mode',
             'laser': (1, 7),
+            'quantum': 2,  # auto-enable quantum mode with 2 photons/pulse
             'components': [
                 ('laser_down',    5, 3),  # second laser emitting DOWN (same distance to BS)
                 ('beamsplitter',  5, 7),  # HOM beam splitter
@@ -633,6 +634,7 @@ class Game:
             'name': 'Rarity-Tapster',
             'desc': 'Two-photon interferometer — entanglement witness',
             'laser': (1, 7),
+            'quantum': 2,
             'components': [
                 ('beamsplitter', 4, 7),   # source BS – splits into two arms
                 ('mirror/',      8, 7),   # upper arm turn  (RIGHT → UP)
@@ -679,6 +681,19 @@ class Game:
             sx = CANVAS_OFFSET_X + gx * GRID_SIZE + GRID_SIZE // 2
             sy = CANVAS_OFFSET_Y + gy * GRID_SIZE + GRID_SIZE // 2
             self.component_manager.add_component(comp_type, sx, sy, self.laser)
+
+        # Auto-enable quantum mode if setup requires it
+        n_photons = setup.get('quantum', 0)
+        if n_photons:
+            self.quantum_mode = True
+            self.packet_engine.photons_per_pulse = n_photons
+            self.packet_engine.reset()
+            self.right_panel.add_debug_message(
+                f"Quantum mode ON, {n_photons} photons/pulse")
+        else:
+            # Disable quantum mode for non-quantum setups
+            self.quantum_mode = False
+            self.packet_engine.reset()
 
         # UI feedback
         self.current_challenge_display_name = setup['name']
