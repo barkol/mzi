@@ -945,6 +945,8 @@ class Game:
         # Layer 11: Draw dragged component preview
         if self.sidebar.dragging and self.sidebar.selected:
             self._draw_drag_preview()
+        elif self._dragging_component:
+            self._draw_drag_preview(self._dragging_comp_type)
         
         # Layer 12: Draw effects
         self.effects.draw(self.screen)
@@ -1217,75 +1219,88 @@ class Game:
                                            centery=bg_rect.centery)
             self.screen.blit(stat_text, stat_rect)
 
-    def _draw_drag_preview(self):
+    def _draw_drag_preview(self, override_type=None):
         """Draw preview of component being dragged."""
         # Use grid hover position if available, otherwise mouse position
         if self.grid.hover_pos and self._is_in_canvas(self.mouse_pos):
             x, y = self.grid.hover_pos
         else:
             x, y = self.mouse_pos
-        
-        comp_type = self.sidebar.selected
-        
+
+        comp_type = override_type or self.sidebar.selected
+        if not comp_type:
+            return
+
         # Semi-transparent preview
         alpha = 128
-        
-        if comp_type == 'laser':
-            # Draw laser preview (turquoise)
+        c = (CYAN[0], CYAN[1], CYAN[2], alpha)
+        c2 = (CYAN[0], CYAN[1], CYAN[2], alpha // 2)
+
+        if comp_type == 'laser' or comp_type.startswith('laser_'):
+            # Laser preview with direction arrow
             radius = scale(15)
             s = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (radius, radius), radius)
-            # Glow effect
-            for i in range(3, 0, -1):
-                glow_radius = radius + scale(i * 3)
-                s2 = pygame.Surface((glow_radius * 2, glow_radius * 2), pygame.SRCALPHA)
-                pygame.draw.circle(s2, (CYAN[0], CYAN[1], CYAN[2], alpha // (i + 1)), 
-                                 (glow_radius, glow_radius), glow_radius)
-                self.screen.blit(s2, (x - glow_radius, y - glow_radius))
+            pygame.draw.circle(s, c, (radius, radius), radius)
             self.screen.blit(s, (x - radius, y - radius))
-            
+            # Direction arrow
+            d = comp_type.split('_')[1] if '_' in comp_type else 'right'
+            asz = scale(4)
+            off = radius + scale(6)
+            if d == 'right':
+                pygame.draw.line(self.screen, CYAN, (x+radius, y), (x+off, y), 2)
+            elif d == 'left':
+                pygame.draw.line(self.screen, CYAN, (x-radius, y), (x-off, y), 2)
+            elif d == 'down':
+                pygame.draw.line(self.screen, CYAN, (x, y+radius), (x, y+off), 2)
+            elif d == 'up':
+                pygame.draw.line(self.screen, CYAN, (x, y-radius), (x, y-off), 2)
+
         elif comp_type == 'beamsplitter':
-            # Draw beam splitter preview
             size = scale(40)
-            half_size = size // 2
-            rect = pygame.Rect(x - half_size, y - half_size, size, size)
+            half = size // 2
             s = pygame.Surface((size, size), pygame.SRCALPHA)
-            pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], alpha // 2), pygame.Rect(0, 0, size, size))
-            pygame.draw.rect(s, (CYAN[0], CYAN[1], CYAN[2], alpha), pygame.Rect(0, 0, size, size), scale(3))
-            pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (0, 0), (size, size), scale(2))
-            self.screen.blit(s, rect.topleft)
-            
-        elif comp_type.startswith('mirror'):
-            # Mirror icons
-            size = scale(50)
-            half_size = size // 2
-            s = pygame.Surface((size, size), pygame.SRCALPHA)
-            if '/' in comp_type:
-                pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), 
-                               (scale(5), size - scale(5)), (size - scale(5), scale(5)), scale(6))
-            else:
-                pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha), 
-                               (scale(5), scale(5)), (size - scale(5), size - scale(5)), scale(6))
-            self.screen.blit(s, (x - half_size, y - half_size))
-            
+            pygame.draw.rect(s, c2, pygame.Rect(0, 0, size, size))
+            pygame.draw.rect(s, c, pygame.Rect(0, 0, size, size), scale(3))
+            pygame.draw.line(s, c, (0, 0), (size, size), scale(2))
+            self.screen.blit(s, (x - half, y - half))
+
         elif comp_type in ('mirror|', 'mirror-'):
-            # Flat mirror preview
+            # Flat mirror preview (check BEFORE generic mirror)
             size = scale(50)
-            half_size = size // 2
+            half = size // 2
             s = pygame.Surface((size, size), pygame.SRCALPHA)
             if comp_type == 'mirror|':
-                pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha),
-                               (half_size, scale(5)), (half_size, size - scale(5)), scale(6))
+                pygame.draw.line(s, c, (half, scale(5)), (half, size-scale(5)), scale(6))
+                # Hatching
+                for i in range(5):
+                    t = (i + 0.5) / 5
+                    hy = int(scale(5) + t * (size - scale(10)))
+                    pygame.draw.line(s, c2, (half+2, hy), (half+scale(6), hy-scale(6)), 1)
             else:
-                pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha),
-                               (scale(5), half_size), (size - scale(5), half_size), scale(6))
-            self.screen.blit(s, (x - half_size, y - half_size))
+                pygame.draw.line(s, c, (scale(5), half), (size-scale(5), half), scale(6))
+                for i in range(5):
+                    t = (i + 0.5) / 5
+                    hx = int(scale(5) + t * (size - scale(10)))
+                    pygame.draw.line(s, c2, (hx, half+2), (hx-scale(6), half+scale(6)), 1)
+            self.screen.blit(s, (x - half, y - half))
+
+        elif comp_type.startswith('mirror'):
+            # 45° mirror preview
+            size = scale(50)
+            half = size // 2
+            s = pygame.Surface((size, size), pygame.SRCALPHA)
+            if '/' in comp_type:
+                pygame.draw.line(s, c,
+                    (scale(5), size-scale(5)), (size-scale(5), scale(5)), scale(6))
+            else:  # '\'
+                pygame.draw.line(s, c,
+                    (scale(5), scale(5)), (size-scale(5), size-scale(5)), scale(6))
+            self.screen.blit(s, (x - half, y - half))
 
         elif comp_type == 'detector':
-            # Draw detector preview (turquoise)
             radius = scale(25)
-            s = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
-            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha // 2), (radius, radius), radius)
-            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (radius, radius), radius, scale(3))
-            pygame.draw.circle(s, (CYAN[0], CYAN[1], CYAN[2], alpha), (radius, radius), scale(10))
+            s = pygame.Surface((radius*2, radius*2), pygame.SRCALPHA)
+            pygame.draw.circle(s, c2, (radius, radius), radius)
+            pygame.draw.circle(s, c, (radius, radius), radius, scale(3))
+            pygame.draw.circle(s, c, (radius, radius), scale(10))
             self.screen.blit(s, (x - radius, y - radius))
