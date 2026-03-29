@@ -12,17 +12,11 @@ logger = logging.getLogger(__name__)
 class BeamSplitter(TunableBeamSplitter):
     """50/50 beam splitter with constrained scaling support."""
     
-    def __init__(self, x, y):
+    def __init__(self, x, y, orientation='\\'):
         """Initialize 50/50 beam splitter."""
-        # For a 50/50 beam splitter:
-        # t = 1/√2 (transmission)
-        # r = i/√2 (reflection with π/2 phase shift)
-        # r' = -i/√2 (to satisfy r*r' = -1)
         t = 1.0 / np.sqrt(2)
         r = 1j / np.sqrt(2)
-        
-        # Initialize parent (will build matrix)
-        super().__init__(x, y, t=t, r=r, orientation='\\', loss=BEAM_SPLITTER_LOSS)
+        super().__init__(x, y, t=t, r=r, orientation=orientation, loss=BEAM_SPLITTER_LOSS)
         self.component_type = "beamsplitter"
         
         # 50/50 beam splitter S-matrix with symmetric phase convention.
@@ -73,10 +67,15 @@ class BeamSplitter(TunableBeamSplitter):
         # Border
         pygame.draw.rect(screen, CYAN, rect, scale(3))
         
-        # Diagonal line (\ orientation) — shows reflective surface
-        pygame.draw.line(screen, CYAN,
-                        (self.position.x - half_size, self.position.y - half_size),
-                        (self.position.x + half_size, self.position.y + half_size), scale(2))
+        # Diagonal line — shows reflective surface orientation
+        if self.orientation == '/':
+            pygame.draw.line(screen, CYAN,
+                            (self.position.x - half_size, self.position.y + half_size),
+                            (self.position.x + half_size, self.position.y - half_size), scale(2))
+        else:  # '\'
+            pygame.draw.line(screen, CYAN,
+                            (self.position.x - half_size, self.position.y - half_size),
+                            (self.position.x + half_size, self.position.y + half_size), scale(2))
 
         # "BS" label so it's not confused with a mirror
         bs_font = pygame.font.Font(None, scale_font(11))

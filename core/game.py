@@ -363,9 +363,12 @@ class Game:
                             break
 
                 if hit_comp:
-                    # Determine the type string
+                    # Determine the type string for re-creation
                     ct = hit_comp.component_type
-                    if ct == 'mirror':
+                    if ct == 'beamsplitter':
+                        orient = getattr(hit_comp, 'orientation', '\\')
+                        ct = 'beamsplitter/' if orient == '/' else 'beamsplitter'
+                    elif ct == 'mirror':
                         ct = 'mirror' + getattr(hit_comp, 'mirror_type', '/')
                     elif ct == 'flat_mirror':
                         ct = 'mirror' + getattr(hit_comp, 'orientation', '|')
@@ -701,11 +704,11 @@ class Game:
             'laser': (1, 7),
             'quantum': 2,
             'components': [
-                ('beamsplitter', 4, 7),   # source BS – splits into two arms
-                ('mirror/',      8, 7),   # upper arm turn  (RIGHT → UP)
-                ('mirror\\',     4, 11),  # lower arm turn  (DOWN  → RIGHT)
-                ('beamsplitter', 8, 4),   # upper analyzer BS
-                ('beamsplitter', 8, 11),  # lower analyzer BS
+                ('beamsplitter',  4, 7),   # source BS – splits into two arms
+                ('beamsplitter/', 8, 7),   # upper arm turn  (RIGHT → UP, semi-transparent)
+                ('beamsplitter',  4, 11),  # lower arm turn  (DOWN  → RIGHT, semi-transparent)
+                ('beamsplitter/', 8, 4),   # upper analyzer BS
+                ('beamsplitter',  8, 11),  # lower analyzer BS
                 ('detector',     5, 4),   # upper-left output
                 ('detector',     8, 1),   # upper-top output
                 ('detector',    11, 11),  # lower-right output
@@ -1269,13 +1272,16 @@ class Game:
             elif d == 'up':
                 pygame.draw.line(self.screen, CYAN, (x, y-radius), (x, y-off), 2)
 
-        elif comp_type == 'beamsplitter':
+        elif comp_type.startswith('beamsplitter'):
             size = scale(40)
             half = size // 2
             s = pygame.Surface((size, size), pygame.SRCALPHA)
             pygame.draw.rect(s, c2, pygame.Rect(0, 0, size, size))
             pygame.draw.rect(s, c, pygame.Rect(0, 0, size, size), scale(3))
-            pygame.draw.line(s, c, (0, 0), (size, size), scale(2))
+            if comp_type.endswith('/'):
+                pygame.draw.line(s, c, (0, size), (size, 0), scale(2))
+            else:
+                pygame.draw.line(s, c, (0, 0), (size, size), scale(2))
             self.screen.blit(s, (x - half, y - half))
 
         elif comp_type in ('mirror|', 'mirror-'):

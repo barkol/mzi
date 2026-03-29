@@ -50,9 +50,9 @@ class ComponentManager:
             else:
                 logger.warning("No laser to move")
                 return
-        elif comp_type == 'beamsplitter':
-            # Beam splitters always include π/2 phase shift on reflection
-            comp = BeamSplitter(centered_x, centered_y)  # Use centered position
+        elif comp_type in ('beamsplitter', 'beamsplitter/'):
+            orient = '/' if comp_type.endswith('/') else '\\'
+            comp = BeamSplitter(centered_x, centered_y, orientation=orient)
             self.components.append(comp)
             self.component_grid_positions.append({'type': comp_type, 'grid_x': grid_x, 'grid_y': grid_y})
             if self.sound_manager:

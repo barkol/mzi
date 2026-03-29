@@ -14,7 +14,8 @@ class Sidebar:
         self.components = [
             {'type': 'laser', 'name': 'Laser \u2192', 'desc': 'Move the laser'},
             {'type': 'laser_down', 'name': 'Laser \u2193', 'desc': 'Laser emitting down'},
-            {'type': 'beamsplitter', 'name': 'Beam Splitter', 'desc': '50/50 split'},
+            {'type': 'beamsplitter', 'name': 'BS \\', 'desc': '50/50 beam splitter'},
+            {'type': 'beamsplitter/', 'name': 'BS /', 'desc': '50/50 beam splitter'},
             {'type': 'mirror/', 'name': 'Mirror /', 'desc': 'Diagonal reflection'},
             {'type': 'mirror\\', 'name': 'Mirror \\', 'desc': 'Diagonal reflection'},
             {'type': 'mirror|', 'name': 'Mirror |', 'desc': 'Flat retro-mirror'},
@@ -252,12 +253,15 @@ class Sidebar:
             elif d == 'down':
                 pygame.draw.line(screen, color, (center[0], center[1]+arr_start),
                                  (center[0], center[1]+arr_end), scale(2))
-        elif comp_type == 'beamsplitter':
+        elif comp_type.startswith('beamsplitter'):
             size = scale(int(35 * icon_scale))
             half_size = size // 2
             rect = pygame.Rect(center[0] - half_size, center[1] - half_size, size, size)
             pygame.draw.rect(screen, color, rect, scale(2))
-            pygame.draw.line(screen, color, rect.topleft, rect.bottomright, scale(2))
+            if comp_type.endswith('/'):
+                pygame.draw.line(screen, color, rect.bottomleft, rect.topright, scale(2))
+            else:
+                pygame.draw.line(screen, color, rect.topleft, rect.bottomright, scale(2))
         elif comp_type.startswith('mirror'):
             # Mirror icons
             size = scale(int(35 * icon_scale))
