@@ -231,8 +231,24 @@ class QuantumPacketEngine:
         family = PacketFamily(fid, n_photons=n)
 
         graph = self._network_graph
-        for photon_idx in range(n):
-            for conn_idx in graph['laser_connections']:
+        laser_conns = graph['laser_connections']
+        n_sources = len(laser_conns)
+
+        if n_sources <= 1:
+            # Single laser: all photons start on the same connection
+            for photon_idx in range(n):
+                for conn_idx in laser_conns:
+                    conn_info = graph['connections'][conn_idx]
+                    pkt = self._make_packet(fid, conn_idx, conn_info,
+                                            amplitude=1.0+0j,
+                                            photon_idx=photon_idx)
+                    family.add_packet(pkt)
+        else:
+            # Multiple lasers: distribute photons round-robin across
+            # sources so each photon enters from a different laser
+            # (e.g. HOM: photon 0 from laser A, photon 1 from laser B).
+            for photon_idx in range(n):
+                conn_idx = laser_conns[photon_idx % n_sources]
                 conn_info = graph['connections'][conn_idx]
                 pkt = self._make_packet(fid, conn_idx, conn_info,
                                         amplitude=1.0+0j,

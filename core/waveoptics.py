@@ -189,9 +189,9 @@ class WaveOpticsEngine:
         # Clear any existing network data
         self.ports.clear()
         self.connections.clear()
-        
-        # Create ports for all components
-        all_components = [laser] + components
+
+        # Create ports for all components (avoid duplicating laser)
+        all_components = [laser] + [c for c in components if c is not laser]
         
         for comp in all_components:
             comp._ports = self._create_ports_for_component(comp)
@@ -1104,21 +1104,24 @@ class WaveOpticsEngine:
     # Compatibility methods
     def trace_beams(self, components):
         """Compatibility method - finds laser and redirects to solve_interferometer."""
-        # Find laser
+        # Find primary laser; keep extra lasers in the component list
         laser = None
         actual_components = []
-        
+
         for comp in components:
             if hasattr(comp, 'component_type') and comp.component_type == 'laser':
-                laser = comp
+                if laser is None:
+                    laser = comp
+                else:
+                    actual_components.append(comp)  # extra laser stays as component
             else:
                 actual_components.append(comp)
-        
+
         if not laser:
             if self.debug:
                 logger.warning("No laser found in trace_beams")
             return []
-        
+
         return self.solve_interferometer(laser, actual_components)
     
     def add_beam(self, beam):

@@ -87,6 +87,15 @@ class ComponentManager:
             self.component_grid_positions.append({'type': comp_type, 'grid_x': grid_x, 'grid_y': grid_y})
             if self.sound_manager:
                 self.sound_manager.play('place_component')
+        elif comp_type.startswith('laser_'):
+            # Additional laser source with direction (for HOM etc.)
+            # e.g. 'laser_right', 'laser_down', 'laser_left', 'laser_up'
+            direction = comp_type.split('_', 1)[1] if '_' in comp_type else 'right'
+            comp = Laser(centered_x, centered_y, direction=direction)
+            self.components.append(comp)
+            self.component_grid_positions.append({'type': comp_type, 'grid_x': grid_x, 'grid_y': grid_y})
+            if self.sound_manager:
+                self.sound_manager.play('place_component')
         else:
             logger.warning("Unknown component type: %s", comp_type)
             return

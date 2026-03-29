@@ -620,15 +620,13 @@ class Game:
         },
         {
             'name': 'Hong-Ou-Mandel',
-            'desc': 'Equal-path interferometer — photon bunching in quantum mode',
-            'laser': (1, 6),
+            'desc': 'Two sources at one BS — press Q then P for quantum 2-photon mode',
+            'laser': (1, 7),
             'components': [
-                ('beamsplitter', 4, 6),   # BS1 – splits
-                ('mirror\\',     8, 6),   # upper-right  (RIGHT → DOWN)
-                ('mirror\\',     4, 10),  # lower-left   (DOWN  → RIGHT)
-                ('beamsplitter', 8, 10),  # BS2 – HOM beam splitter
-                ('detector',    11, 10),  # output RIGHT
-                ('detector',     8, 13),  # output DOWN
+                ('laser_down',    5, 3),  # second laser emitting DOWN (same distance to BS)
+                ('beamsplitter',  5, 7),  # HOM beam splitter
+                ('detector',      9, 7),  # output RIGHT
+                ('detector',      5, 11), # output DOWN
             ],
         },
         {

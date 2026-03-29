@@ -12,31 +12,34 @@ logger = logging.getLogger(__name__)
 class Laser(Component):
     """Laser source that emits coherent light with proper scaling.
 
-    The laser emits from port C (index 2, rightward).  It is transparent
-    on the horizontal axis so that retroinjected light arriving at port C
-    passes through to port A (leftward), where a detector can be placed.
+    The laser emits from a configurable port (default: port C / rightward).
+    It is transparent along its emission axis so retroinjected light passes
+    through to the opposite port.
     """
 
-    # Port index from which laser light is emitted
-    EMISSION_PORT = 2  # port C (right)
+    # Emission direction → (emission_port, opposite_port)
+    _DIR_MAP = {
+        'right': (2, 0),  # emit C, retro A
+        'left':  (0, 2),  # emit A, retro C
+        'down':  (1, 3),  # emit B, retro D
+        'up':    (3, 1),  # emit D, retro B
+    }
 
-    def __init__(self, x, y):
+    def __init__(self, x, y, direction='right'):
         super().__init__(x, y, "laser")
         self.enabled = True
-        # Use the scaled component radius from settings
         self.radius = COMPONENT_RADIUS
         self.debug = False
+        self.emit_direction = direction
 
-        # 4-port S-matrix: transparent on horizontal axis.
-        # Port order: [A (left), B (bottom), C (right), D (top)]
-        # S[0,2] = 1: input at C → output at A  (retroinjection pass-through)
-        # S[2,0] = 1: input at A → output at C  (forward pass-through)
-        self.S = np.array([
-            [0, 0, 1, 0],
-            [0, 0, 0, 0],
-            [1, 0, 0, 0],
-            [0, 0, 0, 0],
-        ], dtype=complex)
+        emit_port, retro_port = self._DIR_MAP.get(direction, (2, 0))
+        self.EMISSION_PORT = emit_port
+
+        # S-matrix: transparent along emission axis (pass-through
+        # between emission port and its opposite).
+        self.S = np.zeros((4, 4), dtype=complex)
+        self.S[retro_port, emit_port] = 1   # retroinjection pass-through
+        self.S[emit_port, retro_port] = 1   # forward pass-through
     
     def draw(self, screen):
         """Draw laser source with proper scaling."""
@@ -57,19 +60,29 @@ class Laser(Component):
         inner_radius = max(scale(3), self.radius // 3)
         pygame.draw.circle(screen, WHITE, self.position.tuple(), inner_radius)
         
-        # Direction indicator (shows beam will go right)
+        # Direction indicator arrow
         if self.enabled:
-            # Arrow pointing right - positioned relative to radius
-            arrow_start = (self.position.x + self.radius + scale(3), self.position.y)
-            arrow_end = (self.position.x + self.radius + scale(12), self.position.y)
-            pygame.draw.line(screen, CYAN, arrow_start, arrow_end, scale(2))
-            # Arrowhead
-            arrow_size = scale(4)
-            pygame.draw.lines(screen, CYAN, False, [
-                (arrow_end[0] - arrow_size, arrow_end[1] - arrow_size),
-                arrow_end,
-                (arrow_end[0] - arrow_size, arrow_end[1] + arrow_size)
-            ], scale(2))
+            d = self.emit_direction
+            off1, off2 = self.radius + scale(3), self.radius + scale(12)
+            asz = scale(4)
+            if d == 'right':
+                s_pt = (self.position.x + off1, self.position.y)
+                e_pt = (self.position.x + off2, self.position.y)
+                head = [(e_pt[0]-asz, e_pt[1]-asz), e_pt, (e_pt[0]-asz, e_pt[1]+asz)]
+            elif d == 'left':
+                s_pt = (self.position.x - off1, self.position.y)
+                e_pt = (self.position.x - off2, self.position.y)
+                head = [(e_pt[0]+asz, e_pt[1]-asz), e_pt, (e_pt[0]+asz, e_pt[1]+asz)]
+            elif d == 'down':
+                s_pt = (self.position.x, self.position.y + off1)
+                e_pt = (self.position.x, self.position.y + off2)
+                head = [(e_pt[0]-asz, e_pt[1]-asz), e_pt, (e_pt[0]+asz, e_pt[1]-asz)]
+            else:  # up
+                s_pt = (self.position.x, self.position.y - off1)
+                e_pt = (self.position.x, self.position.y - off2)
+                head = [(e_pt[0]-asz, e_pt[1]+asz), e_pt, (e_pt[0]+asz, e_pt[1]+asz)]
+            pygame.draw.line(screen, CYAN, s_pt, e_pt, scale(2))
+            pygame.draw.lines(screen, CYAN, False, head, scale(2))
         
         # Label - positioned below component
         font = pygame.font.Font(None, scale_font(14))
