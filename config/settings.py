@@ -99,10 +99,10 @@ COMPLETION_SCORE = 100
 
 # Quantum packet mode
 QUANTUM_PACKET_SPEED = 200        # pixels per second
-QUANTUM_PACKET_EMIT_INTERVAL = 1.5  # seconds between emissions
+QUANTUM_PACKET_EMIT_INTERVAL = 0.4  # seconds between emissions
 QUANTUM_PACKET_LENGTH = 30        # visual length in pixels
 QUANTUM_COLLAPSE_DURATION = 0.3   # seconds for collapse animation
-QUANTUM_MAX_FAMILIES = 12         # max concurrent packet families
+QUANTUM_MAX_FAMILIES = 20         # max concurrent packet families
 
 def update_scaled_values(scale_factor, window_width=None, window_height=None, fullscreen=False):
     """Update all scaled values based on new scale factor and window size."""
