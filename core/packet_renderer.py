@@ -124,6 +124,13 @@ class PacketRenderer:
     # ------------------------------------------------------------------
 
     def _draw_family(self, family: PacketFamily, now: float, t: float):
+        # Count photons per detector in this family for flash gating
+        photons_per_det: dict = {}
+        for pkt in family.packets:
+            if pkt.state == PacketState.DETECTED and pkt.detector is not None:
+                det_id = id(pkt.detector)
+                photons_per_det[det_id] = photons_per_det.get(det_id, 0) + 1
+
         for pkt in family.packets:
             if pkt.state == PacketState.TRAVELING:
                 self._draw_trail(pkt, t)
@@ -133,7 +140,10 @@ class PacketRenderer:
                 self._draw_arrived_glow(pkt, t)
             elif pkt.state == PacketState.DETECTED:
                 self._draw_trail(pkt, t, detected=True)
-                self._draw_detection_flash(pkt, now)
+                # Flash only when >1 photon detected at the same detector
+                n_at_det = photons_per_det.get(id(pkt.detector), 1)
+                if n_at_det > 1:
+                    self._draw_detection_flash(pkt, now)
             elif pkt.state == PacketState.COLLAPSED:
                 elapsed = now - pkt.detection_time
                 self._draw_collapse_trail(pkt, elapsed, family)
