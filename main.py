@@ -96,10 +96,12 @@ def main():
     
     # Game loop
     running = True
+    pending_resize = None  # debounce resize events
+
     while running:
         dt = clock.tick(_settings.FPS) / 1000.0
-        
-        # Handle events
+
+        # Handle events — collect last resize, apply after loop
         events = pygame.event.get()
         for event in events:
             if event.type == pygame.QUIT:
@@ -148,20 +150,24 @@ def main():
                                scale_factor, _settings.CANVAS_WIDTH, _settings.CANVAS_HEIGHT, _settings.CANVAS_OFFSET_X, _settings.CANVAS_OFFSET_Y)
                     continue
             elif event.type == pygame.VIDEORESIZE and not is_fullscreen:
-                # Handle window resize — pass actual window size
-                new_scale_x = event.w / DESIGN_WIDTH
-                new_scale_y = event.h / DESIGN_HEIGHT
-                scale_factor = min(new_scale_x, new_scale_y)
-                update_scaled_values(scale_factor, window_width=event.w,
-                                     window_height=event.h, fullscreen=False)
-                screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
-                game.update_scale(scale_factor)
-                game.update_screen_references(screen, screen)
-                logger.debug("Window resized to %dx%d, scale: %.2f",
-                             event.w, event.h, scale_factor)
+                # Debounce: only record the latest resize, apply after all events
+                pending_resize = (event.w, event.h)
             
             game.handle_event(event)
         
+        # Apply debounced resize (only the final size from this frame)
+        if pending_resize:
+            rw, rh = pending_resize
+            pending_resize = None
+            new_scale_x = rw / DESIGN_WIDTH
+            new_scale_y = rh / DESIGN_HEIGHT
+            scale_factor = min(new_scale_x, new_scale_y)
+            update_scaled_values(scale_factor, window_width=rw,
+                                 window_height=rh, fullscreen=False)
+            screen = pygame.display.set_mode((rw, rh), pygame.RESIZABLE)
+            game.update_scale(scale_factor)
+            game.update_screen_references(screen, screen)
+
         # Update cursor
         if game.sidebar.dragging:
             pygame.mouse.set_cursor(drag_cursor)
