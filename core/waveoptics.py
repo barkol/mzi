@@ -225,20 +225,28 @@ class WaveOpticsEngine:
             logger.debug("Creating ports for %s at %s", component.component_type, component.position)
         
         if component.component_type == "laser":
-            # Laser has one output port - beam should start from edge of laser
-            # The laser is placed on grid, so ensure port aligns with grid
-            port_x = component.position.x + component.radius + 5  # Small offset from edge
-            port_y = component.position.y  # Same Y as laser center
-            
-            # Ensure the port position is on a grid line if desired
-            # For now, keep it as-is for smooth beam start
-            port = OpticalPort(component, 0, 
-                             Vector2(port_x, port_y),
-                             Vector2(1, 0))  # Emits to the right
-            ports.append(port)
-            
+            # Laser has 4 grid-aligned ports (same layout as BS / mirror)
+            # so that retroinjected beams can pass through to a detector
+            # placed behind the laser.  Emission happens from port C (right).
+            offset_dist = GRID_SIZE // 2
+
+            center_x = component.position.x
+            center_y = component.position.y
+
+            port_configs = [
+                (0, Vector2(-offset_dist, 0), Vector2(-1, 0)),   # A (left)
+                (1, Vector2(0, offset_dist),  Vector2(0, 1)),     # B (bottom)
+                (2, Vector2(offset_dist, 0),  Vector2(1, 0)),     # C (right) — emission
+                (3, Vector2(0, -offset_dist), Vector2(0, -1)),    # D (top)
+            ]
+
+            for idx, offset, direction in port_configs:
+                port_pos = Vector2(center_x + offset.x, center_y + offset.y)
+                port = OpticalPort(component, idx, port_pos, direction)
+                ports.append(port)
+
             if self.debug:
-                logger.debug("  Laser port at %s", port.position)
+                logger.debug("  Laser ports created (emission from port C)")
             
         elif component.component_type in ["beamsplitter", "mirror", "tunable_beamsplitter", "partial_mirror", "flat_mirror"]:
             # These components have 4 ports at grid edges
@@ -630,11 +638,14 @@ class WaveOpticsEngine:
             # Phase accumulation along this connection
             phase = cmath.exp(1j * conn.phase_shift)
             
-            # Source term (only for laser output)
+            # Source term (only for laser emission port)
             if conn.port1.component.component_type == "laser":
-                b[i] = 1.0  # Unit amplitude from laser
-                if self.debug:
-                    logger.debug("  Beam %d starts from laser with amplitude 1.0", i)
+                emission_port = getattr(conn.port1.component, 'EMISSION_PORT',
+                                        conn.port1.port_index)
+                if conn.port1.port_index == emission_port:
+                    b[i] = 1.0  # Unit amplitude from laser
+                    if self.debug:
+                        logger.debug("  Beam %d starts from laser with amplitude 1.0", i)
             
             # Add scattering contributions
             self._add_scattering_terms(A, i, conn, beam_segments, phase)

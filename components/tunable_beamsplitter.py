@@ -24,7 +24,7 @@ class TunableBeamSplitter(Component):
     
     Constraints:
     - t = t' (reciprocity)
-    - r * r' = -1 (phase relation)
+    - r' = -r* (phase relation, ensures unitarity)
     - |r|² + |t|² = 1 (energy conservation)
     """
     
@@ -50,8 +50,11 @@ class TunableBeamSplitter(Component):
             self.r_prime = -1j / np.sqrt(2)
         elif r is not None:
             self.r = complex(r)
-            # Calculate r' from constraint r * r' = -1
-            self.r_prime = complex(r_prime) if r_prime is not None else -1.0 / self.r
+            # Calculate r' so that the scattering matrix is unitary.
+            # The correct physical relation is r' = -r* (negative complex
+            # conjugate), which guarantees |r'| = |r| and S†S = I.
+            # The older r' = -1/r gives |r'| = 1/|r|, breaking unitarity.
+            self.r_prime = complex(r_prime) if r_prime is not None else -np.conj(self.r)
             # Calculate t from energy conservation |r|² + |t|² = 1
             self.t = complex(t) if t is not None else np.sqrt(1.0 - abs(self.r)**2)
         else:
@@ -89,10 +92,10 @@ class TunableBeamSplitter(Component):
         if abs(energy - 1.0) > 1e-6:
             logger.warning("Energy not conserved: |r|^2+|t|^2 = %f", energy)
         
-        # Check phase relation r*r' = -1
-        product = self.r * self.r_prime
-        if abs(product + 1.0) > 1e-6:
-            logger.warning("Phase relation violated: r*r' = %s (should be -1)", product)
+        # Check phase relation r' = -r* (ensures unitarity)
+        if abs(self.r_prime + np.conj(self.r)) > 1e-6:
+            logger.warning("Phase relation violated: r'=%s, expected -conj(r)=%s",
+                           self.r_prime, -np.conj(self.r))
     
     def _build_scattering_matrix(self):
         """Build scattering matrix based on coefficients and orientation."""
@@ -338,6 +341,74 @@ class TunableBeamSplitter(Component):
         
         return self.output_beams
     
+    # ------------------------------------------------------------------
+    # Fock state interface
+    # ------------------------------------------------------------------
+
+    def get_fock_mode_mapping(self):
+        """Return port-index mapping between 4-port S-matrix and 2-mode Fock basis.
+
+        The beam-splitter unitary in the Fock module uses the convention::
+
+            ĉ† = t â† + r' b̂†      (output mode c)
+            d̂† = r â† + t  b̂†      (output mode d)
+
+        This method returns two sub-block mappings — one for each pair of
+        input ports that scatter into the complementary pair of output ports.
+
+        Returns
+        -------
+        list of dict
+            Each dict has keys ``a``, ``b`` (input port indices) and
+            ``c``, ``d`` (output port indices) for one sub-block.
+        """
+        if self.orientation == '\\':
+            # S-matrix connects {A(0),D(3)} → {B(1),C(2)}
+            #   v_B = r·v_A + t·v_D   →  d = r·a + t·b
+            #   v_C = t·v_A + r'·v_D   →  c = t·a + r'·b
+            # So Fock a↔A(0), b↔D(3), c↔C(2), d↔B(1)
+            return [
+                {'a': 0, 'b': 3, 'c': 2, 'd': 1},  # (A,D) → (C,B)
+                {'a': 1, 'b': 2, 'c': 3, 'd': 0},  # (B,C) → (D,A)
+            ]
+        else:  # '/'
+            # S-matrix connects {A(0),C(2)} → {B(1),D(3)}
+            #   v_B = r·v_A + t·v_C   →  d = r·a + t·b
+            #   v_D = t·v_A + r'·v_C   →  c = t·a + r'·b
+            return [
+                {'a': 0, 'b': 2, 'c': 3, 'd': 1},  # (A,C) → (D,B)
+                {'a': 1, 'b': 3, 'c': 2, 'd': 0},  # (B,D) → (C,A)
+            ]
+
+    def fock_transform(self, n, m):
+        """Sample one Fock-state outcome |n,m⟩ → |p,q⟩ through this BS.
+
+        Parameters
+        ----------
+        n, m : int
+            Input photon numbers (mode a and mode b respectively).
+
+        Returns
+        -------
+        tuple[int, int]
+            Sampled output photon numbers (p in mode c, q in mode d).
+        """
+        from core.fock import sample_fock_bs
+        r_prime = -np.conj(self.r)
+        return sample_fock_bs(n, m, self.t, self.r, r_prime)
+
+    def fock_probabilities(self, n, m):
+        """Full Fock-state output distribution for |n,m⟩ input.
+
+        Returns
+        -------
+        dict[(int,int), float]
+            Mapping (p, q) → probability.
+        """
+        from core.fock import fock_bs_probabilities
+        r_prime = -np.conj(self.r)
+        return fock_bs_probabilities(n, m, self.t, self.r, r_prime)
+
     def get_info(self):
         """Get component information."""
         return {

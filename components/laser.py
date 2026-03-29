@@ -2,6 +2,7 @@
 import logging
 import pygame
 import math
+import numpy as np
 from components.base import Component
 from utils.vector import Vector2
 from config.settings import CYAN, WHITE, scale, scale_font, COMPONENT_RADIUS
@@ -9,14 +10,33 @@ from config.settings import CYAN, WHITE, scale, scale_font, COMPONENT_RADIUS
 logger = logging.getLogger(__name__)
 
 class Laser(Component):
-    """Laser source that emits coherent light with proper scaling."""
-    
+    """Laser source that emits coherent light with proper scaling.
+
+    The laser emits from port C (index 2, rightward).  It is transparent
+    on the horizontal axis so that retroinjected light arriving at port C
+    passes through to port A (leftward), where a detector can be placed.
+    """
+
+    # Port index from which laser light is emitted
+    EMISSION_PORT = 2  # port C (right)
+
     def __init__(self, x, y):
         super().__init__(x, y, "laser")
         self.enabled = True
         # Use the scaled component radius from settings
         self.radius = COMPONENT_RADIUS
         self.debug = False
+
+        # 4-port S-matrix: transparent on horizontal axis.
+        # Port order: [A (left), B (bottom), C (right), D (top)]
+        # S[0,2] = 1: input at C → output at A  (retroinjection pass-through)
+        # S[2,0] = 1: input at A → output at C  (forward pass-through)
+        self.S = np.array([
+            [0, 0, 1, 0],
+            [0, 0, 0, 0],
+            [1, 0, 0, 0],
+            [0, 0, 0, 0],
+        ], dtype=complex)
     
     def draw(self, screen):
         """Draw laser source with proper scaling."""

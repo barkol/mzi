@@ -193,6 +193,12 @@ class PacketRenderer:
         # Head dot
         pygame.draw.circle(self.screen, core_color, (hx, hy), max(2, width))
 
+        # Photon index label for multi-photon pulses
+        if hasattr(pkt, 'photon_idx') and pkt.photon_idx > 0:
+            label_font = pygame.font.Font(None, scale_font(10))
+            label = label_font.render(str(pkt.photon_idx + 1), True, WHITE)
+            self.screen.blit(label, (hx + 4, hy - 8))
+
     # ------------------------------------------------------------------
     # Trail
     # ------------------------------------------------------------------
@@ -394,6 +400,125 @@ class PacketRenderer:
             clabel = font.render(count_text, True, (160, 160, 160))
             crect = clabel.get_rect(centerx=bx + bar_w // 2, top=label_rect.bottom + 1)
             self.screen.blit(clabel, crect)
+
+        # Coincidence and PNR statistics for multi-photon mode
+        if engine.photons_per_pulse > 1:
+            self._draw_coincidences(engine)
+            self._draw_pnr(engine)
+
+    # ------------------------------------------------------------------
+    # Coincidence display
+    # ------------------------------------------------------------------
+
+    def _draw_coincidences(self, engine: QuantumPacketEngine):
+        """Draw coincidence rates for multi-photon mode in the top-right corner."""
+        coinc = engine.get_coincidence_stats()
+        if not coinc or engine._total_pulses < 1:
+            return
+
+        font = pygame.font.Font(None, scale_font(13))
+        x = self.screen.get_width() - scale(200)
+        y = scale(10)
+
+        # Header
+        n = engine.photons_per_pulse
+        header = font.render(f"Coincidences ({n} photons/pulse, {engine._total_pulses} pulses)",
+                             True, GOLD)
+        self.screen.blit(header, (x, y))
+        y += scale(16)
+
+        for det_set, (count, rate) in sorted(coinc.items(), key=lambda kv: -kv[1][1]):
+            # Build label from detector positions
+            det_labels = []
+            for det in det_set:
+                if hasattr(det, 'position'):
+                    pos = det.position.tuple()
+                    det_labels.append(f"D({int(pos[0])},{int(pos[1])})")
+                else:
+                    det_labels.append("D?")
+            label = " & ".join(sorted(det_labels))
+            text = f"{label}: {count} ({int(rate * 100)}%)"
+            surf = font.render(text, True, WHITE)
+            self.screen.blit(surf, (x, y))
+            y += scale(14)
+
+    # ------------------------------------------------------------------
+    # PNR (photon-number-resolved) display
+    # ------------------------------------------------------------------
+
+    def _draw_pnr(self, engine: QuantumPacketEngine):
+        """Draw photon-number-resolved detection statistics per detector."""
+        pnr = engine.get_pnr_stats()
+        if not pnr or engine._total_pulses < 1:
+            return
+
+        font = pygame.font.Font(None, scale_font(12))
+        bar_w = scale(10)
+        bar_max_h = scale(28)
+        gap = scale(2)
+
+        for det, dist in pnr.items():
+            if not hasattr(det, 'position'):
+                continue
+            pos = det.position.tuple()
+
+            # Skip n=0 for display; only show n>=1 entries
+            entries = {n: (cnt, rate) for n, (cnt, rate) in dist.items() if n >= 1}
+            if not entries:
+                continue
+
+            n_max = max(entries.keys())
+            n_bars = n_max  # bars for n=1..n_max
+            total_w = n_bars * (bar_w + gap) - gap
+
+            # Place to the right of the detector, vertically centred
+            bx_start = int(pos[0]) + scale(55)
+            by_top = int(pos[1]) - bar_max_h // 2
+
+            # Background
+            bg_rect = pygame.Rect(bx_start - scale(4), by_top - scale(14),
+                                  total_w + scale(8), bar_max_h + scale(30))
+            s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+            s.fill((0, 0, 0, 140))
+            self.screen.blit(s, bg_rect.topleft)
+
+            # Title
+            title = font.render("PNR", True, GOLD)
+            title_rect = title.get_rect(centerx=bx_start + total_w // 2,
+                                        bottom=by_top - scale(2))
+            self.screen.blit(title, title_rect)
+
+            for n in range(1, n_max + 1):
+                cnt, rate = entries.get(n, (0, 0.0))
+                bx = bx_start + (n - 1) * (bar_w + gap)
+
+                # Bar height proportional to rate
+                bh = max(1, int(bar_max_h * rate))
+                bar_rect = pygame.Rect(bx, by_top + bar_max_h - bh, bar_w, bh)
+
+                # Colour gradient: green for n=1, cyan for n=2, magenta for n≥3
+                if n == 1:
+                    colour = (0, 200, 100)
+                elif n == 2:
+                    colour = (0, 200, 255)
+                else:
+                    colour = (200, 100, 255)
+
+                pygame.draw.rect(self.screen, colour, bar_rect)
+                pygame.draw.rect(self.screen, WHITE, bar_rect, 1)
+
+                # n label below bar
+                nlabel = font.render(str(n), True, WHITE)
+                nlabel_rect = nlabel.get_rect(centerx=bx + bar_w // 2,
+                                              top=by_top + bar_max_h + scale(2))
+                self.screen.blit(nlabel, nlabel_rect)
+
+                # Percentage above bar
+                if rate >= 0.005:
+                    pct = font.render(f"{int(rate * 100)}%", True, (180, 180, 180))
+                    pct_rect = pct.get_rect(centerx=bx + bar_w // 2,
+                                            bottom=by_top + bar_max_h - bh - 1)
+                    self.screen.blit(pct, pct_rect)
 
     # ------------------------------------------------------------------
     # Geometry helpers
