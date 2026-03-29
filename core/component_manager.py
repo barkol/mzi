@@ -25,8 +25,8 @@ class ComponentManager:
         logger.debug("Adding component: %s at (%d, %d)", comp_type, x, y)
         
         # Calculate grid position from screen coordinates
-        grid_x = round((x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
-        grid_y = round((y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
+        grid_x = (x - _settings.CANVAS_OFFSET_X) // _settings.GRID_SIZE
+        grid_y = (y - _settings.CANVAS_OFFSET_Y) // _settings.GRID_SIZE
         
         # Ensure the component is centered in the grid cell
         centered_x = _settings.CANVAS_OFFSET_X + grid_x * _settings.GRID_SIZE + _settings.GRID_SIZE // 2

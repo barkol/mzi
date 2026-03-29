@@ -305,8 +305,8 @@ class Game:
             if drop_type:
                 if self._is_in_canvas(event.pos):
                     # Place component at grid position CENTER
-                    grid_x = round((event.pos[0] - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
-                    grid_y = round((event.pos[1] - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
+                    grid_x = (event.pos[0] - _settings.CANVAS_OFFSET_X) // _settings.GRID_SIZE
+                    grid_y = (event.pos[1] - _settings.CANVAS_OFFSET_Y) // _settings.GRID_SIZE
                     x = _settings.CANVAS_OFFSET_X + grid_x * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
                     y = _settings.CANVAS_OFFSET_Y + grid_y * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
 

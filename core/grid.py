@@ -34,8 +34,8 @@ class Grid:
             _settings.CANVAS_WIDTH, _settings.CANVAS_HEIGHT)
         if pos and self.canvas_rect.collidepoint(pos):
             # Snap to grid CENTER
-            grid_x = round((pos[0] - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
-            grid_y = round((pos[1] - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
+            grid_x = (pos[0] - _settings.CANVAS_OFFSET_X) // _settings.GRID_SIZE
+            grid_y = (pos[1] - _settings.CANVAS_OFFSET_Y) // _settings.GRID_SIZE
             # Center in the grid cell
             x = _settings.CANVAS_OFFSET_X + grid_x * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
             y = _settings.CANVAS_OFFSET_Y + grid_y * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
@@ -387,8 +387,8 @@ class Grid:
         x, y = self.hover_pos
         
         # Calculate the grid cell bounds
-        grid_x = round((x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
-        grid_y = round((y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
+        grid_x = (x - _settings.CANVAS_OFFSET_X + _settings.GRID_SIZE // 2) // _settings.GRID_SIZE
+        grid_y = (y - _settings.CANVAS_OFFSET_Y + _settings.GRID_SIZE // 2) // _settings.GRID_SIZE
         cell_x = _settings.CANVAS_OFFSET_X + grid_x * _settings.GRID_SIZE
         cell_y = _settings.CANVAS_OFFSET_Y + grid_y * _settings.GRID_SIZE
         
@@ -510,8 +510,8 @@ class Grid:
             font = pygame.font.Font(None, 14)
 
         # Convert to grid coordinates - x,y are already centered in cell
-        grid_x = round((x - _settings.CANVAS_OFFSET_X - _settings.GRID_SIZE // 2) / _settings.GRID_SIZE)
-        grid_y = round((y - _settings.CANVAS_OFFSET_Y - _settings.GRID_SIZE // 2) / _settings.GRID_SIZE)
+        grid_x = (x - _settings.CANVAS_OFFSET_X) // _settings.GRID_SIZE
+        grid_y = (y - _settings.CANVAS_OFFSET_Y) // _settings.GRID_SIZE
         coords_text = f"({grid_x}, {grid_y})"
         text = font.render(coords_text, True, CYAN)
         text_rect = text.get_rect(topleft=(x + 15, y - 25))
