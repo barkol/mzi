@@ -51,14 +51,15 @@ class FlatMirror(TunableBeamSplitter):
         # The problem is that for the HORIZONTAL flat mirror, input comes
         # at port B (from the top, beam going DOWN). The mirror must send
         # it back UP. Port D points UP. So: S[3,1] = -1 (input B → output D).
+        # Port input convention: beam going DOWN enters port D (top face),
+        # beam going UP enters port B (bottom face).
         if orientation == '|':
             # Vertical flat mirror — retroreflects horizontal beams.
-            # Beams on the vertical axis pass through unchanged so that
-            # the scattering matrix remains unitary (energy conserving).
-            #   Port A (right-going) → retroreflects back via port A (left)
-            #   Port C (left-going)  → retroreflects back via port C (right)
-            #   Port B (up-going)    → passes through to port D (up)
-            #   Port D (down-going)  → passes through to port B (down)
+            # Vertical beams pass through unchanged (unitarity).
+            #   RIGHT(A) → LEFT(A)   retroreflection
+            #   LEFT(C)  → RIGHT(C)  retroreflection
+            #   DOWN(D)  → DOWN(B)   pass through
+            #   UP(B)    → UP(D)     pass through
             self.S = np.array([
                 [-1,  0,  0,  0],
                 [ 0,  0,  0,  1],
@@ -67,19 +68,16 @@ class FlatMirror(TunableBeamSplitter):
             ], dtype=complex)
         else:  # '-'
             # Horizontal flat mirror — retroreflects vertical beams.
-            # Beams on the horizontal axis pass through unchanged.
-            #   Port B (up-going)    → retroreflects back via port D (down)  (*)
-            #   Port D (down-going)  → retroreflects back via port B (up)    (*)
-            #   Port A (right-going) → passes through to port C (right)
-            #   Port C (left-going)  → passes through to port A (left)
-            # (*) Note: retroreflection maps B↔D here because a beam going
-            #     DOWN enters port D and must exit going UP via port D, but
-            #     in the 4-port model the reverse-direction port is used.
+            # Horizontal beams pass through unchanged.
+            #   DOWN(D) → UP(D)    retroreflection
+            #   UP(B)   → DOWN(B)  retroreflection
+            #   RIGHT(A)→ RIGHT(C) pass through
+            #   LEFT(C) → LEFT(A)  pass through
             self.S = np.array([
                 [ 0,  0,  1,  0],
-                [ 0,  0,  0, -1],
-                [ 1,  0,  0,  0],
                 [ 0, -1,  0,  0],
+                [ 1,  0,  0,  0],
+                [ 0,  0,  0, -1],
             ], dtype=complex)
 
     def draw(self, screen):

@@ -365,26 +365,12 @@ class WaveOpticsEngine:
         ports_with_outgoing = set()  # ports already used as port1
         ports_with_incoming = set()  # ports already used as port2
 
-        # Track directed component pairs to prevent feedback loops.
-        # If A→B already exists, skip B→A (except for flat mirrors which
-        # legitimately retroreflect into the same component they receive from).
-        connected_pairs = set()  # (id(comp_from), id(comp_to))
-
         for conn_data in potential_connections:
             port1 = conn_data['port1']
             port2 = conn_data['port2']
 
             # Skip if port1 already has an outgoing or port2 already has an incoming
             if port1 in ports_with_outgoing or port2 in ports_with_incoming:
-                continue
-
-            # Prevent feedback: skip B→A if A→B already created,
-            # unless one endpoint is a flat mirror (Michelson retroreflection).
-            pair_key = (id(port1.component), id(port2.component))
-            reverse_key = (id(port2.component), id(port1.component))
-            is_flat_mirror = (port1.component.component_type == 'flat_mirror'
-                              or port2.component.component_type == 'flat_mirror')
-            if reverse_key in connected_pairs and not is_flat_mirror:
                 continue
 
             connection = OpticalConnection(port1, port2, conn_data['path'], conn_data['distance'])
@@ -396,7 +382,6 @@ class WaveOpticsEngine:
 
             ports_with_outgoing.add(port1)
             ports_with_incoming.add(port2)
-            connected_pairs.add(pair_key)
 
             if self.debug:
                 logger.debug("  Created: %s:%d -> %s:%d", port1.component.component_type, port1.port_index, port2.component.component_type, port2.port_index)
@@ -600,20 +585,21 @@ class WaveOpticsEngine:
             # Vertical
             grid_direction = Vector2(0, 1 if incoming_direction.y > 0 else -1)
         
-        # Map grid directions to port indices
-        # Port 0 = left (expects beam from left, going right)
-        # Port 1 = bottom (expects beam from bottom, going up)
-        # Port 2 = right (expects beam from right, going left)
-        # Port 3 = top (expects beam from top, going down)
-        
-        if grid_direction.x > 0:  # Coming from left
+        # Map incoming beam direction to the port it enters.
+        # A beam hits the FACE it arrives at:
+        #   going RIGHT → hits left face  → Port A (index 0)
+        #   going DOWN  → hits top face   → Port D (index 3)
+        #   going LEFT  → hits right face → Port C (index 2)
+        #   going UP    → hits bottom face→ Port B (index 1)
+
+        if grid_direction.x > 0:     # beam going RIGHT → enters Port A
             return component._ports[0] if len(component._ports) > 0 else None
-        elif grid_direction.x < 0:  # Coming from right
+        elif grid_direction.x < 0:   # beam going LEFT  → enters Port C
             return component._ports[2] if len(component._ports) > 2 else None
-        elif grid_direction.y > 0:  # Coming from bottom
-            return component._ports[1] if len(component._ports) > 1 else None
-        elif grid_direction.y < 0:  # Coming from top
+        elif grid_direction.y > 0:   # beam going DOWN  → enters Port D (top face)
             return component._ports[3] if len(component._ports) > 3 else None
+        elif grid_direction.y < 0:   # beam going UP    → enters Port B (bottom face)
+            return component._ports[1] if len(component._ports) > 1 else None
         
         # Fallback - try to find any suitable port
         if len(component._ports) > 0:

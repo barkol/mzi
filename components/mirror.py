@@ -29,29 +29,25 @@ class Mirror(TunableBeamSplitter):
         # Scattering matrix for mirror behavior.
         # Port order: [A (left), B (bottom), C (right), D (top)]
         #
-        # Pygame uses screen coordinates where y increases downward.
-        # This means the visual '/' diagonal on screen corresponds to
-        # a line with slope +1 in math coordinates (i.e. '\' shape).
-        # The matrices below are correct for on-screen appearance:
-        #   '/' on screen reflects left↔bottom and right↔top
-        #   '\' on screen reflects left↔top and bottom↔right
+        # Port input convention (after fix): a beam going DOWN enters
+        # port D (the top face), a beam going UP enters port B (bottom
+        # face).  Horizontal beams: RIGHT→A, LEFT→C.
+        #
+        # '/' on screen: RIGHT→UP, DOWN→LEFT, LEFT→DOWN, UP→RIGHT
+        # '\' on screen: RIGHT→DOWN, DOWN→RIGHT, LEFT→UP, UP→LEFT
         if mirror_type == '/':
-            # '/' on screen (lower-left to upper-right):
-            #   RIGHT(A)→UP(D), DOWN(B)→LEFT(A), LEFT(C)→DOWN(B), UP(D)→RIGHT(C)
             self.S = np.array([
-                [0, -1,  0,  0],
-                [0,  0, -1,  0],
-                [0,  0,  0, -1],
-                [-1, 0,  0,  0]
+                [0,  0,  0, -1],  # A ← D (DOWN→LEFT)
+                [0,  0, -1,  0],  # B ← C (LEFT→DOWN)
+                [0, -1,  0,  0],  # C ← B (UP→RIGHT)
+                [-1, 0,  0,  0]   # D ← A (RIGHT→UP)
             ], dtype=complex)
         else:  # '\'
-            # '\' on screen (upper-left to lower-right):
-            #   RIGHT(A)→DOWN(B), DOWN(B)→RIGHT(C), LEFT(C)→UP(D), UP(D)→LEFT(A)
             self.S = np.array([
-                [0,  0,  0, -1],
-                [-1, 0,  0,  0],
-                [0, -1,  0,  0],
-                [0,  0, -1,  0]
+                [0, -1,  0,  0],  # A ← B (UP→LEFT)
+                [-1, 0,  0,  0],  # B ← A (RIGHT→DOWN)
+                [0,  0,  0, -1],  # C ← D (DOWN→RIGHT)
+                [0,  0, -1,  0]   # D ← C (LEFT→UP)
             ], dtype=complex)
     
     def draw(self, screen):
