@@ -25,9 +25,9 @@ class BeamSplitter(TunableBeamSplitter):
         super().__init__(x, y, t=t, r=r, orientation='\\', loss=BEAM_SPLITTER_LOSS)
         self.component_type = "beamsplitter"
         
-        # Override with explicit symmetric 50/50 beam splitter matrix
+        # 50/50 beam splitter S-matrix with symmetric phase convention.
+        # Sub-blocks: {A,D}↔{B,C} for '\', {A,C}↔{B,D} for '/'.
         if self.orientation == '\\':
-            # Backslash orientation
             self.S = np.array([
                 [0,      1j,     1,      0 ],  # A
                 [1j,     0,      0,      1 ],  # B
@@ -35,7 +35,6 @@ class BeamSplitter(TunableBeamSplitter):
                 [0,      1,      1j,     0 ]   # D
             ], dtype=complex) / np.sqrt(2)
         else:  # '/'
-            # Forward slash orientation
             self.S = np.array([
                 [0,      1j,     0,      1 ],  # A
                 [1j,     0,      1,      0 ],  # B

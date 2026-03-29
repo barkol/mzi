@@ -365,12 +365,26 @@ class WaveOpticsEngine:
         ports_with_outgoing = set()  # ports already used as port1
         ports_with_incoming = set()  # ports already used as port2
 
+        # Track directed component pairs to prevent feedback loops.
+        # If A→B already exists, skip B→A (except for flat mirrors which
+        # legitimately retroreflect into the same component they receive from).
+        connected_pairs = set()  # (id(comp_from), id(comp_to))
+
         for conn_data in potential_connections:
             port1 = conn_data['port1']
             port2 = conn_data['port2']
 
             # Skip if port1 already has an outgoing or port2 already has an incoming
             if port1 in ports_with_outgoing or port2 in ports_with_incoming:
+                continue
+
+            # Prevent feedback: skip B→A if A→B already created,
+            # unless one endpoint is a flat mirror (Michelson retroreflection).
+            pair_key = (id(port1.component), id(port2.component))
+            reverse_key = (id(port2.component), id(port1.component))
+            is_flat_mirror = (port1.component.component_type == 'flat_mirror'
+                              or port2.component.component_type == 'flat_mirror')
+            if reverse_key in connected_pairs and not is_flat_mirror:
                 continue
 
             connection = OpticalConnection(port1, port2, conn_data['path'], conn_data['distance'])
@@ -382,6 +396,7 @@ class WaveOpticsEngine:
 
             ports_with_outgoing.add(port1)
             ports_with_incoming.add(port2)
+            connected_pairs.add(pair_key)
 
             if self.debug:
                 logger.debug("  Created: %s:%d -> %s:%d", port1.component.component_type, port1.port_index, port2.component.component_type, port2.port_index)
