@@ -73,11 +73,17 @@ class BeamSplitter(TunableBeamSplitter):
         # Border
         pygame.draw.rect(screen, CYAN, rect, scale(3))
         
-        # Diagonal line (\ orientation)
+        # Diagonal line (\ orientation) — shows reflective surface
         pygame.draw.line(screen, CYAN,
                         (self.position.x - half_size, self.position.y - half_size),
                         (self.position.x + half_size, self.position.y + half_size), scale(2))
-        
+
+        # "BS" label so it's not confused with a mirror
+        bs_font = pygame.font.Font(None, scale_font(11))
+        bs_label = bs_font.render("BS", True, CYAN)
+        screen.blit(bs_label, (self.position.x + half_size - scale(14),
+                               self.position.y - half_size + scale(2)))
+
         # Show port labels in debug mode
         if self.debug:
             font = pygame.font.Font(None, scale_font(12))

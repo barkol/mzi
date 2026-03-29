@@ -64,24 +64,28 @@ class Mirror(TunableBeamSplitter):
             start = (self.position.x - half_size, self.position.y - half_size)
             end = (self.position.x + half_size, self.position.y + half_size)
         
-        # Draw thick mirror line - CYAN color like beam splitter
-        pygame.draw.line(screen, CYAN, start, end, scale(6))
-        
-        # Draw reflection indicators (dimmed) - keep these subtle
-        indicator_size = int(GRID_SIZE * 0.5)  # Smaller indicators
-        s = pygame.Surface((indicator_size, indicator_size), pygame.SRCALPHA)
-        s_center = (indicator_size // 2, indicator_size // 2)
-        indicator_half = indicator_size // 2 - scale(5)
-        
-        if self.mirror_type == '/':
-            pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], 100),
-                           (s_center[0] - indicator_half, s_center[1] + indicator_half),
-                           (s_center[0] + indicator_half, s_center[1] - indicator_half), scale(2))
-        else:
-            pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], 100),
-                           (s_center[0] - indicator_half, s_center[1] - indicator_half),
-                           (s_center[0] + indicator_half, s_center[1] + indicator_half), scale(2))
-        screen.blit(s, (self.position.x - indicator_size // 2, self.position.y - indicator_size // 2))
+        # Draw thick mirror line
+        pygame.draw.line(screen, CYAN, start, end, scale(5))
+
+        # Draw hatching on the back side (like flat mirrors) to
+        # distinguish from beam splitters which use a square outline.
+        hatch_color = (CYAN[0] // 2, CYAN[1] // 2, CYAN[2] // 2)
+        hatch_len = scale(7)
+        num_hatches = 6
+        for i in range(num_hatches):
+            t = (i + 0.5) / num_hatches
+            mx = int(start[0] + t * (end[0] - start[0]))
+            my = int(start[1] + t * (end[1] - start[1]))
+            if self.mirror_type == '/':
+                # hatching below-right of the '/' line
+                pygame.draw.line(screen, hatch_color,
+                                 (mx + 2, my + 2),
+                                 (mx + hatch_len, my + hatch_len), scale(1))
+            else:
+                # hatching below-left of the '\' line
+                pygame.draw.line(screen, hatch_color,
+                                 (mx - 2, my + 2),
+                                 (mx - hatch_len, my + hatch_len), scale(1))
         
         # Add direction hints - smaller and closer to mirror
         hint_offset = int(GRID_SIZE * 0.4)
