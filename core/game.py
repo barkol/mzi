@@ -683,6 +683,7 @@ class Game:
             self.component_manager.add_component(comp_type, sx, sy, self.laser)
 
         # UI feedback
+        self.current_challenge_display_name = setup['name']
         self.controls.set_challenge(setup['name'])
         self.controls.set_status(setup['desc'])
         if hasattr(self.controls, 'set_challenge_completed'):
