@@ -131,10 +131,25 @@ class PacketRenderer:
                 det_id = id(pkt.detector)
                 photons_per_det[det_id] = photons_per_det.get(det_id, 0) + 1
 
+        # Count co-traveling photons per connection for number labels
+        photons_per_conn: dict = {}
+        for pkt in family.packets:
+            if pkt.state == PacketState.TRAVELING:
+                photons_per_conn[pkt.connection_index] = \
+                    photons_per_conn.get(pkt.connection_index, 0) + 1
+
+        # Track which connections already have a label drawn
+        labeled_conns: set = set()
+
         for pkt in family.packets:
             if pkt.state == PacketState.TRAVELING:
                 self._draw_trail(pkt, t)
                 self._draw_packet(pkt, t)
+                # Draw photon-number label once per connection
+                n = photons_per_conn.get(pkt.connection_index, 1)
+                if family.n_photons > 1 and pkt.connection_index not in labeled_conns:
+                    labeled_conns.add(pkt.connection_index)
+                    self._draw_photon_number(pkt, n)
             elif pkt.state == PacketState.ARRIVED:
                 self._draw_trail(pkt, t)
                 self._draw_arrived_glow(pkt, t)
@@ -203,11 +218,26 @@ class PacketRenderer:
         # Head dot
         pygame.draw.circle(self.screen, core_color, (hx, hy), max(2, width))
 
-        # Photon index label for multi-photon pulses
-        if hasattr(pkt, 'photon_idx') and pkt.photon_idx > 0:
-            label_font = pygame.font.Font(None, scale_font(10))
-            label = label_font.render(str(pkt.photon_idx + 1), True, WHITE)
-            self.screen.blit(label, (hx + 4, hy - 8))
+    def _draw_photon_number(self, pkt: QuantumPacket, n: int):
+        """Draw a small circled number near the packet head showing photon count."""
+        path = pkt.path
+        if not path or len(path) < 2:
+            return
+        head = self._position_on_path(path, pkt.progress)
+        if head is None:
+            return
+
+        hx, hy = int(head.x), int(head.y)
+        label_font = pygame.font.Font(None, scale_font(13))
+        text = label_font.render(str(n), True, WHITE)
+        tw, th = text.get_size()
+
+        # Draw background circle
+        r = max(tw, th) // 2 + 3
+        cx, cy = hx + 8, hy - 10
+        pygame.draw.circle(self.screen, (40, 0, 60), (cx, cy), r)
+        pygame.draw.circle(self.screen, (180, 100, 255), (cx, cy), r, 1)
+        self.screen.blit(text, (cx - tw // 2, cy - th // 2))
 
     # ------------------------------------------------------------------
     # Trail
