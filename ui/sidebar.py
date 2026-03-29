@@ -35,8 +35,11 @@ class Sidebar:
     
     def _update_dimensions(self):
         """Update sidebar dimensions based on current scale and display mode."""
-        # Use responsive width from settings
+        from config.settings import CANVAS_OFFSET_X
         sidebar_width = get_sidebar_width()
+        # Never extend past the canvas left edge
+        sidebar_width = min(sidebar_width, CANVAS_OFFSET_X - scale(5))
+        sidebar_width = max(sidebar_width, scale(100))  # minimum usable width
         self.rect = pygame.Rect(0, 0, sidebar_width, WINDOW_HEIGHT)
     
     def handle_event(self, event):

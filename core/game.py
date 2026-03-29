@@ -1136,9 +1136,9 @@ class Game:
             self.screen.blit(text, text_rect)
 
     def _draw_component_counter(self):
-        """Draw component counter in bottom left corner of the screen."""
+        """Draw component counter below the last sidebar item."""
         current_count = len(self.component_manager.components)
-        
+
         # Get challenge limits
         min_components = 0
         max_components = float('inf')
@@ -1147,10 +1147,12 @@ class Game:
             if challenge:
                 min_components = challenge.get('min_components', 0)
                 max_components = challenge.get('max_components', float('inf'))
-        
-        # Position - in the bottom left of the entire screen
-        counter_x = scale(20)
-        counter_y = WINDOW_HEIGHT - scale(60)
+
+        # Position below the last sidebar component card
+        n_items = len(self.sidebar.components)
+        last_rect = self.sidebar._get_component_rect(n_items - 1)
+        counter_x = last_rect.x
+        counter_y = last_rect.bottom + scale(8)
         
         # Prepare text
         font = pygame.font.Font(None, scale_font(24))
