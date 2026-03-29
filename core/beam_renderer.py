@@ -2,7 +2,8 @@
 import pygame
 import math
 import time
-from config.settings import BEAM_WIDTH, CYAN, WHITE, scale, scale_font
+import config.settings as _settings
+from config.settings import CYAN, WHITE, scale, scale_font
 
 
 class BeamRenderer:
@@ -151,8 +152,8 @@ class BeamRenderer:
         
         pulse_factor = self._get_pulse_factor(beam_data['amplitude'], time_offset)
         
-        min_width = max(1, BEAM_WIDTH // 2)
-        base_beam_width = max(min_width, int(BEAM_WIDTH * beam_data['amplitude']))
+        min_width = max(1, _settings.BEAM_WIDTH // 2)
+        base_beam_width = max(min_width, int(_settings.BEAM_WIDTH * beam_data['amplitude']))
         beam_width = int(base_beam_width * pulse_factor)
         beam_width = max(1, beam_width)
         
@@ -205,8 +206,8 @@ class BeamRenderer:
         """Draw pulsing impact effect where beam hits blocked position."""
         pos = position.tuple() if hasattr(position, 'tuple') else position
         
-        min_width = max(1, BEAM_WIDTH // 2)
-        beam_width = max(min_width, int(BEAM_WIDTH * amplitude))
+        min_width = max(1, _settings.BEAM_WIDTH // 2)
+        beam_width = max(min_width, int(_settings.BEAM_WIDTH * amplitude))
         
         current_time = self._frame_time + time_offset
         impact_pulse = 1.0 + math.sin(current_time * 8.0) * 0.5
@@ -308,7 +309,7 @@ class BeamRenderer:
         # Dim pulsing
         pulse = 0.12 + 0.05 * math.sin((self._frame_time + time_offset) * 1.5)
         alpha = max(15, min(50, int(255 * pulse * amp)))
-        width = max(1, BEAM_WIDTH // 2)
+        width = max(1, _settings.BEAM_WIDTH // 2)
 
         for i in range(len(path) - 1):
             start = path[i].tuple() if hasattr(path[i], 'tuple') else path[i]

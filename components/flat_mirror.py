@@ -2,7 +2,8 @@
 import pygame
 import numpy as np
 from components.tunable_beamsplitter import TunableBeamSplitter
-from config.settings import CYAN, MIRROR_LOSS, scale, scale_font, GRID_SIZE
+import config.settings as _settings
+from config.settings import CYAN, MIRROR_LOSS, scale, scale_font
 
 
 class FlatMirror(TunableBeamSplitter):
@@ -87,7 +88,7 @@ class FlatMirror(TunableBeamSplitter):
         with close-spaced diagonal hatching on the substrate (non-reflective)
         side.
         """
-        size = int(GRID_SIZE * 0.8)
+        size = int(_settings.GRID_SIZE * 0.8)
         half = size // 2
         cx, cy = int(self.position.x), int(self.position.y)
 

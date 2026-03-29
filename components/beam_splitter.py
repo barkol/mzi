@@ -5,7 +5,8 @@ import numpy as np
 import math
 import cmath
 from components.tunable_beamsplitter import TunableBeamSplitter
-from config.settings import CYAN, BEAM_SPLITTER_LOSS, scale, scale_font, GRID_SIZE
+import config.settings as _settings
+from config.settings import CYAN, BEAM_SPLITTER_LOSS, scale, scale_font
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ class BeamSplitter(TunableBeamSplitter):
         """Draw beam splitter with custom appearance and constrained scaling."""
         # Main square - size constrained to be smaller than grid cell
         # Use 80% of grid size to ensure it fits within the grid cell
-        size = int(GRID_SIZE * 0.8)
+        size = int(_settings.GRID_SIZE * 0.8)
         half_size = size // 2
         rect = pygame.Rect(
             self.position.x - half_size,

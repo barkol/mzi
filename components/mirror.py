@@ -2,7 +2,8 @@
 import pygame
 import numpy as np
 from components.tunable_beamsplitter import TunableBeamSplitter
-from config.settings import CYAN, MIRROR_LOSS, scale, scale_font, GRID_SIZE
+import config.settings as _settings
+from config.settings import CYAN, MIRROR_LOSS, scale, scale_font
 
 class Mirror(TunableBeamSplitter):
     """Perfect mirror - a tunable beam splitter with t=0, r=-1, with constrained scaling."""
@@ -54,7 +55,7 @@ class Mirror(TunableBeamSplitter):
         """Draw mirror with custom appearance and constrained scaling."""
         # Mirror surface - size constrained to fit within grid cell
         # Use 80% of grid size to ensure it fits
-        size = int(GRID_SIZE * 0.8)
+        size = int(_settings.GRID_SIZE * 0.8)
         half_size = size // 2
         
         if self.mirror_type == '/':
@@ -88,7 +89,7 @@ class Mirror(TunableBeamSplitter):
                                  (mx - hatch_len, my + hatch_len), scale(1))
         
         # Add direction hints - smaller and closer to mirror
-        hint_offset = int(GRID_SIZE * 0.4)
+        hint_offset = int(_settings.GRID_SIZE * 0.4)
         hint_length = scale(10)
         if self.mirror_type == '/':
             # '/' mirror reflects: left↔top, bottom↔right
