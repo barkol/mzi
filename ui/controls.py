@@ -18,6 +18,7 @@ class ControlPanel:
         self.challenge_completed = False
         self.gold_bonus = 0
         self.current_field_config = "Default Fields"
+        self.hidden_buttons = set()  # button names to hide
         
         # Track hover state for buttons
         self.hover_button = None
@@ -101,6 +102,8 @@ class ControlPanel:
             self.hover_button = None
             
             for button in self.buttons:
+                if button['name'] in self.hidden_buttons:
+                    continue
                 if button['rect'].collidepoint(event.pos):
                     self.hover_button = button['name']
                     break
@@ -112,6 +115,8 @@ class ControlPanel:
         elif event.type == pygame.MOUSEBUTTONDOWN:
             # Check buttons
             for button in self.buttons:
+                if button['name'] in self.hidden_buttons:
+                    continue
                 if button['rect'].collidepoint(event.pos):
                     if self.sound_manager:
                         self.sound_manager.play('button_click')
@@ -155,14 +160,14 @@ class ControlPanel:
         font = pygame.font.Font(None, button_font_size)
         
         for button in self.buttons:
+            if button['name'] in self.hidden_buttons:
+                continue
             # Button background with hover effect
             if button['name'] == self.hover_button:
-                # Highlighted button
                 pygame.draw.rect(screen, CYAN, button['rect'], border_radius=scale(20))
             else:
-                # Normal button
                 pygame.draw.rect(screen, PURPLE, button['rect'], border_radius=scale(20))
-            
+
             # Button text
             text = font.render(button['name'], True, WHITE)
             text_rect = text.get_rect(center=button['rect'].center)

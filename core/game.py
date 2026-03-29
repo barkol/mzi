@@ -135,6 +135,9 @@ class Game:
         self._dragging_component = None   # component being dragged
         self._dragging_comp_type = None   # its type string for re-placement
 
+        # Classic setup mode (no challenge restrictions)
+        self.classic_mode = False
+
         # Double-click detection
         self._last_click_time = 0
         self._last_click_pos = (0, 0)
@@ -403,16 +406,18 @@ class Game:
     
     def _can_add_component(self):
         """Check if we can add another component based on challenge limits."""
+        if self.classic_mode:
+            return True
         if not self.challenge_manager.current_challenge:
             return True
-        
+
         challenge = self.challenge_manager.challenges.get(self.challenge_manager.current_challenge)
         if not challenge:
             return True
-        
+
         max_components = challenge.get('max_components', float('inf'))
         current_count = len(self.component_manager.components)
-        
+
         return current_count < max_components
     
     def _handle_control_action(self, action):
@@ -536,6 +541,9 @@ class Game:
                         self.last_gold_hits.clear()
                         
             elif action == 'Challenge >':
+                # Exit classic mode when loading a challenge
+                self.classic_mode = False
+                self.controls.hidden_buttons.clear()
                 # Cycle through challenges
                 challenges = self.challenge_manager.get_challenge_list()
                 if challenges:
@@ -709,6 +717,11 @@ class Game:
     def _load_classic_setup(self, index):
         """Load a classic interferometer setup by index."""
         setup = self.CLASSIC_SETUPS[index]
+
+        # Enter classic mode — no challenge restrictions, hide challenge UI
+        self.classic_mode = True
+        self.challenge_manager.current_challenge = None
+        self.controls.hidden_buttons = {'Check Setup', 'Challenge >', 'Map >'}
 
         # Clear everything
         self.component_manager.clear_all(self.laser)
@@ -1028,8 +1041,8 @@ class Game:
             # Draw the main text
             self.screen.blit(text, text_rect)
 
-            # Requirements subtitle
-            req_str = self.challenge_manager.get_requirements_summary()
+            # Requirements subtitle (only in challenge mode)
+            req_str = self.challenge_manager.get_requirements_summary() if not self.classic_mode else ""
             if req_str:
                 req_font = pygame.font.Font(None, scale_font(18))
                 req_surface = req_font.render(req_str, True, (180, 180, 180))
