@@ -347,6 +347,15 @@ class ChallengeManager:
         
         return configs
     
+    def reload_current_fields(self):
+        """Reload blocked/gold fields for the current config.
+
+        Call after window resize so screen coordinates are recomputed
+        from the (unchanged) grid coordinates in the config files.
+        """
+        if self.current_field_config:
+            self.load_field_config(self.current_field_config)
+
     def load_field_config(self, config_name):
         """Load a specific field configuration by name."""
         configs = self.get_available_field_configs()

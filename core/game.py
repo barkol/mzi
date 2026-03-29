@@ -198,9 +198,12 @@ class Game:
         self.controls = ControlPanel(self.sound_manager)
         self.right_panel = RightPanel(self.sound_manager)
         
+        # Reload blocked/gold field positions for new grid coordinates
+        self.challenge_manager.reload_current_fields()
+
         # Update leaderboard display position
         self.leaderboard_display.update_scale()
-        
+
         # Clear asset cache
         self.assets_loader.clear_cache()
         
