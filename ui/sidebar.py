@@ -110,25 +110,22 @@ class Sidebar:
     
     def _get_component_rect(self, index):
         """Get rectangle for component at index - responsive sizing."""
-        # In fullscreen, use more generous spacing
-        if IS_FULLSCREEN:
-            y_offset = scale(120)
-            component_height = scale(90)
-            component_spacing = scale(110)
-            margin = scale(20)
-        else:
-            y_offset = scale(100)
-            component_height = scale(80)
-            component_spacing = scale(100)
-            margin = scale(15)
-        
-        # Component width adapts to sidebar width
+        margin = scale(20) if IS_FULLSCREEN else scale(15)
+        y_offset = scale(80) if IS_FULLSCREEN else scale(65)
+
+        # Calculate spacing to fit all components within the window
+        n = len(self.components)
+        available = WINDOW_HEIGHT - y_offset - scale(10)
+        max_spacing = scale(110) if IS_FULLSCREEN else scale(90)
+        component_spacing = min(max_spacing, available // max(n, 1))
+        component_height = int(component_spacing * 0.8)
+
         comp_width = self.rect.width - margin * 2
-        
+
         return pygame.Rect(
-            self.rect.x + margin, 
-            y_offset + index * component_spacing, 
-            comp_width, 
+            self.rect.x + margin,
+            y_offset + index * component_spacing,
+            comp_width,
             component_height
         )
     
@@ -154,11 +151,11 @@ class Sidebar:
                         (self.rect.right, 0),
                         (self.rect.right, WINDOW_HEIGHT), scale(2))
         
-        # Title - larger in fullscreen
-        title_size = scale_font(32) if IS_FULLSCREEN else scale_font(28)
+        # Title
+        title_size = scale_font(28) if IS_FULLSCREEN else scale_font(24)
         font_title = pygame.font.Font(None, title_size)
         title = font_title.render("Components", True, CYAN)
-        title_rect = title.get_rect(centerx=self.rect.centerx, y=scale(50))
+        title_rect = title.get_rect(centerx=self.rect.centerx, y=scale(35))
         screen.blit(title, title_rect)
         
         # Component cards

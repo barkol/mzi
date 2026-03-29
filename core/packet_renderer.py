@@ -523,8 +523,11 @@ class PacketRenderer:
             n_bars = n_max  # bars for n=1..n_max
             total_w = n_bars * (bar_w + gap) - gap
 
-            # Place to the right of the detector, vertically centred
+            # Place to the right of the detector, or left if near right edge
+            screen_w = self.screen.get_width()
             bx_start = int(pos[0]) + scale(55)
+            if bx_start + total_w + scale(10) > screen_w:
+                bx_start = int(pos[0]) - scale(55) - total_w
             by_top = int(pos[1]) - bar_max_h // 2
 
             # Background
