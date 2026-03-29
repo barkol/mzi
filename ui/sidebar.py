@@ -110,15 +110,14 @@ class Sidebar:
     
     def _get_component_rect(self, index):
         """Get rectangle for component at index - responsive sizing."""
-        margin = scale(20) if IS_FULLSCREEN else scale(15)
-        y_offset = scale(80) if IS_FULLSCREEN else scale(65)
+        margin = scale(20) if IS_FULLSCREEN else scale(10)
+        y_offset = scale(70) if IS_FULLSCREEN else scale(55)
 
-        # Calculate spacing to fit all components within the window
+        # Spacing adapts to fit all components with a gap between cards
         n = len(self.components)
         available = WINDOW_HEIGHT - y_offset - scale(10)
-        max_spacing = scale(110) if IS_FULLSCREEN else scale(90)
-        component_spacing = min(max_spacing, available // max(n, 1))
-        component_height = int(component_spacing * 0.8)
+        component_spacing = available // max(n, 1)
+        component_height = max(scale(35), int(component_spacing * 0.75))
 
         comp_width = self.rect.width - margin * 2
 
@@ -198,32 +197,35 @@ class Sidebar:
             s.fill((card_color[0], card_color[1], card_color[2], fill_alpha))
             screen.blit(s, card_rect.topleft)
             
-            # Component icon - larger in fullscreen
-            icon_offset = scale(40) if IS_FULLSCREEN else scale(35)
+            # Component icon — centered vertically in card
+            icon_offset = min(scale(35), card_rect.height // 2 + 5)
             icon_center = (card_rect.x + icon_offset, card_rect.centery)
             icon_color = (100, 100, 100) if not can_add and not is_primary_laser else None
             self._draw_component_icon(screen, comp['type'], icon_center, icon_color)
-            
-            # Text
+
+            # Text — position relative to card height
             text_color = (150, 150, 150) if not can_add and not is_primary_laser else WHITE
             desc_color = (100, 100, 100) if not can_add and not is_primary_laser else (200, 200, 200)
-            
+
             name = font_name.render(comp['name'], True, text_color)
             desc = font_desc.render(comp['desc'], True, desc_color)
-            
-            # Position text with more space in fullscreen
-            text_offset = scale(70) if IS_FULLSCREEN else scale(65)
-            name_x = card_rect.x + text_offset
-            
-            screen.blit(name, (name_x, card_rect.y + scale(18)))
-            screen.blit(desc, (name_x, card_rect.y + scale(45)))
-            
+
+            text_x = card_rect.x + icon_offset * 2
+            ch = card_rect.height
+            if ch >= scale(60):
+                # Two-line layout: name + description
+                screen.blit(name, (text_x, card_rect.y + ch // 4 - name.get_height() // 2))
+                screen.blit(desc, (text_x, card_rect.y + 3 * ch // 4 - desc.get_height() // 2))
+            else:
+                # Compact: name only, centered
+                screen.blit(name, (text_x, card_rect.centery - name.get_height() // 2))
+
             # Show "LIMIT" for disabled components
             if not can_add and not is_primary_laser:
-                limit_font = pygame.font.Font(None, scale_font(12))
+                limit_font = pygame.font.Font(None, scale_font(11))
                 limit_text = limit_font.render("LIMIT", True, (255, 100, 100))
-                limit_rect = limit_text.get_rect(right=card_rect.right - scale(5), 
-                                               bottom=card_rect.bottom - scale(5))
+                limit_rect = limit_text.get_rect(right=card_rect.right - 4,
+                                                 centery=card_rect.centery)
                 screen.blit(limit_text, limit_rect)
     
     def _draw_component_icon(self, screen, comp_type, center, override_color=None):
