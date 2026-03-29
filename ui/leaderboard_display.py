@@ -5,7 +5,7 @@ from datetime import datetime
 from config.settings import (
     CANVAS_OFFSET_X, CANVAS_OFFSET_Y, scale, scale_font,
     WINDOW_WIDTH, WINDOW_HEIGHT, DARK_PURPLE, CYAN, RED, WHITE,
-    PURPLE, GREEN, GOLD,
+    PURPLE, GREEN, GOLD, BLACK,
 )
 
 class LeaderboardDisplay:

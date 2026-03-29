@@ -7,7 +7,8 @@ from config.settings import (
     GRID_SIZE, CANVAS_GRID_COLS, CANVAS_GRID_ROWS, IS_FULLSCREEN,
     scale, scale_font, CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
     CANVAS_WIDTH, CANVAS_HEIGHT, GRID_MAJOR_COLOR, GRID_COLOR,
-    WHITE, DARK_PURPLE, BLACK, CYAN,
+    WHITE, DARK_PURPLE, BLACK, CYAN, GOLD,
+    HOVER_VALID_COLOR, HOVER_INVALID_COLOR,
 )
 from utils.colors import pulse_alpha
 from utils.vector import Vector2
