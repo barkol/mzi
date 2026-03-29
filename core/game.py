@@ -300,6 +300,8 @@ class Game:
                     
                     self.component_manager.add_component(
                         self.sidebar.selected, x, y, self.laser)
+                    if self.quantum_mode:
+                        self.packet_engine.reset_histogram()
                     self.sound_manager.play('drag_end')
                     logger.debug("Placed %s at (%d, %d)", self.sidebar.selected, x, y)
                     self.right_panel.add_debug_message(f"Placed {self.sidebar.selected} at grid ({(x-CANVAS_OFFSET_X)//GRID_SIZE}, {(y-CANVAS_OFFSET_Y)//GRID_SIZE})")
@@ -326,9 +328,10 @@ class Game:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self._is_in_canvas(event.pos) and not self.sidebar.selected:
                 if self.component_manager.remove_component_at(event.pos):
-                    # Clear quantum packets when network changes
+                    # Clear quantum packets and histogram when network changes
                     if self.quantum_mode:
                         self.packet_engine.families.clear()
+                        self.packet_engine.reset_histogram()
                     # Reset gold collection when component is removed (changes beam paths)
                     self.beam_tracer.reset_gold_collection()
                     if hasattr(self.controls, 'set_gold_bonus'):
