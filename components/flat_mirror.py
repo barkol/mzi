@@ -52,83 +52,72 @@ class FlatMirror(TunableBeamSplitter):
         # at port B (from the top, beam going DOWN). The mirror must send
         # it back UP. Port D points UP. So: S[3,1] = -1 (input B → output D).
         if orientation == '|':
-            # Vertical flat mirror — retroreflects horizontal beams
-            # Input port A (beam from left) → Output port A (exits left)
-            # Input port C (beam from right) → Output port C (exits right)
-            # Port A can serve as both input dest and output source.
+            # Vertical flat mirror — retroreflects horizontal beams.
+            # Beams on the vertical axis pass through unchanged so that
+            # the scattering matrix remains unitary (energy conserving).
+            #   Port A (right-going) → retroreflects back via port A (left)
+            #   Port C (left-going)  → retroreflects back via port C (right)
+            #   Port B (up-going)    → passes through to port D (up)
+            #   Port D (down-going)  → passes through to port B (down)
             self.S = np.array([
                 [-1,  0,  0,  0],
-                [ 0,  0,  0,  0],
+                [ 0,  0,  0,  1],
                 [ 0,  0, -1,  0],
-                [ 0,  0,  0,  0],
+                [ 0,  1,  0,  0],
             ], dtype=complex)
         else:  # '-'
-            # Horizontal flat mirror — retroreflects vertical beams
-            # Input port B (beam from top, going down) → Output port D (exits up)
-            # Input port D (beam from bottom, going up) → Output port B (exits down)
+            # Horizontal flat mirror — retroreflects vertical beams.
+            # Beams on the horizontal axis pass through unchanged.
+            #   Port B (up-going)    → retroreflects back via port D (down)  (*)
+            #   Port D (down-going)  → retroreflects back via port B (up)    (*)
+            #   Port A (right-going) → passes through to port C (right)
+            #   Port C (left-going)  → passes through to port A (left)
+            # (*) Note: retroreflection maps B↔D here because a beam going
+            #     DOWN enters port D and must exit going UP via port D, but
+            #     in the 4-port model the reverse-direction port is used.
             self.S = np.array([
-                [ 0,  0,  0,  0],
+                [ 0,  0,  1,  0],
                 [ 0,  0,  0, -1],
-                [ 0,  0,  0,  0],
+                [ 1,  0,  0,  0],
                 [ 0, -1,  0,  0],
             ], dtype=complex)
 
     def draw(self, screen):
-        """Draw flat mirror as a thick straight line perpendicular to its axis."""
+        """Draw flat mirror as a thick reflective surface with hatching backing.
+
+        Follows the standard optics-diagram convention: a solid reflective face
+        with close-spaced diagonal hatching on the substrate (non-reflective)
+        side.
+        """
         size = int(GRID_SIZE * 0.8)
         half = size // 2
         cx, cy = int(self.position.x), int(self.position.y)
 
-        if self.orientation == '|':
-            # Vertical bar
-            start = (cx, cy - half)
-            end = (cx, cy + half)
-        else:
-            # Horizontal bar
-            start = (cx - half, cy)
-            end = (cx + half, cy)
+        line_thickness = scale(4)
+        hatch_color = (CYAN[0] // 2, CYAN[1] // 2, CYAN[2] // 2)
+        hatch_len = scale(8)
+        num_hatches = 7
 
-        # Thick reflective line
-        pygame.draw.line(screen, CYAN, start, end, scale(6))
-
-        # Hatching on the non-reflective side to indicate "wall" backing
-        hatch_len = scale(6)
-        num_hatches = 5
         if self.orientation == '|':
+            # Vertical reflective surface
+            pygame.draw.line(screen, CYAN, (cx, cy - half), (cx, cy + half), line_thickness)
+            # Dense hatching on the right (substrate side)
             for i in range(num_hatches):
                 t = (i + 0.5) / num_hatches
                 hy = int(cy - half + t * size)
-                pygame.draw.line(screen, (CYAN[0] // 2, CYAN[1] // 2, CYAN[2] // 2),
-                                 (cx + 2, hy), (cx + hatch_len, hy - hatch_len), scale(1))
+                pygame.draw.line(screen, hatch_color,
+                                 (cx + scale(2), hy),
+                                 (cx + hatch_len, hy - hatch_len), scale(1))
         else:
+            # Horizontal reflective surface
+            pygame.draw.line(screen, CYAN, (cx - half, cy), (cx + half, cy), line_thickness)
+            # Dense hatching below (substrate side)
             for i in range(num_hatches):
                 t = (i + 0.5) / num_hatches
                 hx = int(cx - half + t * size)
-                pygame.draw.line(screen, (CYAN[0] // 2, CYAN[1] // 2, CYAN[2] // 2),
-                                 (hx, cy + 2), (hx - hatch_len, cy + hatch_len), scale(1))
-
-        # Arrow hints showing retroreflection
-        arrow_off = int(GRID_SIZE * 0.35)
-        arrow_len = scale(8)
-        arrow_color = (CYAN[0], CYAN[1], CYAN[2], 160)
-
-        if self.orientation == '|':
-            # Left-side double-headed arrow (horizontal retro)
-            for dy in [-arrow_len, arrow_len]:
-                # incoming arrow
-                pygame.draw.line(screen, CYAN,
-                                 (cx - arrow_off - arrow_len, cy + dy),
-                                 (cx - arrow_off, cy + dy), scale(1))
-                # outgoing arrow
-                pygame.draw.line(screen, CYAN,
-                                 (cx - arrow_off, cy + dy),
-                                 (cx - arrow_off - arrow_len // 2, cy + dy - arrow_len // 3 * (1 if dy < 0 else -1)),
-                                 scale(1))
-        else:
-            for dx in [-arrow_len, arrow_len]:
-                pygame.draw.line(screen, CYAN,
-                                 (cx + dx, cy - arrow_off - arrow_len),
-                                 (cx + dx, cy - arrow_off), scale(1))
+                pygame.draw.line(screen, hatch_color,
+                                 (hx, cy + scale(2)),
+                                 (hx - hatch_len, cy + hatch_len), scale(1))
 
         # Debug info
         if self.debug:

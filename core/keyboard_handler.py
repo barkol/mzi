@@ -134,6 +134,18 @@ class KeyboardHandler:
             self.game.sound_manager.play('notification')
             return True
 
+        elif event.key == pygame.K_p:
+            # Cycle photons per pulse: 1 → 2 → 3 → 4 → 1
+            engine = self.game.packet_engine
+            engine.photons_per_pulse = (engine.photons_per_pulse % 4) + 1
+            engine.reset_histogram()
+            n = engine.photons_per_pulse
+            self.game.right_panel.add_debug_message(
+                f"Photons/pulse: {n}")
+            logger.debug("Photons per pulse: %d", n)
+            self.game.sound_manager.play('notification')
+            return True
+
         # Test functions
         elif event.key == pygame.K_t:
             # Beam splitter test

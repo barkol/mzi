@@ -119,6 +119,7 @@ class Game:
         if hasattr(self.controls, 'set_gold_bonus'):
             self.controls.set_gold_bonus(0)
         self.show_opd_info = True
+        self._classic_setup_index = -1  # cycle counter for Load Classic button
         
         # Track session high score and completed challenges
         self.session_high_score = 0
@@ -562,6 +563,120 @@ class Game:
                         self.sound_manager.play('error')
                         self.right_panel.add_debug_message("Error loading field configuration")
 
+            elif action == 'Load Classic':
+                self._classic_setup_index = (self._classic_setup_index + 1) % len(self.CLASSIC_SETUPS)
+                self._load_classic_setup(self._classic_setup_index)
+
+    # ------------------------------------------------------------------
+    # Classic interferometer setups
+    # ------------------------------------------------------------------
+    # Each setup is a dict with:
+    #   'name'       – display title
+    #   'desc'       – one-line description
+    #   'laser'      – (grid_x, grid_y) for the laser
+    #   'components' – list of (type_string, grid_x, grid_y)
+    #
+    # Grid origin (0,0) is the top-left canvas cell.
+    # Port convention (\ BS): A=left, B=bottom, C=right, D=top
+    # Mirror reflections:
+    #   '/'  RIGHT↔DOWN, LEFT↔UP
+    #   '\'  RIGHT↔UP,   LEFT↔DOWN
+    # ------------------------------------------------------------------
+
+    CLASSIC_SETUPS = [
+        {
+            'name': 'Mach-Zehnder Interferometer',
+            'desc': 'Two beam splitters, two mirrors, two detectors',
+            'laser': (1, 5),
+            'components': [
+                ('beamsplitter', 4, 5),   # BS1 – splits input beam
+                ('mirror/',      8, 5),   # upper-right corner  (RIGHT → DOWN)
+                ('mirror/',      4, 9),   # lower-left corner   (DOWN  → RIGHT)
+                ('beamsplitter', 8, 9),   # BS2 – recombines
+                ('detector',    11, 9),   # output port C (RIGHT)
+                ('detector',     8, 12),  # output port B (DOWN)
+            ],
+        },
+        {
+            'name': 'Michelson Interferometer',
+            'desc': 'Beam splitter with two retro-reflecting flat mirrors',
+            'laser': (1, 7),
+            'components': [
+                ('beamsplitter', 5, 7),   # central BS
+                ('mirror|',     10, 7),   # end of horizontal arm (retro-reflects LEFT)
+                ('mirror-',      5, 12),  # end of vertical arm   (retro-reflects UP)
+                ('detector',     5, 3),   # output port D (UP from BS)
+            ],
+        },
+        {
+            'name': 'Hong-Ou-Mandel',
+            'desc': 'Equal-path interferometer — photon bunching in quantum mode',
+            'laser': (1, 6),
+            'components': [
+                ('beamsplitter', 4, 6),   # BS1 – splits
+                ('mirror/',      8, 6),   # upper-right  (RIGHT → DOWN)
+                ('mirror/',      4, 10),  # lower-left   (DOWN  → RIGHT)
+                ('beamsplitter', 8, 10),  # BS2 – HOM beam splitter
+                ('detector',    11, 10),  # output RIGHT
+                ('detector',     8, 13),  # output DOWN
+            ],
+        },
+        {
+            'name': 'Rarity-Tapster',
+            'desc': 'Two-photon interferometer — entanglement witness',
+            'laser': (1, 7),
+            'components': [
+                ('beamsplitter', 4, 7),   # source BS – splits into two arms
+                ('mirror\\',     8, 7),   # upper arm turn  (RIGHT → UP)
+                ('mirror/',      4, 11),  # lower arm turn  (DOWN  → RIGHT)
+                ('beamsplitter', 8, 4),   # upper analyzer BS
+                ('beamsplitter', 8, 11),  # lower analyzer BS
+                ('detector',     5, 4),   # upper-left output
+                ('detector',     8, 1),   # upper-top output
+                ('detector',    11, 11),  # lower-right output
+                ('detector',     8, 13),  # lower-bottom output
+            ],
+        },
+    ]
+
+    def _load_classic_setup(self, index):
+        """Load a classic interferometer setup by index."""
+        setup = self.CLASSIC_SETUPS[index]
+
+        # Clear everything
+        self.component_manager.clear_all(self.laser)
+        self.score = 0
+        self.controls.score = 0
+        self.beam_tracer.reset_gold_collection()
+        if hasattr(self.controls, 'set_gold_bonus'):
+            self.controls.set_gold_bonus(0)
+        self.last_gold_hits.clear()
+
+        # Disable gold and blocked fields
+        self.challenge_manager.gold_positions = []
+        self.challenge_manager.blocked_positions = []
+        self.controls.set_field_config("Classic Setup")
+
+        # Place laser
+        lx, ly = setup['laser']
+        laser_x = CANVAS_OFFSET_X + lx * GRID_SIZE + GRID_SIZE // 2
+        laser_y = CANVAS_OFFSET_Y + ly * GRID_SIZE + GRID_SIZE // 2
+        self.laser.position = Vector2(laser_x, laser_y)
+        self.laser.enabled = True
+
+        # Place components
+        for comp_type, gx, gy in setup['components']:
+            sx = CANVAS_OFFSET_X + gx * GRID_SIZE + GRID_SIZE // 2
+            sy = CANVAS_OFFSET_Y + gy * GRID_SIZE + GRID_SIZE // 2
+            self.component_manager.add_component(comp_type, sx, sy, self.laser)
+
+        # UI feedback
+        self.controls.set_challenge(setup['name'])
+        self.controls.set_status(setup['desc'])
+        if hasattr(self.controls, 'set_challenge_completed'):
+            self.controls.set_challenge_completed(False)
+        self.sound_manager.play('panel_open')
+        self.right_panel.add_debug_message(f"Classic setup: {setup['name']}")
 
     def _update_score(self, points):
         """Update game score."""
@@ -980,7 +1095,9 @@ class Game:
     def _draw_quantum_mode_indicator(self):
         """Draw indicator showing quantum packet mode is active."""
         font = pygame.font.Font(None, scale_font(18))
-        text = font.render("QUANTUM", True, (180, 100, 255))
+        n_ph = self.packet_engine.photons_per_pulse
+        label = "QUANTUM" if n_ph == 1 else f"QUANTUM  {n_ph}-photon"
+        text = font.render(label, True, (180, 100, 255))
         text_rect = text.get_rect(left=CANVAS_OFFSET_X + scale(10),
                                   y=CANVAS_OFFSET_Y + scale(10))
         bg_rect = text_rect.inflate(scale(14), scale(8))

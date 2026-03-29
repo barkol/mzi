@@ -255,7 +255,33 @@ class Sidebar:
             # Mirror icons
             size = scale(int(35 * icon_scale))
             half_size = size // 2
-            if '/' in comp_type:
+            if '|' in comp_type:
+                # Flat vertical retro-mirror: vertical line with hatching on right
+                pygame.draw.line(screen, color,
+                               (center[0], center[1] - half_size),
+                               (center[0], center[1] + half_size), scale(4))
+                # Hatching marks on the back side (right)
+                hatch_len = scale(int(6 * icon_scale))
+                for i in range(4):
+                    t = (i + 0.5) / 4
+                    hy = int(center[1] - half_size + t * size)
+                    pygame.draw.line(screen, (color[0] // 2, color[1] // 2, color[2] // 2),
+                                   (center[0] + scale(2), hy),
+                                   (center[0] + hatch_len, hy - hatch_len), scale(1))
+            elif '-' in comp_type:
+                # Flat horizontal retro-mirror: horizontal line with hatching below
+                pygame.draw.line(screen, color,
+                               (center[0] - half_size, center[1]),
+                               (center[0] + half_size, center[1]), scale(4))
+                # Hatching marks on the back side (below)
+                hatch_len = scale(int(6 * icon_scale))
+                for i in range(4):
+                    t = (i + 0.5) / 4
+                    hx = int(center[0] - half_size + t * size)
+                    pygame.draw.line(screen, (color[0] // 2, color[1] // 2, color[2] // 2),
+                                   (hx, center[1] + scale(2)),
+                                   (hx - hatch_len, center[1] + hatch_len), scale(1))
+            elif '/' in comp_type:
                 pygame.draw.line(screen, color,
                                (center[0] - half_size, center[1] + half_size),
                                (center[0] + half_size, center[1] - half_size), scale(4))

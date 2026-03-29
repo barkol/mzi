@@ -72,7 +72,8 @@ class ControlPanel:
             ('Check Setup', scale(120) if IS_FULLSCREEN else scale(110)),
             ('Toggle Laser', scale(120) if IS_FULLSCREEN else scale(110)),
             ('Load Challenge', scale(130) if IS_FULLSCREEN else scale(115)),
-            ('Load Fields', scale(110) if IS_FULLSCREEN else scale(95))
+            ('Load Fields', scale(110) if IS_FULLSCREEN else scale(95)),
+            ('Load Classic', scale(120) if IS_FULLSCREEN else scale(100))
         ]
         
         current_x = start_x
