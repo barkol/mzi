@@ -1,10 +1,13 @@
 """Beam splitter component with constrained scaling support."""
+import logging
 import pygame
 import numpy as np
 import math
 import cmath
 from components.tunable_beamsplitter import TunableBeamSplitter
 from config.settings import CYAN, BEAM_SPLITTER_LOSS, scale, scale_font, GRID_SIZE
+
+logger = logging.getLogger(__name__)
 
 class BeamSplitter(TunableBeamSplitter):
     """50/50 beam splitter with constrained scaling support."""
@@ -45,7 +48,7 @@ class BeamSplitter(TunableBeamSplitter):
         identity_check = S_dagger @ self.S
         max_error = np.max(np.abs(identity_check - np.eye(4)))
         if max_error > 1e-10:
-            print(f"WARNING: BeamSplitter matrix not unitary! Error: {max_error}")
+            logger.warning("BeamSplitter matrix not unitary! Error: %s", max_error)
         
         # For display - store OPD info
         self.last_opd = None

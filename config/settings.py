@@ -1,5 +1,8 @@
 """Game configuration with responsive layout support for fullscreen."""
+import logging
 import pygame
+
+logger = logging.getLogger(__name__)
 
 # Base design resolution (minimum supported resolution)
 DESIGN_WIDTH = 1600
@@ -93,6 +96,13 @@ REALISTIC_BEAM_SPLITTER = False
 # Scoring
 PLACEMENT_SCORE = 10
 COMPLETION_SCORE = 100
+
+# Quantum packet mode
+QUANTUM_PACKET_SPEED = 200        # pixels per second
+QUANTUM_PACKET_EMIT_INTERVAL = 1.5  # seconds between emissions
+QUANTUM_PACKET_LENGTH = 30        # visual length in pixels
+QUANTUM_COLLAPSE_DURATION = 0.3   # seconds for collapse animation
+QUANTUM_MAX_FAMILIES = 12         # max concurrent packet families
 
 def update_scaled_values(scale_factor, window_width=None, window_height=None, fullscreen=False):
     """Update all scaled values based on new scale factor and window size."""
@@ -189,19 +199,15 @@ def update_scaled_values(scale_factor, window_width=None, window_height=None, fu
         BEAM_WIDTH = int(BASE_BEAM_WIDTH * ui_scale)
         BEAM_WIDTH = max(BEAM_WIDTH, 3)  # Minimum width
         
-        print(f"\nFullscreen layout: {window_width}x{window_height}")
-        print(f"  External monitor: {is_external_monitor}")
-        print(f"  UI scale: {ui_scale:.2f} (base: {scale_factor:.2f})")
-        print(f"  Grid size: {GRID_SIZE}px")
-        print(f"  Available space: {available_width}x{available_height}px")
-        print(f"  Canvas: {CANVAS_GRID_COLS}x{CANVAS_GRID_ROWS} cells = {CANVAS_WIDTH}x{CANVAS_HEIGHT}px")
-        print(f"  Canvas position: ({CANVAS_OFFSET_X}, {CANVAS_OFFSET_Y})")
-        print(f"  Component radius: {COMPONENT_RADIUS}px (grid ratio: {(COMPONENT_RADIUS*2/GRID_SIZE)*100:.0f}%)")
-        print(f"  UI Layout:")
-        print(f"    Sidebar: {sidebar_width}px ({sidebar_width/window_width*100:.0f}%)")
-        print(f"    Right panel: {right_panel_width}px ({right_panel_width/window_width*100:.0f}%)")
-        print(f"    Top margin: {top_margin}px")
-        print(f"    Control height: {control_height}px")
+        logger.debug(
+            "Fullscreen layout: %dx%d | External: %s | UI scale: %.2f (base: %.2f) | "
+            "Grid: %dpx | Canvas: %dx%d cells = %dx%dpx at (%d,%d) | "
+            "Component radius: %dpx (%.0f%%)",
+            window_width, window_height, is_external_monitor, ui_scale, scale_factor,
+            GRID_SIZE, CANVAS_GRID_COLS, CANVAS_GRID_ROWS, CANVAS_WIDTH, CANVAS_HEIGHT,
+            CANVAS_OFFSET_X, CANVAS_OFFSET_Y, COMPONENT_RADIUS,
+            (COMPONENT_RADIUS * 2 / GRID_SIZE) * 100
+        )
         
     else:
         # Windowed mode - use traditional scaling
@@ -224,9 +230,10 @@ def update_scaled_values(scale_factor, window_width=None, window_height=None, fu
         CANVAS_GRID_COLS = CANVAS_WIDTH // GRID_SIZE
         CANVAS_GRID_ROWS = CANVAS_HEIGHT // GRID_SIZE
         
-        print(f"\nWindowed mode: {WINDOW_WIDTH}x{WINDOW_HEIGHT}")
-        print(f"  Scale: {scale_factor:.2f}")
-        print(f"  Canvas: {CANVAS_GRID_COLS}x{CANVAS_GRID_ROWS} cells")
+        logger.debug(
+            "Windowed mode: %dx%d | Scale: %.2f | Canvas: %dx%d cells",
+            WINDOW_WIDTH, WINDOW_HEIGHT, scale_factor, CANVAS_GRID_COLS, CANVAS_GRID_ROWS
+        )
 
 def get_sidebar_width():
     """Get the current sidebar width based on display mode."""

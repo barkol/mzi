@@ -5,24 +5,26 @@ Main entry point with responsive fullscreen support
 
 __version__ = "1.0.0"
 
+import logging
 import pygame
 import sys
 import platform
 from core.game import Game
 from config.settings import *
 
+logger = logging.getLogger(__name__)
+
 def get_display_mode():
     """Get the best display mode for the game."""
     pygame.init()
-    
+
     # Get display info
     info = pygame.display.Info()
     screen_width = info.current_w
     screen_height = info.current_h
-    
-    print(f"Screen resolution: {screen_width}x{screen_height}")
-    print(f"Design resolution: {DESIGN_WIDTH}x{DESIGN_HEIGHT}")
-    print(f"Platform: {platform.system()}")
+
+    logger.info("Screen: %dx%d | Design: %dx%d | Platform: %s",
+                screen_width, screen_height, DESIGN_WIDTH, DESIGN_HEIGHT, platform.system())
     
     # Calculate scale factor
     scale_x = screen_width / DESIGN_WIDTH
@@ -32,9 +34,9 @@ def get_display_mode():
     # Check command line arguments
     fullscreen = False
     if len(sys.argv) > 1:
-        if sys.argv[1] == "--fullscreen" or sys.argv[1] == "-f":
+        if sys.argv[1] in ("--fullscreen", "-f"):
             fullscreen = True
-        elif sys.argv[1] == "--scale" or sys.argv[1] == "-s":
+        elif sys.argv[1] in ("--scale", "-s"):
             # Scale to 90% of screen size
             scale_factor = min(scale_x, scale_y) * 0.9
     else:
@@ -55,17 +57,15 @@ def get_display_mode():
         # Update scaled values with fullscreen layout
         update_scaled_values(scale_factor, screen_width, screen_height, fullscreen=True)
         
-        print(f"Using fullscreen mode with responsive layout")
-        print(f"  Base scale factor: {scale_factor:.2f}")
-        print(f"  Canvas will expand to use available space")
+        logger.info("Fullscreen mode, base scale: %.2f", scale_factor)
         return (screen_width, screen_height), pygame.FULLSCREEN, scale_factor
     else:
         # Windowed mode - traditional scaling
         update_scaled_values(scale_factor, fullscreen=False)
-        
+
         window_width = int(DESIGN_WIDTH * scale_factor)
         window_height = int(DESIGN_HEIGHT * scale_factor)
-        print(f"Using windowed mode: {window_width}x{window_height} (scale: {scale_factor:.2f})")
+        logger.info("Windowed mode: %dx%d (scale: %.2f)", window_width, window_height, scale_factor)
         return (window_width, window_height), pygame.RESIZABLE, scale_factor
 
 def main():
@@ -110,7 +110,7 @@ def main():
                     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
                     game.update_scale(scale_factor)
                     game.update_screen_references(screen, screen)
-                    print("Switched to windowed mode")
+                    logger.info("Switched to windowed mode")
                     continue
                 elif event.key == pygame.K_F11 and not is_fullscreen:
                     # Only allow F11 to enter fullscreen in windowed mode
@@ -143,10 +143,8 @@ def main():
                     if hasattr(game, 'update_layout'):
                         game.update_layout()
                     
-                    mode = "fullscreen"
-                    print(f"Switched to {mode} mode with base scale: {scale_factor:.2f}")
-                    print(f"Canvas should be at: ({CANVAS_OFFSET_X}, {CANVAS_OFFSET_Y})")
-                    print(f"Canvas size should be: {CANVAS_WIDTH}x{CANVAS_HEIGHT}")
+                    logger.info("Switched to fullscreen, scale: %.2f, canvas: %dx%d at (%d,%d)",
+                               scale_factor, CANVAS_WIDTH, CANVAS_HEIGHT, CANVAS_OFFSET_X, CANVAS_OFFSET_Y)
                     continue
             elif event.type == pygame.VIDEORESIZE and not is_fullscreen:
                 # Handle window resize
@@ -157,7 +155,7 @@ def main():
                 screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
                 game.update_scale(scale_factor)
                 game.update_screen_references(screen, screen)
-                print(f"Window resized, new scale: {scale_factor:.2f}")
+                logger.debug("Window resized, new scale: %.2f", scale_factor)
             
             game.handle_event(event)
         
@@ -177,23 +175,23 @@ def main():
     pygame.quit()
     sys.exit()
 
+def _setup_logging():
+    """Configure logging based on --verbose flag."""
+    verbose = "--verbose" in sys.argv or "-v" in sys.argv
+    # Remove the flag so it doesn't interfere with other arg parsing
+    sys.argv = [a for a in sys.argv if a not in ("--verbose", "-v")]
+
+    level = logging.DEBUG if verbose else logging.WARNING
+    logging.basicConfig(
+        level=level,
+        format="%(levelname)s [%(name)s] %(message)s",
+    )
+
+
 if __name__ == "__main__":
-    print("\nPhoton Path: Mach-Zehnder Interferometer")
-    print("========================================")
-    print("Usage:")
-    print("  python main.py              - Run in auto-scaled windowed mode")
-    print("  python main.py --fullscreen - Run in fullscreen mode (responsive layout)")
-    print("  python main.py --scale      - Run in 90% scaled windowed mode")
-    print("\nControls:")
-    print("  F11 - Enter fullscreen (from windowed mode only)")
-    print("  ESC - Exit fullscreen")
-    print("\nGameplay:")
-    print("  - Use 'Load Fields' button to cycle through different map layouts")
-    print("  - Red blocks create obstacles, gold fields give bonus points")
-    print("  - Build interferometers to complete challenges and maximize score")
-    print("\nFullscreen mode uses responsive layout to fill available space")
-    print("UI panels are justified to edges, game area is centered")
-    print("\nExternal monitors (≥2560x1440) receive 1.5x UI scaling boost")
-    print()
-    
+    _setup_logging()
+    logger.info(
+        "Photon Path: Mach-Zehnder Interferometer\n"
+        "Usage: python main.py [--fullscreen|-f] [--scale|-s] [--verbose|-v]"
+    )
     main()

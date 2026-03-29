@@ -1,10 +1,13 @@
 """Grid system for component placement with dynamic canvas support."""
+import logging
 import pygame
 import math
 import random
 from config.settings import *
 from utils.colors import pulse_alpha
 from utils.vector import Vector2
+
+logger = logging.getLogger(__name__)
 
 # Define GOLD color if not in settings
 GOLD = (255, 215, 0)
@@ -63,11 +66,10 @@ class Grid:
             CANVAS_WIDTH, CANVAS_HEIGHT
         )
         
-        # Debug print
         if gold_positions and len(gold_positions) > 0:
             if not hasattr(self, '_gold_logged'):
                 self._gold_logged = True
-                print(f"Grid.draw called with {len(gold_positions)} gold positions")
+                logger.debug("Grid.draw called with %d gold positions", len(gold_positions))
         
         # Draw grid lines
         self._draw_grid_lines(screen)
@@ -182,7 +184,7 @@ class Grid:
             try:
                 x, y = int(pos.x), int(pos.y)
             except Exception:
-                print(f"Invalid gold position: {pos}")
+                logger.warning("Invalid gold position: %s", pos)
                 continue
             
             # Get or create coin positions for this grid cell
@@ -224,12 +226,11 @@ class Grid:
             
             # Draw coins from cache AFTER background
             coins = self.coin_cache[grid_key]
-            # Debug: print coin count on first draw
             if len(coins) > 0 and grid_key not in getattr(self, '_printed_coins', set()):
                 if not hasattr(self, '_printed_coins'):
                     self._printed_coins = set()
                 self._printed_coins.add(grid_key)
-                print(f"Drawing {len(coins)} coins at gold field {grid_key}")
+                logger.debug("Drawing %d coins at gold field %s", len(coins), grid_key)
             
             for coin_x, coin_y, coin_size, layer in coins:
                 self._draw_coin(screen, coin_x, coin_y, coin_size, layer == 2)
@@ -254,7 +255,7 @@ class Grid:
                 # Main text
                 screen.blit(text, text_rect)
             except Exception as e:
-                print(f"Error drawing text: {e}")
+                logger.warning("Error drawing text: %s", e)
                 pass  # Skip text if there's an error
     
     def _draw_vine(self, screen, start_x, start_y, length, direction, thickness=1):

@@ -1,6 +1,9 @@
 """Energy conservation checker for the interferometer system with scaling support."""
+import logging
 import pygame
 from config.settings import scale, scale_font, CYAN, WHITE, BLACK
+
+logger = logging.getLogger(__name__)
 
 def check_energy_conservation(components, laser, beam_tracer):
     """
@@ -8,21 +11,21 @@ def check_energy_conservation(components, laser, beam_tracer):
     
     Returns a detailed report of energy flow.
     """
-    print("\n" + "="*60)
-    print("ENERGY CONSERVATION ANALYSIS")
-    print("="*60)
-    
+    logger.debug("=" * 60)
+    logger.debug("ENERGY CONSERVATION ANALYSIS")
+    logger.debug("=" * 60)
+
     # 1. Input energy (from laser)
     if laser and laser.enabled:
         input_power = 1.0  # Laser always outputs unit amplitude -> power = 1
-        print(f"\nINPUT ENERGY:")
-        print(f"  Laser at {laser.position}: Power = {input_power:.3f}")
+        logger.debug("INPUT ENERGY:")
+        logger.debug("  Laser at %s: Power = %.3f", laser.position, input_power)
     else:
-        print("\nNo active laser - no input energy")
+        logger.debug("No active laser - no input energy")
         return
-    
+
     # 2. Energy at each component
-    print(f"\nCOMPONENT ENERGY ANALYSIS:")
+    logger.debug("COMPONENT ENERGY ANALYSIS:")
     
     total_bs_input = 0
     total_bs_output = 0
@@ -43,17 +46,17 @@ def check_energy_conservation(components, laser, beam_tracer):
                 total_bs_input += input_power
                 total_bs_output += output_power
                 
-                print(f"\n  Beam Splitter at {comp.position}:")
-                print(f"    Input power: {input_power:.3f}")
-                print(f"    Output power: {output_power:.3f}")
-                print(f"    Conservation: {'OK' if abs(input_power - output_power) < 0.001 else 'VIOLATION!'}")
-                
+                logger.debug("  Beam Splitter at %s:", comp.position)
+                logger.debug("    Input power: %.3f", input_power)
+                logger.debug("    Output power: %.3f", output_power)
+                logger.debug("    Conservation: %s", 'OK' if abs(input_power - output_power) < 0.001 else 'VIOLATION!')
+
                 # Show port details
                 if comp._last_v_in is not None:
                     port_names = ['A', 'B', 'C', 'D']
                     for i, v in enumerate(comp._last_v_in):
                         if abs(v) > 0.001:
-                            print(f"    Input {port_names[i]}: |v|²={abs(v)**2:.3f}")
+                            logger.debug("    Input %s: |v|²=%.3f", port_names[i], abs(v)**2)
                 
         elif comp.component_type == "mirror":
             if hasattr(comp, '_last_v_in') and hasattr(comp, '_last_v_out'):
@@ -66,13 +69,13 @@ def check_energy_conservation(components, laser, beam_tracer):
                     output_power = sum(abs(v)**2 for v in comp._last_v_out)
                 
                 if input_power > 0:
-                    print(f"\n  Mirror at {comp.position}:")
-                    print(f"    Input power: {input_power:.3f}")
-                    print(f"    Output power: {output_power:.3f}")
-                    print(f"    Conservation: {'OK' if abs(input_power - output_power) < 0.001 else 'VIOLATION!'}")
+                    logger.debug("  Mirror at %s:", comp.position)
+                    logger.debug("    Input power: %.3f", input_power)
+                    logger.debug("    Output power: %.3f", output_power)
+                    logger.debug("    Conservation: %s", 'OK' if abs(input_power - output_power) < 0.001 else 'VIOLATION!')
     
     # 3. Energy at detectors
-    print(f"\nDETECTOR ENERGY:")
+    logger.debug("DETECTOR ENERGY:")
     
     detectors = [c for c in components if c.component_type == 'detector']
     total_detector_power = 0
@@ -87,37 +90,37 @@ def check_energy_conservation(components, laser, beam_tracer):
             total_detector_power += coherent
             total_incoherent_sum += incoherent
             
-            print(f"\n  Detector at {info['position']}:")
-            print(f"    Number of beams: {info['num_beams']}")
-            print(f"    Incoherent sum (Σ|A_i|²): {incoherent:.3f}")
-            print(f"    Coherent intensity (|Σ E_i|²): {coherent:.3f}")
+            logger.debug("  Detector at %s:", info['position'])
+            logger.debug("    Number of beams: %d", info['num_beams'])
+            logger.debug("    Incoherent sum (Σ|A_i|²): %.3f", incoherent)
+            logger.debug("    Coherent intensity (|Σ E_i|²): %.3f", coherent)
             if incoherent > 0:
-                print(f"    Interference factor: {coherent/incoherent:.3f}")
-            
+                logger.debug("    Interference factor: %.3f", coherent/incoherent)
+
             # Show individual beams
             for i, beam in enumerate(info['beams']):
-                print(f"    Beam {i+1}: A={beam['amplitude']:.3f}, φ={beam['phase_deg']:.1f}°, P={beam['power']:.3f}")
+                logger.debug("    Beam %d: A=%.3f, φ=%.1f°, P=%.3f", i+1, beam['amplitude'], beam['phase_deg'], beam['power'])
     
     # 4. Overall energy conservation
-    print(f"\n" + "-"*60)
-    print(f"SUMMARY:")
-    print(f"  Input power (laser): 1.000")
-    print(f"  Total detector power (coherent): {total_detector_power:.3f}")
-    print(f"  Total detector power (incoherent sum): {total_incoherent_sum:.3f}")
-    
+    logger.debug("-" * 60)
+    logger.debug("SUMMARY:")
+    logger.debug("  Input power (laser): 1.000")
+    logger.debug("  Total detector power (coherent): %.3f", total_detector_power)
+    logger.debug("  Total detector power (incoherent sum): %.3f", total_incoherent_sum)
+
     # Check if total coherent power equals input
     conservation_error = abs(total_detector_power - 1.0)
     if conservation_error < 0.01:
-        print(f"  Energy conservation: OK (error = {conservation_error:.4f})")
+        logger.debug("  Energy conservation: OK (error = %.4f)", conservation_error)
     else:
-        print(f"  Energy conservation: VIOLATION! (error = {conservation_error:.4f})")
-        print(f"  Missing/excess energy: {total_detector_power - 1.0:+.3f}")
-    
+        logger.warning("  Energy conservation: VIOLATION! (error = %.4f)", conservation_error)
+        logger.warning("  Missing/excess energy: %+.3f", total_detector_power - 1.0)
+
     # 5. Beam tracing analysis
     if hasattr(beam_tracer, 'active_beams'):
-        print(f"\n  Active beams in system: {len(beam_tracer.active_beams)}")
-    
-    print("="*60 + "\n")
+        logger.debug("  Active beams in system: %d", len(beam_tracer.active_beams))
+
+    logger.debug("=" * 60)
     
     return {
         'input_power': 1.0,
@@ -129,23 +132,23 @@ def check_energy_conservation(components, laser, beam_tracer):
 
 def trace_beam_paths(components, beam_tracer):
     """Trace and display all beam paths in the system."""
-    print("\n" + "="*60)
-    print("BEAM PATH ANALYSIS")
-    print("="*60)
-    
+    logger.debug("=" * 60)
+    logger.debug("BEAM PATH ANALYSIS")
+    logger.debug("=" * 60)
+
     if not hasattr(beam_tracer, 'active_beams') or not beam_tracer.active_beams:
-        print("No active beams in the system")
+        logger.debug("No active beams in the system")
         return
-    
-    print(f"Total active beams: {len(beam_tracer.active_beams)}")
-    
+
+    logger.debug("Total active beams: %d", len(beam_tracer.active_beams))
+
     for i, beam in enumerate(beam_tracer.active_beams):
-        print(f"\nBeam {i+1}:")
-        print(f"  Position: {beam['position']}")
-        print(f"  Direction: {beam['direction']}")
-        print(f"  Amplitude: {beam['amplitude']:.3f}")
-        print(f"  Phase: {beam.get('accumulated_phase', beam['phase']) * 180 / 3.14159:.1f}°")
-        print(f"  Path length: {beam.get('total_path_length', 0):.1f}")
+        logger.debug("Beam %d:", i+1)
+        logger.debug("  Position: %s", beam['position'])
+        logger.debug("  Direction: %s", beam['direction'])
+        logger.debug("  Amplitude: %.3f", beam['amplitude'])
+        logger.debug("  Phase: %.1f°", beam.get('accumulated_phase', beam['phase']) * 180 / 3.14159)
+        logger.debug("  Path length: %.1f", beam.get('total_path_length', 0))
 
 
 class EnergyMonitor:

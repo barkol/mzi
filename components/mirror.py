@@ -26,34 +26,30 @@ class Mirror(TunableBeamSplitter):
         self.component_type = "mirror"
         self.mirror_type = mirror_type
         
-        # Override the scattering matrix for proper mirror behavior
+        # Scattering matrix for mirror behavior.
         # Port order: [A (left), B (bottom), C (right), D (top)]
-        # IMPORTANT: In pygame, y increases downward!
-        
-        # The mirror types appear to be swapped, so we'll reverse them
+        #
+        # Pygame uses screen coordinates where y increases downward.
+        # This means the visual '/' diagonal on screen corresponds to
+        # a line with slope +1 in math coordinates (i.e. '\' shape).
+        # The matrices below are correct for on-screen appearance:
+        #   '/' on screen reflects left↔bottom and right↔top
+        #   '\' on screen reflects left↔top and bottom↔right
         if mirror_type == '/':
-            # '/' mirror - but behaves like '\' due to pygame coordinates
-            # - Beam from top (D) → goes right (C)
-            # - Beam from right (C) → goes top (D)
-            # - Beam from bottom (B) → goes left (A)
-            # - Beam from left (A) → goes bottom (B)
+            # '/' on screen: A↔B (left↔bottom), C↔D (right↔top)
             self.S = np.array([
-                [0, -1,  0,  0],  # A (left) reflects to/from B (bottom)
-                [-1, 0,  0,  0],  # B (bottom) reflects to/from A (left)
-                [0,  0,  0, -1],  # C (right) reflects to/from D (top)
-                [0,  0, -1,  0]   # D (top) reflects to/from C (right)
+                [0, -1,  0,  0],
+                [-1, 0,  0,  0],
+                [0,  0,  0, -1],
+                [0,  0, -1,  0]
             ], dtype=complex)
         else:  # '\'
-            # '\' mirror - but behaves like '/' due to pygame coordinates
-            # - Beam from top (D) → goes left (A)
-            # - Beam from left (A) → goes top (D)
-            # - Beam from bottom (B) → goes right (C)
-            # - Beam from right (C) → goes bottom (B)
+            # '\' on screen: A↔D (left↔top), B↔C (bottom↔right)
             self.S = np.array([
-                [0,  0,  0, -1],  # A (left) reflects to/from D (top)
-                [0,  0, -1,  0],  # B (bottom) reflects to/from C (right)
-                [0, -1,  0,  0],  # C (right) reflects to/from B (bottom)
-                [-1, 0,  0,  0]   # D (top) reflects to/from A (left)
+                [0,  0,  0, -1],
+                [0,  0, -1,  0],
+                [0, -1,  0,  0],
+                [-1, 0,  0,  0]
             ], dtype=complex)
     
     def draw(self, screen):

@@ -3,9 +3,12 @@ import pygame
 import numpy as np
 import math
 import cmath
+import logging
 from components.base import Component
 from utils.vector import Vector2
 from config.settings import CYAN, IDEAL_COMPONENTS
+
+logger = logging.getLogger(__name__)
 
 class TunableBeamSplitter(Component):
     """
@@ -84,12 +87,12 @@ class TunableBeamSplitter(Component):
         # Check energy conservation (within numerical tolerance)
         energy = abs(self.r)**2 + abs(self.t)**2
         if abs(energy - 1.0) > 1e-6:
-            print(f"WARNING: Energy not conserved: |r|²+|t|² = {energy:.6f}")
+            logger.warning("Energy not conserved: |r|^2+|t|^2 = %f", energy)
         
         # Check phase relation r*r' = -1
         product = self.r * self.r_prime
         if abs(product + 1.0) > 1e-6:
-            print(f"WARNING: Phase relation violated: r*r' = {product:.6f} (should be -1)")
+            logger.warning("Phase relation violated: r*r' = %s (should be -1)", product)
     
     def _build_scattering_matrix(self):
         """Build scattering matrix based on coefficients and orientation."""
@@ -120,16 +123,15 @@ class TunableBeamSplitter(Component):
         
         if identity_error > 1e-10:
             if self.debug:
-                print(f"WARNING: Scattering matrix not unitary! Max error: {identity_error}")
-                print("S†S =")
-                print(should_be_identity)
+                logger.debug("WARNING: Scattering matrix not unitary! Max error: %s\nS^dagger S =\n%s",
+                             identity_error, should_be_identity)
         
         # Also verify symmetry for reciprocity
         symmetry_error = np.max(np.abs(self.S - self.S.T))
         if symmetry_error > 1e-10 and abs(self.r - self.r_prime) > 1e-10:
             if self.debug:
-                print(f"WARNING: Scattering matrix not symmetric! Max error: {symmetry_error}")
-                print("This is expected when r ≠ r'")
+                logger.debug("WARNING: Scattering matrix not symmetric! Max error: %s. "
+                             "This is expected when r != r'", symmetry_error)
     
     def reset_frame(self):
         """Reset for new frame processing - clears all accumulated beams."""
@@ -145,7 +147,7 @@ class TunableBeamSplitter(Component):
         # Only accept beams if this component hasn't been finalized yet
         if self.processed_this_frame:
             if self.debug:
-                print(f"  {self.component_type} at {self.position}: rejecting beam (already processed)")
+                logger.debug("  %s at %s: rejecting beam (already processed)", self.component_type, self.position)
             return
         
         # Get beam generation
@@ -157,7 +159,8 @@ class TunableBeamSplitter(Component):
         elif beam_generation != self.current_generation:
             # This beam is from a different generation - should not happen with proper tracing
             if self.debug:
-                print(f"  WARNING: {self.component_type} received beam from generation {beam_generation} while processing generation {self.current_generation}")
+                logger.debug("  WARNING: %s received beam from generation %d while processing generation %d",
+                             self.component_type, beam_generation, self.current_generation)
             return
         
         # Map beam to input port based on direction
@@ -179,11 +182,12 @@ class TunableBeamSplitter(Component):
             if self.debug:
                 phase_deg = beam.get('accumulated_phase', beam['phase']) * 180 / math.pi
                 port_name = ['A', 'B', 'C', 'D'][port_idx]
-                print(f"  {self.component_type} at {self.position}: beam added to port {port_name}, "
-                      f"amp={beam['amplitude']:.3f}, phase={phase_deg:.1f}°, gen={beam_generation}")
+                logger.debug("  %s at %s: beam added to port %s, amp=%.3f, phase=%.1f deg, gen=%d",
+                             self.component_type, self.position, port_name,
+                             beam['amplitude'], phase_deg, beam_generation)
         else:
             if self.debug:
-                print(f"  WARNING: Beam direction {direction} doesn't map to any port")
+                logger.debug("  WARNING: Beam direction %s doesn't map to any port", direction)
     
     def process_beam(self, beam):
         """Process single beam (for compatibility)."""
@@ -205,11 +209,12 @@ class TunableBeamSplitter(Component):
         total_beam_count = sum(len(beams) for beams in self.all_beams_by_port.values())
         
         if self.debug and total_beam_count > 0:
-            print(f"\n{self.component_type} at {self.position} - processing generation {self.current_generation}")
-            print(f"  Total beams: {total_beam_count}")
-            print(f"  Beams by port: A={len(self.all_beams_by_port[0])}, "
-                  f"B={len(self.all_beams_by_port[1])}, C={len(self.all_beams_by_port[2])}, "
-                  f"D={len(self.all_beams_by_port[3])}")
+            logger.debug("%s at %s - processing generation %d. Total beams: %d. "
+                         "Beams by port: A=%d, B=%d, C=%d, D=%d",
+                         self.component_type, self.position, self.current_generation,
+                         total_beam_count,
+                         len(self.all_beams_by_port[0]), len(self.all_beams_by_port[1]),
+                         len(self.all_beams_by_port[2]), len(self.all_beams_by_port[3]))
         
         # If no beams, return empty list
         if total_beam_count == 0:
@@ -228,13 +233,15 @@ class TunableBeamSplitter(Component):
                 path_lengths_by_port[port_idx].append(beam.get('total_path_length', 0))
                 
                 if self.debug and abs(amplitude) > 0.001:
-                    print(f"    Port {port_names[port_idx]}: adding beam with |E|={beam['amplitude']:.3f}, "
-                          f"φ={total_phase*180/math.pi:.1f}°, complex amp={amplitude:.3f}")
+                    logger.debug("    Port %s: adding beam with |E|=%.3f, phi=%.1f deg, complex amp=%s",
+                                 port_names[port_idx], beam['amplitude'],
+                                 total_phase * 180 / math.pi, amplitude)
             
             v_in[port_idx] = port_sum
             
             if self.debug and abs(port_sum) > 0.001:
-                print(f"    Port {port_names[port_idx]} total input: {port_sum:.3f} (|E|²={abs(port_sum)**2:.3f})")
+                logger.debug("    Port %s total input: %s (|E|^2=%.3f)",
+                             port_names[port_idx], port_sum, abs(port_sum) ** 2)
         
         self._last_v_in = v_in.copy()
         
@@ -249,22 +256,22 @@ class TunableBeamSplitter(Component):
         self._last_v_out = v_out.copy()
         
         if self.debug and np.any(np.abs(v_in) > 0.001):
-            print(f"\n  Input/Output vectors:")
-            print(f"    v_in  = [{v_in[0]:.3f}, {v_in[1]:.3f}, {v_in[2]:.3f}, {v_in[3]:.3f}]")
-            print(f"    v_out = [{v_out[0]:.3f}, {v_out[1]:.3f}, {v_out[2]:.3f}, {v_out[3]:.3f}]")
-            
+            logger.debug("  Input/Output vectors: v_in = [%s, %s, %s, %s], v_out = [%s, %s, %s, %s]",
+                         v_in[0], v_in[1], v_in[2], v_in[3],
+                         v_out[0], v_out[1], v_out[2], v_out[3])
+
             # Energy conservation check
             input_power = np.sum(np.abs(v_in)**2)
             output_power = np.sum(np.abs(v_out)**2)
             if input_power > 0:
                 ratio = output_power/input_power
                 expected_ratio = 1.0 if (IDEAL_COMPONENTS or self.loss == 0) else (1.0 - self.loss)
-                print(f"\n  Energy conservation:")
-                print(f"    Input power: Σ|v_in|² = {input_power:.6f}")
-                print(f"    Output power: Σ|v_out|² = {output_power:.6f}")
-                print(f"    Power ratio: {ratio:.6f} (expected: {expected_ratio:.6f})")
+                logger.debug("  Energy conservation: Input power=%.6f, Output power=%.6f, "
+                             "Power ratio=%.6f (expected: %.6f)",
+                             input_power, output_power, ratio, expected_ratio)
                 if abs(ratio - expected_ratio) > 0.001:
-                    print(f"    WARNING: Energy not conserved! Deviation: {(ratio-expected_ratio)*100:.2f}%")
+                    logger.debug("    WARNING: Energy not conserved! Deviation: %.2f%%",
+                                 (ratio - expected_ratio) * 100)
         
         # Generate output beams
         self.output_beams = []
@@ -326,7 +333,8 @@ class TunableBeamSplitter(Component):
                 output_counter += 1
                 
                 if self.debug:
-                    print(f"    Output port {port['name']}: |E|={abs(amplitude):.3f}, φ={output_phase*180/math.pi:.1f}°")
+                    logger.debug("    Output port %s: |E|=%.3f, phi=%.1f deg",
+                                 port['name'], abs(amplitude), output_phase * 180 / math.pi)
         
         return self.output_beams
     

@@ -1,7 +1,10 @@
 """Main game logic and state management with sound effects, energy monitoring, and scaling support."""
+import logging
 import pygame
 import os
 import math
+
+logger = logging.getLogger(__name__)
 from components.laser import Laser
 from core.grid import Grid
 from core.waveoptics import WaveOpticsEngine
@@ -12,6 +15,8 @@ from core.debug_display import DebugDisplay
 from core.challenge_manager import ChallengeManager
 from core.leaderboard import LeaderboardManager
 from core.sound_manager import SoundManager
+from core.quantum_packet import QuantumPacketEngine
+from core.packet_renderer import PacketRenderer
 from ui.sidebar import Sidebar
 from ui.controls import ControlPanel
 from ui.effects import EffectsManager
@@ -36,7 +41,9 @@ from config.settings import (
     BASE_COMPONENT_RADIUS, BASE_BEAM_WIDTH,
     SCALE_FACTOR, FONT_SCALE,
     # New imports for dynamic canvas
-    CANVAS_GRID_COLS, CANVAS_GRID_ROWS, IS_FULLSCREEN
+    CANVAS_GRID_COLS, CANVAS_GRID_ROWS, IS_FULLSCREEN,
+    QUANTUM_PACKET_SPEED, QUANTUM_PACKET_EMIT_INTERVAL,
+    QUANTUM_COLLAPSE_DURATION, QUANTUM_MAX_FAMILIES,
 )
 
 # Define GOLD color if not already defined
@@ -93,6 +100,16 @@ class Game:
         # Keyboard handler
         self.keyboard_handler = KeyboardHandler(self)
         
+        # Quantum packet mode
+        self.quantum_mode = False
+        self.packet_engine = QuantumPacketEngine()
+        self.packet_engine.packet_speed = QUANTUM_PACKET_SPEED
+        self.packet_engine.emit_interval = QUANTUM_PACKET_EMIT_INTERVAL
+        self.packet_engine.collapse_duration = QUANTUM_COLLAPSE_DURATION
+        self.packet_engine.max_families = QUANTUM_MAX_FAMILIES
+        self.packet_engine.on_detection = lambda det: self.sound_manager.play('detector_hit', volume=0.5)
+        self.packet_renderer = PacketRenderer(self.screen)
+
         # Game state
         self.dragging = False
         self.drag_component = None
@@ -175,9 +192,9 @@ class Game:
         self.assets_loader.clear_cache()
         
         # Log the new canvas configuration
-        print(f"Canvas updated: {CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} cells")
-        print(f"Grid size: {GRID_SIZE}px")
-        print(f"Display mode: {'Fullscreen' if IS_FULLSCREEN else 'Windowed'}")
+        logger.debug("Canvas updated: %dx%d cells, grid %dpx, %s",
+                     CANVAS_GRID_COLS, CANVAS_GRID_ROWS, GRID_SIZE,
+                     "Fullscreen" if IS_FULLSCREEN else "Windowed")
         self.right_panel.add_debug_message(f"Canvas: {CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} cells")
         self.right_panel.add_debug_message(f"Grid: {GRID_SIZE}px")
         self.right_panel.add_debug_message(f"Display: {'Fullscreen' if IS_FULLSCREEN else 'Windowed'}")
@@ -190,6 +207,10 @@ class Game:
         # Update beam renderer
         if hasattr(self, 'beam_renderer'):
             self.beam_renderer.screen = new_screen
+
+        # Update packet renderer
+        if hasattr(self, 'packet_renderer'):
+            self.packet_renderer.screen = new_screen
         
         # Update debug display
         if hasattr(self, 'debug_display'):
@@ -259,9 +280,12 @@ class Game:
                 elif self.challenge_manager.is_position_blocked(x, y):
                     self.controls.set_status("Cannot place component here - position blocked!")
                     self.sound_manager.play('beam_blocked')
-                    print(f"Position ({x}, {y}) is blocked")
+                    logger.debug("Position (%d, %d) is blocked", x, y)
                 elif not self.component_manager.is_position_occupied(x, y, self.laser,
                                                                   self.sidebar.selected == 'laser'):
+                    # Clear quantum packets when network changes
+                    if self.quantum_mode:
+                        self.packet_engine.families.clear()
                     # Reset gold collection when any component is placed (changes beam paths)
                     self.beam_tracer.reset_gold_collection()
                     if hasattr(self.controls, 'set_gold_bonus'):
@@ -276,7 +300,7 @@ class Game:
                     self.component_manager.add_component(
                         self.sidebar.selected, x, y, self.laser)
                     self.sound_manager.play('drag_end')
-                    print(f"Placed {self.sidebar.selected} at ({x}, {y})")
+                    logger.debug("Placed %s at (%d, %d)", self.sidebar.selected, x, y)
                     self.right_panel.add_debug_message(f"Placed {self.sidebar.selected} at grid ({(x-CANVAS_OFFSET_X)//GRID_SIZE}, {(y-CANVAS_OFFSET_Y)//GRID_SIZE})")
                 else:
                     self.sound_manager.play('invalid_placement')
@@ -301,6 +325,9 @@ class Game:
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             if self._is_in_canvas(event.pos) and not self.sidebar.selected:
                 if self.component_manager.remove_component_at(event.pos):
+                    # Clear quantum packets when network changes
+                    if self.quantum_mode:
+                        self.packet_engine.families.clear()
                     # Reset gold collection when component is removed (changes beam paths)
                     self.beam_tracer.reset_gold_collection()
                     if hasattr(self.controls, 'set_gold_bonus'):
@@ -349,7 +376,7 @@ class Game:
                     self.controls.set_status("Setup cleared and challenges reset!")
                     self.right_panel.add_debug_message("Session reset - challenges can be completed again")
                     self.sound_manager.play('notification')
-                    print("Completed challenges reset - you can earn points again")
+                    logger.debug("Completed challenges reset")
                 else:
                     self.controls.set_status("Score = Detector Power × 1000 + Gold Bonus")
                     self.right_panel.add_debug_message("Setup cleared")
@@ -404,13 +431,13 @@ class Game:
                         self.controls.set_status("Challenge already completed this session!")
                         self.effects.add_info_message("Challenge Complete", "No additional points awarded")
                         self.sound_manager.play('notification')
-                        print("Challenge already completed - no additional points awarded")
-                    
-                    print(message)
+                        logger.debug("Challenge already completed - no additional points awarded")
+
+                    logger.debug("Challenge result: %s", message)
                 else:
                     self.controls.set_status(f"Failed: {message}")
                     self.sound_manager.play('challenge_failed')
-                    print(f"Challenge check failed: {message}")
+                    logger.debug("Challenge check failed: %s", message)
                     
             elif action == 'Toggle Laser':
                 if self.laser:
@@ -424,6 +451,9 @@ class Game:
                                 comp.reset_frame()
                     else:
                         self.sound_manager.play('laser_off')
+                        # Clear quantum packets when laser turns off
+                        if self.quantum_mode:
+                            self.packet_engine.families.clear()
                         # Clear all beams and reset components when laser is turned off
                         self.beam_tracer.reset()
                         for comp in self.component_manager.components:
@@ -475,15 +505,13 @@ class Game:
                             comp.reset_frame()
                     
                     self.sound_manager.play('panel_open')
-                    print(f"Loaded challenge: {challenge_title}")
+                    logger.debug("Loaded challenge: %s", challenge_title)
                     self.right_panel.add_debug_message(f"Loaded challenge: {challenge_title}")
                     
             elif action == 'Load Fields':
                 # Cycle through field configurations
                 field_configs = self.challenge_manager.get_available_field_configs()
-                print(f"Available field configurations: {len(field_configs)}")
-                for config in field_configs:
-                    print(f"  - {config['name']}: {config['display_name']}")
+                logger.debug("Available field configurations: %d", len(field_configs))
                 
                 if field_configs:
                     # Find current configuration
@@ -498,7 +526,7 @@ class Game:
                     next_idx = (current_idx + 1) % len(field_configs)
                     next_config = field_configs[next_idx]
                     
-                    print(f"Switching from '{current_config}' to '{next_config['name']}'")
+                    logger.debug("Switching fields from '%s' to '%s'", current_config, next_config['name'])
                     
                     # Clear components before loading new field configuration
                     self.component_manager.clear_all(self.laser)
@@ -576,7 +604,7 @@ class Game:
                 
                 # Trace beams through all components
                 self.beam_tracer.trace_beams(self.component_manager.components)
-                
+
                 # Mark that we've traced beams this frame
                 self._beams_traced_this_frame = True
                 
@@ -678,30 +706,31 @@ class Game:
         
         # Layer 9: Trace and draw beams
         if self.laser and self.laser.enabled:
-            # IMPORTANT: Always reset and retrace beams every frame
-            # This ensures changes to the setup are immediately reflected
-            
-            # Reset beam tracer for this frame
+            # Reset beam tracer and components for clean solving
             self.beam_tracer.reset()
-            
-            # Reset all components for clean beam tracing
             for comp in self.component_manager.components:
                 if hasattr(comp, 'reset_frame'):
                     comp.reset_frame()
-            
-            # Set gold positions on beam tracer
             self.beam_tracer.set_gold_positions(self.challenge_manager.get_gold_positions())
-            
-            # Ensure beam renderer has correct screen reference
+
             if self.beam_renderer.screen != self.screen:
-                print(f"WARNING: Beam renderer screen mismatch! Updating...")
                 self.beam_renderer.screen = self.screen
-            
-            # Draw beams - this will trace and render them
+            self.beam_renderer.begin_frame()
+            self.beam_renderer.ghost_mode = self.quantum_mode
+
+            # Solve and draw beams
             self.beam_renderer.draw_beams(self.beam_tracer, self.laser,
                                         self.component_manager.components,
                                         0,
                                         self.challenge_manager.get_blocked_positions())
+
+            # Layer 9.5: Quantum packet overlay (after solver has populated connections)
+            if self.quantum_mode:
+                pkt_dt = max(self.clock.get_time() / 1000.0, 1.0 / 60.0)
+                self.packet_engine.update(pkt_dt, self.beam_tracer)
+                if self.packet_renderer.screen != self.screen:
+                    self.packet_renderer.screen = self.screen
+                self.packet_renderer.draw_packets(self.packet_engine)
         else:
             # Laser is off - ensure all components show zero intensity
             for comp in self.component_manager.components:
@@ -730,6 +759,10 @@ class Game:
         # Layer 15: Draw challenge completion status
         self._draw_challenge_status()
         
+        # Layer 15.5: Draw quantum mode indicator
+        if self.quantum_mode:
+            self._draw_quantum_mode_indicator()
+
         # Layer 16: Draw component counter in bottom left
         self._draw_component_counter()
         
@@ -944,6 +977,27 @@ class Game:
             # Draw text
             self.screen.blit(text, text_rect)
     
+    def _draw_quantum_mode_indicator(self):
+        """Draw indicator showing quantum packet mode is active."""
+        font = pygame.font.Font(None, scale_font(18))
+        text = font.render("QUANTUM", True, (180, 100, 255))
+        text_rect = text.get_rect(left=CANVAS_OFFSET_X + scale(10),
+                                  y=CANVAS_OFFSET_Y + scale(10))
+        bg_rect = text_rect.inflate(scale(14), scale(8))
+        pygame.draw.rect(self.screen, (20, 5, 40), bg_rect, border_radius=scale(6))
+        pygame.draw.rect(self.screen, (180, 100, 255), bg_rect, scale(2), border_radius=scale(6))
+        self.screen.blit(text, text_rect)
+
+        # Detection stats summary
+        stats = self.packet_engine.get_detection_stats()
+        total = self.packet_engine._total_detections
+        if total > 0:
+            stat_font = pygame.font.Font(None, scale_font(14))
+            stat_text = stat_font.render(f"Detections: {total}", True, (160, 160, 160))
+            stat_rect = stat_text.get_rect(left=bg_rect.right + scale(10),
+                                           centery=bg_rect.centery)
+            self.screen.blit(stat_text, stat_rect)
+
     def _draw_drag_preview(self):
         """Draw preview of component being dragged."""
         # Use grid hover position if available, otherwise mouse position
@@ -995,6 +1049,19 @@ class Game:
                                (scale(5), scale(5)), (size - scale(5), size - scale(5)), scale(6))
             self.screen.blit(s, (x - half_size, y - half_size))
             
+        elif comp_type in ('mirror|', 'mirror-'):
+            # Flat mirror preview
+            size = scale(50)
+            half_size = size // 2
+            s = pygame.Surface((size, size), pygame.SRCALPHA)
+            if comp_type == 'mirror|':
+                pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha),
+                               (half_size, scale(5)), (half_size, size - scale(5)), scale(6))
+            else:
+                pygame.draw.line(s, (CYAN[0], CYAN[1], CYAN[2], alpha),
+                               (scale(5), half_size), (size - scale(5), half_size), scale(6))
+            self.screen.blit(s, (x - half_size, y - half_size))
+
         elif comp_type == 'detector':
             # Draw detector preview (turquoise)
             radius = scale(25)

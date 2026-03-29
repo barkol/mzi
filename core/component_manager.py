@@ -1,10 +1,14 @@
 """Component management module with sound support and grid-based positioning."""
+import logging
 from components.laser import Laser
 from components.beam_splitter import BeamSplitter
 from components.mirror import Mirror
+from components.flat_mirror import FlatMirror
 from components.detector import Detector
 from utils.vector import Vector2
 from config.settings import GRID_SIZE, CANVAS_OFFSET_X, CANVAS_OFFSET_Y
+
+logger = logging.getLogger(__name__)
 
 class ComponentManager:
     """Manages game components - adding, removing, and tracking with scaling support."""
@@ -18,7 +22,7 @@ class ComponentManager:
     
     def add_component(self, comp_type, x, y, laser=None):
         """Add a component to the game."""
-        print(f"Adding component: {comp_type} at ({x}, {y})")  # Debug
+        logger.debug("Adding component: %s at (%d, %d)", comp_type, x, y)
         
         # Calculate grid position from screen coordinates
         grid_x = round((x - CANVAS_OFFSET_X) / GRID_SIZE)
@@ -28,8 +32,7 @@ class ComponentManager:
         centered_x = CANVAS_OFFSET_X + grid_x * GRID_SIZE + GRID_SIZE // 2
         centered_y = CANVAS_OFFSET_Y + grid_y * GRID_SIZE + GRID_SIZE // 2
         
-        print(f"Grid position: ({grid_x}, {grid_y})")
-        print(f"Centered position: ({centered_x}, {centered_y})")
+        logger.debug("Grid position: (%d, %d) -> centered: (%d, %d)", grid_x, grid_y, centered_x, centered_y)
         
         if comp_type == 'laser':
             # Move existing laser instead of creating new one
@@ -38,15 +41,14 @@ class ComponentManager:
                 self.effects.add_placement_effect(centered_x, centered_y)
                 if self.sound_manager:
                     self.sound_manager.play('place_component')
-                print(f"Laser moved to grid ({grid_x}, {grid_y})")
+                logger.debug("Laser moved to grid (%d, %d)", grid_x, grid_y)
                 
                 # Reset all components when laser moves
                 self._reset_all_components()
                 
                 return  # No scoring for placement
             else:
-                # This shouldn't happen in normal flow
-                print("Warning: No laser to move")
+                logger.warning("No laser to move")
                 return
         elif comp_type == 'beamsplitter':
             # Beam splitters always include π/2 phase shift on reflection
@@ -67,6 +69,18 @@ class ComponentManager:
             self.component_grid_positions.append({'type': 'mirror\\', 'grid_x': grid_x, 'grid_y': grid_y})
             if self.sound_manager:
                 self.sound_manager.play('place_component')
+        elif comp_type == 'mirror|':
+            comp = FlatMirror(centered_x, centered_y, '|')
+            self.components.append(comp)
+            self.component_grid_positions.append({'type': comp_type, 'grid_x': grid_x, 'grid_y': grid_y})
+            if self.sound_manager:
+                self.sound_manager.play('place_component')
+        elif comp_type == 'mirror-':
+            comp = FlatMirror(centered_x, centered_y, '-')
+            self.components.append(comp)
+            self.component_grid_positions.append({'type': comp_type, 'grid_x': grid_x, 'grid_y': grid_y})
+            if self.sound_manager:
+                self.sound_manager.play('place_component')
         elif comp_type == 'detector':
             comp = Detector(centered_x, centered_y)  # Use centered position
             self.components.append(comp)
@@ -74,7 +88,7 @@ class ComponentManager:
             if self.sound_manager:
                 self.sound_manager.play('place_component')
         else:
-            print(f"Unknown component type: {comp_type}")  # Debug
+            logger.warning("Unknown component type: %s", comp_type)
             return
         
         # Reset all components when adding new ones
@@ -83,8 +97,7 @@ class ComponentManager:
         self.effects.add_placement_effect(centered_x, centered_y)
         
         if comp_type != 'laser':
-            print(f"Total components: {len(self.components)}")  # Debug
-            print(f"Component placed at grid position ({grid_x}, {grid_y})")
+            logger.debug("Total components: %d, placed at grid (%d, %d)", len(self.components), grid_x, grid_y)
     
     def remove_component_at(self, pos):
         """Remove component at position."""
@@ -150,7 +163,7 @@ class ComponentManager:
     
     def _reset_all_components(self):
         """Reset all components to clear their accumulated state."""
-        print("Resetting all components due to setup change")
+        logger.debug("Resetting all components due to setup change")
         for comp in self.components:
             if hasattr(comp, 'reset_frame'):
                 comp.reset_frame()
@@ -166,8 +179,8 @@ class ComponentManager:
     
     def update_component_positions(self):
         """Update all component positions based on their grid positions and current scale."""
-        print(f"Updating {len(self.components)} component positions with scale")
-        print(f"Canvas offset: ({CANVAS_OFFSET_X}, {CANVAS_OFFSET_Y}), Grid size: {GRID_SIZE}")
+        logger.debug("Updating %d component positions (offset: %d,%d, grid: %d)",
+                     len(self.components), CANVAS_OFFSET_X, CANVAS_OFFSET_Y, GRID_SIZE)
         
         for i, (comp, grid_pos) in enumerate(zip(self.components, self.component_grid_positions)):
             # Calculate new screen position from grid position (centered in cell)
@@ -177,7 +190,8 @@ class ComponentManager:
             old_pos = comp.position.tuple()
             comp.position = Vector2(new_x, new_y)
             
-            print(f"  Component {i} ({grid_pos['type']}): grid ({grid_pos['grid_x']}, {grid_pos['grid_y']}) -> screen ({new_x}, {new_y}) [was {old_pos}]")
+            logger.debug("  Component %d (%s): grid (%d,%d) -> screen (%d,%d) [was %s]",
+                         i, grid_pos['type'], grid_pos['grid_x'], grid_pos['grid_y'], new_x, new_y, old_pos)
         
         # Reset all components after position update
         self._reset_all_components()

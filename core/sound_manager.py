@@ -1,8 +1,11 @@
 """Sound manager for handling game audio effects with better error handling."""
+import logging
 import pygame
 import os
 from typing import Dict, Optional
 import sys
+
+logger = logging.getLogger(__name__)
 
 class SoundManager:
     """Manages all sound effects for the game."""
@@ -77,9 +80,9 @@ class SoundManager:
         self.active_detectors: set = set()  # Track which detectors are active
         
         # Report initialization status
-        print(f"Sound Manager initialized: {len(self.sounds)} sounds loaded")
+        logger.info("Sound Manager initialized: %d sounds loaded", len(self.sounds))
         if not self.sounds:
-            print("WARNING: No sounds were loaded! Check your assets/sounds folder.")
+            logger.warning("No sounds were loaded! Check your assets/sounds folder.")
     
     def _init_mixer(self):
         """Initialize pygame mixer with fallback options."""
@@ -98,27 +101,27 @@ class SoundManager:
                 
                 # Test if initialization worked
                 if pygame.mixer.get_init():
-                    print(f"Pygame mixer initialized with: {pygame.mixer.get_init()}")
+                    logger.info("Pygame mixer initialized with: %s", pygame.mixer.get_init())
                     return
             except pygame.error as e:
-                print(f"Mixer init failed with {params}: {e}")
+                logger.warning("Mixer init failed with %s: %s", params, e)
                 continue
         
         # If all attempts failed
-        print("ERROR: Could not initialize pygame mixer! Sound will be disabled.")
+        logger.error("Could not initialize pygame mixer! Sound will be disabled.")
         self.enabled = False
     
     def _ensure_sounds_folder(self):
         """Ensure the sounds folder exists."""
         if not os.path.exists(self.assets_path):
             os.makedirs(self.assets_path)
-            print(f"Created sounds folder at: {self.assets_path}")
+            logger.info("Created sounds folder at: %s", self.assets_path)
             self._create_placeholder_sounds()
     
     def _create_placeholder_sounds(self):
         """Create placeholder sound files for testing."""
-        print("Note: No sound files found. Using silent placeholders.")
-        print(f"Add .wav files to '{self.assets_path}' folder for actual sounds.")
+        logger.info("No sound files found. Using silent placeholders.")
+        logger.info("Add .wav files to '%s' folder for actual sounds.", self.assets_path)
         
         # Create a silent sound as placeholder
         if pygame.mixer.get_init():
@@ -152,28 +155,28 @@ class SoundManager:
                     # Check file size
                     file_size = os.path.getsize(filepath)
                     if file_size == 0:
-                        print(f"Warning: {filename} is empty (0 bytes)")
+                        logger.warning("%s is empty (0 bytes)", filename)
                         continue
                     
                     sound = pygame.mixer.Sound(filepath)
                     sound.set_volume(self.master_volume)
                     self.sounds[sound_name] = sound
                     loaded_count += 1
-                    print(f"Loaded sound: {sound_name} ({file_size/1024:.1f} KB)")
+                    logger.debug("Loaded sound: %s (%.1f KB)", sound_name, file_size / 1024)
                 else:
                     # Don't print for every missing file in normal operation
                     if loaded_count == 0 and sound_name == list(self.sound_files.keys())[0]:
-                        print(f"No sound files found in {self.assets_path}")
+                        logger.info("No sound files found in %s", self.assets_path)
             except pygame.error as e:
-                print(f"Error loading {filename}: {e}")
+                logger.error("Error loading %s: %s", filename, e)
             except Exception as e:
-                print(f"Unexpected error loading {filename}: {e}")
+                logger.error("Unexpected error loading %s: %s", filename, e)
         
         # If no sounds were loaded, create placeholders
         if loaded_count == 0:
             self._create_placeholder_sounds()
         else:
-            print(f"Successfully loaded {loaded_count} sound files")
+            logger.info("Successfully loaded %d sound files", loaded_count)
     
     def play(self, sound_name: str, volume: Optional[float] = None,
              loops: int = 0, fade_ms: int = 0) -> Optional[pygame.mixer.Channel]:
@@ -217,7 +220,7 @@ class SoundManager:
             return channel
             
         except pygame.error as e:
-            print(f"Error playing sound {sound_name}: {e}")
+            logger.error("Error playing sound %s: %s", sound_name, e)
             return None
     
     def stop(self, sound_name: str, fade_ms: int = 0):
@@ -270,7 +273,7 @@ class SoundManager:
         self.enabled = not self.enabled
         if not self.enabled:
             self.stop_all()
-        print(f"Sound: {'ON' if self.enabled else 'OFF'}")
+        logger.info("Sound: %s", "ON" if self.enabled else "OFF")
     
     def update_detector_sound(self, detector_id: int, intensity: float, position: tuple):
         """Update detector sound based on intensity - DISABLED as it's too annoying."""

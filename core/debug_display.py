@@ -1,7 +1,10 @@
 """Debug display module for showing OPD and physics information with scaling."""
+import logging
 import pygame
 import math
 from config.settings import CYAN, WHITE, GREEN, CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_HEIGHT, CANVAS_WIDTH, WAVELENGTH, GRID_SIZE, IDEAL_COMPONENTS, scale, scale_font
+
+logger = logging.getLogger(__name__)
 
 class DebugDisplay:
     """Handles display of debug information and optical path differences with scaling."""
@@ -146,7 +149,7 @@ class DebugDisplay:
                 self.screen.blit(banner, (0, 0))
             except pygame.error as e:
                 # Handle the case where screen is temporarily invalid
-                print(f"Banner draw skipped during display transition: {e}")
+                logger.debug("Banner draw skipped during display transition: %s", e)
                 pass
     
     def draw_info_text(self):

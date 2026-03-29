@@ -4,12 +4,15 @@ This replaces the beam tracing approach with a matrix-based solution that
 finds steady-state amplitudes for all beams in the system.
 """
 
+import logging
 import numpy as np
 from typing import List, Dict, Tuple, Optional
 import math
 import cmath
 from utils.vector import Vector2
 from config.settings import WAVELENGTH, GRID_SIZE, CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT
+
+logger = logging.getLogger(__name__)
 
 class OpticalPort:
     """Represents a port on an optical component."""
@@ -52,6 +55,7 @@ class WaveOpticsEngine:
         self._last_traced_beams = []  # For compatibility
         self._network_valid = False
         self._last_component_set = set()
+        self._last_component_positions = {}
         self._blocked_beam_paths = []  # Track beams that hit edges/blocks
         
     def set_blocked_positions(self, blocked_positions):
@@ -89,36 +93,46 @@ class WaveOpticsEngine:
         
         Returns traced beam paths for visualization.
         """
-        # Check if component list has changed
+        # Check if component list or positions have changed
         current_component_set = set(id(c) for c in components)
-        if current_component_set != self._last_component_set:
+        current_positions = {id(c): (c.position.x, c.position.y) for c in components}
+        if laser:
+            current_positions[id(laser)] = (laser.position.x, laser.position.y)
+
+        if (current_component_set != self._last_component_set
+                or current_positions != self._last_component_positions):
             self._network_valid = False
             self._last_component_set = current_component_set
-        
-        # Always reset for nested interferometers
-        self.reset()
-        
-        # Clear ALL cached port information
-        for comp in [laser] + components:
-            if hasattr(comp, '_ports'):
-                comp._ports = None
+            self._last_component_positions = current_positions
+
+        if not self._network_valid:
+            self.reset()
+            # Clear cached port information only when network changed
+            for comp in [laser] + components:
+                if hasattr(comp, '_ports'):
+                    comp._ports = None
         
         if not laser or not laser.enabled:
             self._last_traced_beams = []
+            self._network_valid = False
             # Reset all detectors when laser is off
             for comp in components:
                 if comp.component_type == 'detector':
                     comp.reset_frame()
                     comp.intensity = 0
             return []
-        
+
+        # Return cached result when network hasn't changed
+        if self._network_valid and self._last_traced_beams:
+            return self._last_traced_beams
+
         if self.debug:
-            print(f"\n=== SOLVING INTERFEROMETER ===")
-            print(f"Components: {len(components)}")
-            print(f"Laser at: {laser.position}")
+            logger.debug("=== SOLVING INTERFEROMETER ===")
+            logger.debug("Components: %d", len(components))
+            logger.debug("Laser at: %s", laser.position)
             for comp in components:
-                print(f"  - {comp.component_type} at {comp.position}")
-            
+                logger.debug("  - %s at %s", comp.component_type, comp.position)
+
         # Reset all components before solving
         for comp in components:
             if hasattr(comp, 'reset_frame'):
@@ -138,21 +152,22 @@ class WaveOpticsEngine:
         # Check if we have any connections
         if len(self.connections) == 0:
             if self.debug:
-                print("\nNo connections found - using simple ray tracing")
+                logger.debug("No connections found - using simple ray tracing")
             # Use simple ray tracing as fallback
             self._simple_ray_trace_with_amplitudes(laser, sorted_components)
+            self._network_valid = True
             return self._last_traced_beams
         
         # Set up and solve the linear system
         amplitudes = self._solve_beam_equations(laser)
         
         if self.debug:
-            print(f"\nBeam amplitudes solved: {len(amplitudes)} beams")
+            logger.debug("Beam amplitudes solved: %d beams", len(amplitudes))
             non_zero = sum(1 for amp in amplitudes.values() if abs(amp) > 0.01)
-            print(f"Non-zero amplitudes: {non_zero}")
+            logger.debug("Non-zero amplitudes: %d", non_zero)
             for beam_id, amp in amplitudes.items():
                 if abs(amp) > 0.01:
-                    print(f"  {beam_id}: |A|={abs(amp):.3f}, φ={cmath.phase(amp)*180/math.pi:.1f}°")
+                    logger.debug("  %s: |A|=%.3f, phi=%.1f deg", beam_id, abs(amp), cmath.phase(amp)*180/math.pi)
         
         # Generate visualization paths
         paths = self._generate_beam_paths(amplitudes)
@@ -163,9 +178,10 @@ class WaveOpticsEngine:
         # Update detector intensities
         self._update_detectors(sorted_components, amplitudes)
         
-        # Store for compatibility
+        # Store for compatibility and caching
         self._last_traced_beams = paths
-        
+        self._network_valid = True
+
         return paths
     
     def _build_network(self, laser, components):
@@ -185,28 +201,28 @@ class WaveOpticsEngine:
         self._find_connections_improved()
         
         if self.debug:
-            print(f"\nBuilt network with {len(self.ports)} ports and {len(self.connections)} connections")
+            logger.debug("Built network with %d ports and %d connections", len(self.ports), len(self.connections))
             if len(self.connections) == 0:
-                print("WARNING: No connections found!")
-                print("Port summary:")
+                logger.warning("No connections found!")
+                logger.debug("Port summary:")
                 for comp in all_components:
                     if hasattr(comp, '_ports'):
-                        print(f"  {comp.component_type} at {comp.position}: {len(comp._ports)} ports")
+                        logger.debug("  %s at %s: %d ports", comp.component_type, comp.position, len(comp._ports))
             else:
                 connection_summary = {}
                 for conn in self.connections:
-                    key = f"{conn.port1.component.component_type} -> {conn.port2.component.component_type}"
+                    key = "%s -> %s" % (conn.port1.component.component_type, conn.port2.component.component_type)
                     connection_summary[key] = connection_summary.get(key, 0) + 1
-                print("Connection summary:")
+                logger.debug("Connection summary:")
                 for conn_type, count in sorted(connection_summary.items()):
-                    print(f"  {conn_type}: {count}")
+                    logger.debug("  %s: %d", conn_type, count)
     
     def _create_ports_for_component(self, component):
         """Create optical ports for a component - GRID ALIGNED."""
         ports = []
         
         if self.debug:
-            print(f"\nCreating ports for {component.component_type} at {component.position}")
+            logger.debug("Creating ports for %s at %s", component.component_type, component.position)
         
         if component.component_type == "laser":
             # Laser has one output port - beam should start from edge of laser
@@ -222,9 +238,9 @@ class WaveOpticsEngine:
             ports.append(port)
             
             if self.debug:
-                print(f"  Laser port at {port.position}")
+                logger.debug("  Laser port at %s", port.position)
             
-        elif component.component_type in ["beamsplitter", "mirror", "tunable_beamsplitter", "partial_mirror"]:
+        elif component.component_type in ["beamsplitter", "mirror", "tunable_beamsplitter", "partial_mirror", "flat_mirror"]:
             # These components have 4 ports at grid edges
             # Component is centered on grid, ports should be at half-grid distance
             offset_dist = GRID_SIZE // 2  # Half grid size to reach edge of grid cell
@@ -247,7 +263,7 @@ class WaveOpticsEngine:
                 ports.append(port)
                 
                 if self.debug:
-                    print(f"    Created port {idx} at {port_pos} for {component.component_type}")
+                    logger.debug("    Created port %d at %s for %s", idx, port_pos, component.component_type)
                 
         elif component.component_type == "detector":
             # Detector has 4 input ports at edges
@@ -271,7 +287,7 @@ class WaveOpticsEngine:
                 ports.append(port)
                 
                 if self.debug:
-                    print(f"    Created detector port {idx} at {port_pos}")
+                    logger.debug("    Created detector port %d at %s", idx, port_pos)
         
         return ports
     
@@ -284,15 +300,18 @@ class WaveOpticsEngine:
         self.connections.clear()
         
         if self.debug:
-            print("\n=== Finding connections ===")
+            logger.debug("=== Finding connections ===")
         
         # Collect all potential connections
         potential_connections = []
         
+        # Track which ports we've already traced FROM to avoid duplicates
+        traced_from = set()
+
         for port1 in self.ports:
-            if port1.connected_to:
+            if id(port1) in traced_from:
                 continue
-                
+
             # Don't trace from detector ports (they only receive)
             if port1.component.component_type == "detector":
                 continue
@@ -302,8 +321,10 @@ class WaveOpticsEngine:
             if port1.component.component_type != "laser" and port1.component.component_type != "detector":
                 # Trace from all non-detector ports
                 if self.debug:
-                    print(f"  Tracing from {port1.component.component_type} port {port1.port_index} at {port1.position}")
+                    logger.debug("  Tracing from %s port %d at %s", port1.component.component_type, port1.port_index, port1.position)
             
+            traced_from.add(id(port1))
+
             # Trace a ray from this port
             hit_port, path, distance, blocked = self._trace_to_first_component(port1)
             
@@ -320,39 +341,42 @@ class WaveOpticsEngine:
                 })
                 
                 if self.debug:
-                    print(f"  Potential: {port1.component.component_type}:{port1.port_index} -> {hit_port.component.component_type}:{hit_port.port_index} (dist={distance:.0f})")
+                    logger.debug("  Potential: %s:%d -> %s:%d (dist=%.0f)", port1.component.component_type, port1.port_index, hit_port.component.component_type, hit_port.port_index, distance)
             elif blocked and self.debug:
-                print(f"  Blocked: {port1.component.component_type}:{port1.port_index} blocked after {distance:.0f}")
+                logger.debug("  Blocked: %s:%d blocked after %.0f", port1.component.component_type, port1.port_index, distance)
             elif not hit_port and self.debug:
-                print(f"  No hit: {port1.component.component_type}:{port1.port_index} -> edge")
+                logger.debug("  No hit: %s:%d -> edge", port1.component.component_type, port1.port_index)
         
         # Sort by priority and distance
         potential_connections.sort(key=lambda x: (x['priority'], x['distance']))
-        
-        # Create connections ensuring each port is used only once
-        connected_ports = set()
-        
+
+        # Create connections.
+        # A port may serve as source (outgoing) in one connection and
+        # destination (incoming) in another — this is needed for
+        # retroreflection in Michelson interferometers.
+        ports_with_outgoing = set()  # ports already used as port1
+        ports_with_incoming = set()  # ports already used as port2
+
         for conn_data in potential_connections:
             port1 = conn_data['port1']
             port2 = conn_data['port2']
-            
-            # Skip if either port is already connected
-            if port1 in connected_ports or port2 in connected_ports:
+
+            # Skip if port1 already has an outgoing or port2 already has an incoming
+            if port1 in ports_with_outgoing or port2 in ports_with_incoming:
                 continue
-            
-            # Create bidirectional connection
+
             connection = OpticalConnection(port1, port2, conn_data['path'], conn_data['distance'])
             self.connections.append(connection)
             port1.connected_to = port2
             port1.connection = connection
             port2.connected_to = port1
             port2.connection = connection
-            
-            connected_ports.add(port1)
-            connected_ports.add(port2)
-            
+
+            ports_with_outgoing.add(port1)
+            ports_with_incoming.add(port2)
+
             if self.debug:
-                print(f"  Created: {port1.component.component_type}:{port1.port_index} <-> {port2.component.component_type}:{port2.port_index}")
+                logger.debug("  Created: %s:%d -> %s:%d", port1.component.component_type, port1.port_index, port2.component.component_type, port2.port_index)
     
     def _calculate_connection_priority(self, port1, port2):
         """Calculate priority for a connection (lower is better) - GRID AWARE."""
@@ -394,7 +418,7 @@ class WaveOpticsEngine:
         direction = from_port.direction
         
         if self.debug:
-            print(f"\n    Tracing from {from_port.component.component_type} port {from_port.port_index} at {start_pos} direction {direction}")
+            logger.debug("    Tracing from %s port %d at %s direction %s", from_port.component.component_type, from_port.port_index, start_pos, direction)
         
         # Ensure we're using exact grid directions
         if abs(direction.x) > abs(direction.y):
@@ -438,7 +462,7 @@ class WaveOpticsEngine:
                     blocked_center = Vector2(blocked_center_x, blocked_center_y)
                     path.append(blocked_center)
                     if self.debug:
-                        print(f"      Beam blocked at grid ({grid_x}, {grid_y})")
+                        logger.debug("      Beam blocked at grid (%d, %d)", grid_x, grid_y)
                     return None, path, distance, True
             
             # Check bounds
@@ -475,7 +499,7 @@ class WaveOpticsEngine:
                         hit_component = comp
                         min_grid_distance = grid_distance
                         if self.debug:
-                            print(f"      Hit {comp.component_type} at grid ({comp_grid_x}, {comp_grid_y})")
+                            logger.debug("      Hit %s at grid (%d, %d)", comp.component_type, comp_grid_x, comp_grid_y)
             
             if hit_component:
                 # End the path at the component's center
@@ -485,12 +509,12 @@ class WaveOpticsEngine:
                 best_port = self._find_best_input_port(hit_component, direction)
                 if best_port:
                     if self.debug:
-                        print(f"      Ray hit: {from_port.component.component_type} -> {hit_component.component_type} port {best_port.port_index}")
+                        logger.debug("      Ray hit: %s -> %s port %d", from_port.component.component_type, hit_component.component_type, best_port.port_index)
                     return best_port, path, distance, False
                 else:
                     # Component hit but no suitable port
                     if self.debug:
-                        print(f"      Hit {hit_component.component_type} but no suitable port for direction {direction}")
+                        logger.debug("      Hit %s but no suitable port for direction %s", hit_component.component_type, direction)
                     return None, path, distance, True
             
             # Add intermediate points periodically for smooth rendering
@@ -588,7 +612,7 @@ class WaveOpticsEngine:
         
         if not beam_segments:
             if self.debug:
-                print("\nNo beam segments to solve")
+                logger.debug("No beam segments to solve")
             return {}
         
         # Build system matrix
@@ -597,7 +621,7 @@ class WaveOpticsEngine:
         b = np.zeros(n, dtype=complex)
         
         if self.debug:
-            print(f"\nBuilding system with {n} beam segments")
+            logger.debug("Building system with %d beam segments", n)
         
         # Add equations for each connection
         for i, conn in enumerate(self.connections):
@@ -610,7 +634,7 @@ class WaveOpticsEngine:
             if conn.port1.component.component_type == "laser":
                 b[i] = 1.0  # Unit amplitude from laser
                 if self.debug:
-                    print(f"  Beam {i} starts from laser with amplitude 1.0")
+                    logger.debug("  Beam %d starts from laser with amplitude 1.0", i)
             
             # Add scattering contributions
             self._add_scattering_terms(A, i, conn, beam_segments, phase)
@@ -622,13 +646,13 @@ class WaveOpticsEngine:
                 I_minus_A = np.eye(n) - A
                 
                 if self.debug:
-                    print(f"\nSolving {n}x{n} system...")
+                    logger.debug("Solving %dx%d system...", n, n)
                     # Check condition number
                     try:
                         cond = np.linalg.cond(I_minus_A)
-                        print(f"Condition number: {cond:.2e}")
+                        logger.debug("Condition number: %.2e", cond)
                         if cond > 1e10:
-                            print("WARNING: System is ill-conditioned!")
+                            logger.warning("System is ill-conditioned!")
                     except Exception:
                         pass
                 
@@ -643,18 +667,18 @@ class WaveOpticsEngine:
                     self.beam_amplitudes[beam_id] = x[i]
                 
                 if self.debug:
-                    print(f"\nSolved for {n} beam amplitudes")
+                    logger.debug("Solved for %d beam amplitudes", n)
                     total_power = sum(abs(amp)**2 for amp in x)
-                    print(f"Total power in system: {total_power:.3f}")
-                    
+                    logger.debug("Total power in system: %.3f", total_power)
+
                     # Check if solution is reasonable
                     if total_power < 0.1:
-                        print("WARNING: Very low total power - check system setup")
+                        logger.warning("Very low total power - check system setup")
                     elif total_power > 10:
-                        print("WARNING: Very high total power - possible numerical issues")
+                        logger.warning("Very high total power - possible numerical issues")
                     
         except np.linalg.LinAlgError as e:
-            print(f"ERROR: Could not solve beam equations - {e}")
+            logger.error("Could not solve beam equations - %s", e)
             # Fallback: set laser output beam to unit amplitude
             for i, conn in enumerate(self.connections):
                 if conn.port1.component.component_type == "laser":
@@ -694,7 +718,7 @@ class WaveOpticsEngine:
                             port_names = ['A', 'B', 'C', 'D']
                             in_name = port_names[input_port_idx] if input_port_idx < 4 else str(input_port_idx)
                             out_name = port_names[output_port_idx] if output_port_idx < 4 else str(output_port_idx)
-                            print(f"    {port2_component.component_type} scatters port {in_name} -> {out_name} with coeff {s_coeff:.3f}")
+                            logger.debug("    %s scatters port %s -> %s with coeff %.3f", port2_component.component_type, in_name, out_name, s_coeff)
     
     def _generate_beam_paths(self, amplitudes):
         """Generate beam paths for visualization - ensuring proper start positions."""
@@ -730,8 +754,8 @@ class WaveOpticsEngine:
             })
             
             if self.debug and abs(amplitude) > 0.01:
-                print(f"  Path {conn_idx}: {conn.port1.component.component_type} -> {conn.port2.component.component_type}, |A|={abs(amplitude):.3f}")
-                print(f"    Start: {path[0]}, End: {path[-1]}")
+                logger.debug("  Path %d: %s -> %s, |A|=%.3f", conn_idx, conn.port1.component.component_type, conn.port2.component.component_type, abs(amplitude))
+                logger.debug("    Start: %s, End: %s", path[0], path[-1])
         
         # Also add any blocked beam paths
         for blocked_path in self._blocked_beam_paths:
@@ -788,14 +812,14 @@ class WaveOpticsEngine:
                                 self.gold_field_hits[gold_key] += intensity
                                 
                                 if self.debug:
-                                    print(f"  Beam hit gold field at grid ({grid_x}, {grid_y}) with intensity {intensity:.3f}")
+                                    logger.debug("  Beam hit gold field at grid (%d, %d) with intensity %.3f", grid_x, grid_y, intensity)
     
     def _update_detectors(self, components, amplitudes):
         """Update detector intensities based on beam amplitudes."""
         if self.debug:
-            print(f"\n_update_detectors called with {len(components)} components")
+            logger.debug("_update_detectors called with %d components", len(components))
             detector_count = sum(1 for c in components if c.component_type == "detector")
-            print(f"Found {detector_count} detectors")
+            logger.debug("Found %d detectors", detector_count)
         
         # First, reset ALL detectors
         for comp in components:
@@ -832,30 +856,30 @@ class WaveOpticsEngine:
                     detector_beams[detector].append(beam_data)
         
         if self.debug:
-            print(f"Detectors receiving beams: {len(detector_beams)}")
+            logger.debug("Detectors receiving beams: %d", len(detector_beams))
         
         # Update each detector with its beams
         for detector, beams in detector_beams.items():
             if self.debug:
-                print(f"\nUpdating detector at {detector.position} with {len(beams)} beams")
+                logger.debug("Updating detector at %s with %d beams", detector.position, len(beams))
             
             # Add all beams
             for beam in beams:
                 detector.add_beam(beam)
                 
                 if self.debug:
-                    print(f"  Added beam: amp={beam['amplitude']:.3f}, phase={beam['phase']*180/math.pi:.1f}°")
+                    logger.debug("  Added beam: amp=%.3f, phase=%.1f deg", beam['amplitude'], beam['phase']*180/math.pi)
             
             # Finalize to calculate interference
             detector.finalize_frame()
             
             if self.debug:
-                print(f"  Final intensity: {detector.intensity:.3f}")
+                logger.debug("  Final intensity: %.3f", detector.intensity)
     
     def _simple_ray_trace_with_amplitudes(self, laser, components):
         """Simple ray tracing fallback with proper amplitude calculation."""
         if self.debug:
-            print("\nUsing simple ray trace with amplitudes")
+            logger.debug("Using simple ray trace with amplitudes")
         
         # Ensure all components have ports created
         for comp in [laser] + components:
@@ -1075,7 +1099,7 @@ class WaveOpticsEngine:
         
         if not laser:
             if self.debug:
-                print("WARNING: No laser found in trace_beams")
+                logger.warning("No laser found in trace_beams")
             return []
         
         return self.solve_interferometer(laser, actual_components)

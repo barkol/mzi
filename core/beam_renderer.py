@@ -4,21 +4,28 @@ import math
 import time
 from config.settings import BEAM_WIDTH, CYAN, WHITE, scale, scale_font
 
+
 class BeamRenderer:
     """Handles beam path rendering with dynamic pulsing and color effects."""
-    
+
     def __init__(self, screen):
         self.screen = screen
         self.debug = False
         self.start_time = time.time()
-    
+        self._frame_time = 0.0  # Cached per-frame time offset
+        self.ghost_mode = False  # Dim beams when quantum packet mode is active
+
+    def begin_frame(self):
+        """Call once per frame to cache the current time."""
+        self._frame_time = time.time() - self.start_time
+
     def set_debug(self, debug_state):
         """Set debug mode for beam renderer."""
         self.debug = debug_state
     
     def _get_dynamic_color(self, amplitude, time_offset=0):
         """Get a dynamically shifting color based on amplitude and time."""
-        current_time = time.time() - self.start_time + time_offset
+        current_time = self._frame_time + time_offset
         
         # Base color shifts between cyan variants
         if amplitude > 0.7:
@@ -44,7 +51,7 @@ class BeamRenderer:
     
     def _get_pulse_factor(self, amplitude, time_offset=0):
         """Get a pulsing factor for beam width and glow."""
-        current_time = time.time() - self.start_time + time_offset
+        current_time = self._frame_time + time_offset
         
         if amplitude > 0.8:
             pulse_speed = 1.5
@@ -120,8 +127,13 @@ class BeamRenderer:
         path = beam_data['path']
         if len(path) < 2:
             return
-        
+
         if beam_data['amplitude'] < 0.01:
+            return
+
+        # In ghost mode (quantum packet mode), draw beams very dimly
+        if self.ghost_mode:
+            self._draw_ghost_beam_path(beam_data, time_offset)
             return
         
         was_blocked = beam_data.get('blocked', False)
@@ -129,7 +141,7 @@ class BeamRenderer:
         color = self._get_dynamic_color(beam_data['amplitude'], time_offset)
         
         if was_blocked:
-            current_time = time.time() - self.start_time
+            current_time = self._frame_time
             flash = (math.sin(current_time * 10) + 1) * 0.5
             color = (min(255, max(0, int(100 * flash))), 255, 255)
         
@@ -151,7 +163,7 @@ class BeamRenderer:
             beam_color = color
             
             if beam_data['amplitude'] > 0.7 and not was_blocked:
-                glow_pulse = 1.0 + math.sin((time.time() - self.start_time + time_offset) * 2.0) * 0.3
+                glow_pulse = 1.0 + math.sin((self._frame_time + time_offset) * 2.0) * 0.3
                 glow_width = int((beam_width + beam_width * 2.0) * glow_pulse)
                 
                 for j in range(3):
@@ -173,7 +185,7 @@ class BeamRenderer:
             if beam_data['amplitude'] > 0.9 and not was_blocked:
                 center_width = max(1, beam_width // 3)
                 
-                current_time = time.time() - self.start_time + time_offset
+                current_time = self._frame_time + time_offset
                 center_phase = (math.sin(current_time * 4.0) + 1) * 0.5
                 
                 center_r = min(255, max(0, int(200 + center_phase * 55)))
@@ -196,7 +208,7 @@ class BeamRenderer:
         min_width = max(1, BEAM_WIDTH // 2)
         beam_width = max(min_width, int(BEAM_WIDTH * amplitude))
         
-        current_time = time.time() - self.start_time + time_offset
+        current_time = self._frame_time + time_offset
         impact_pulse = 1.0 + math.sin(current_time * 8.0) * 0.5
         
         impact_radius = int((beam_width * 3 + amplitude * beam_width * 2) * impact_pulse)
@@ -287,3 +299,31 @@ class BeamRenderer:
             self.screen.blit(s, bg_rect.topleft)
             
             self.screen.blit(amp_surface, amp_rect)
+
+    def _draw_ghost_beam_path(self, beam_data, time_offset=0):
+        """Draw a beam path very dimly as a guide in quantum packet mode."""
+        path = beam_data['path']
+        amp = beam_data['amplitude']
+
+        # Dim pulsing
+        pulse = 0.12 + 0.05 * math.sin((self._frame_time + time_offset) * 1.5)
+        alpha = max(15, min(50, int(255 * pulse * amp)))
+        width = max(1, BEAM_WIDTH // 2)
+
+        for i in range(len(path) - 1):
+            start = path[i].tuple() if hasattr(path[i], 'tuple') else path[i]
+            end = path[i+1].tuple() if hasattr(path[i+1], 'tuple') else path[i+1]
+
+            # Create surface with alpha
+            x1, y1 = start
+            x2, y2 = end
+            min_x = min(x1, x2) - width
+            min_y = min(y1, y2) - width
+            w = max(1, max(x1, x2) - min_x + width + 1)
+            h = max(1, max(y1, y2) - min_y + width + 1)
+            surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            local_p1 = (x1 - min_x, y1 - min_y)
+            local_p2 = (x2 - min_x, y2 - min_y)
+            color = (0, 160, 180, alpha)
+            pygame.draw.line(surf, color, local_p1, local_p2, width)
+            self.screen.blit(surf, (min_x, min_y))

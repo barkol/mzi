@@ -1,9 +1,12 @@
 """Laser source component with proper scaling support."""
+import logging
 import pygame
 import math
 from components.base import Component
 from utils.vector import Vector2
 from config.settings import CYAN, WHITE, scale, scale_font, COMPONENT_RADIUS
+
+logger = logging.getLogger(__name__)
 
 class Laser(Component):
     """Laser source that emits coherent light with proper scaling."""
@@ -76,11 +79,8 @@ class Laser(Component):
             }
             
             if self.debug:
-                print(f"\nLaser at {self.position} emitting beam:")
-                print(f"  Start position: {beam_start_pos}")
-                print(f"  Direction: (1, 0)")
-                print(f"  Amplitude: 1.0")
-                print(f"  Initial phase: 0°")
+                logger.debug("Laser at %s emitting beam: start=%s, dir=(1,0), amp=1.0, phase=0",
+                             self.position, beam_start_pos)
             
             return beam
         return None

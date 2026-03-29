@@ -1,8 +1,11 @@
 """Challenge configuration and blocked/gold field management with improved interference detection."""
 import json
+import logging
 import os
 from utils.vector import Vector2
 from config.settings import CANVAS_OFFSET_X, CANVAS_OFFSET_Y, GRID_SIZE
+
+logger = logging.getLogger(__name__)
 
 class ChallengeManager:
     """Manages challenge configurations, blocked fields, and gold fields."""
@@ -23,12 +26,12 @@ class ChallengeManager:
                 with open(config_path, 'r') as f:
                     data = json.load(f)
                     self.challenges = data.get('challenges', {})
-                    print(f"Loaded {len(self.challenges)} challenges")
+                    logger.info("Loaded %d challenges", len(self.challenges))
             except Exception as e:
-                print(f"Error loading challenges: {e}")
+                logger.error("Error loading challenges: %s", e)
                 self.challenges = self._get_default_challenges()
         else:
-            print("No challenges.json found, using defaults")
+            logger.info("No challenges.json found, using defaults")
             self.challenges = self._get_default_challenges()
             self._save_default_challenges()
     
@@ -168,6 +171,30 @@ class ChallengeManager:
                         "points": 1000
                     }
                 ]
+            },
+            "michelson": {
+                "name": "Michelson Interferometer",
+                "description": "Build a Michelson interferometer: beam splitter, 2 flat mirrors, and a detector",
+                "requirements": {
+                    "beamsplitter": 1,
+                    "flat_mirror": 2,
+                    "detector": 1
+                },
+                "min_components": 4,
+                "max_components": 6,
+                "points": 0,
+                "bonus_conditions": [
+                    {
+                        "type": "interference",
+                        "description": "Achieve interference from two returning arms",
+                        "points": 300
+                    },
+                    {
+                        "type": "high_power",
+                        "description": "Achieve detector power > 0.8",
+                        "points": 200
+                    }
+                ]
             }
         }
     
@@ -185,9 +212,9 @@ class ChallengeManager:
         try:
             with open(config_path, 'w') as f:
                 json.dump(data, f, indent=2)
-            print(f"Saved default challenges to {config_path}")
+            logger.debug("Saved default challenges to %s", config_path)
         except Exception as e:
-            print(f"Error saving challenges: {e}")
+            logger.error("Error saving challenges: %s", e)
     
     def load_blocked_fields(self, filename=None):
         """Load blocked field positions from text file."""
@@ -197,7 +224,7 @@ class ChallengeManager:
         self.blocked_positions.clear()
         
         if not os.path.exists(filename):
-            print(f"No blocked fields file found at {filename}")
+            logger.info("No blocked fields file found at %s", filename)
             return
         
         try:
@@ -219,18 +246,18 @@ class ChallengeManager:
                                 
                                 # Check if this position is already a gold field
                                 if self.is_position_gold(screen_x, screen_y):
-                                    print(f"Warning: Blocked field at ({x},{y}) conflicts with gold field - skipping")
+                                    logger.warning("Blocked field at (%d,%d) conflicts with gold field - skipping", x, y)
                                     skipped_conflicts += 1
                                 else:
                                     self.blocked_positions.append(new_pos)
                             except ValueError:
-                                print(f"Invalid position format: {line}")
-            
-            print(f"Loaded {len(self.blocked_positions)} blocked positions")
+                                logger.warning("Invalid position format: %s", line)
+
+            logger.info("Loaded %d blocked positions", len(self.blocked_positions))
             if skipped_conflicts > 0:
-                print(f"Skipped {skipped_conflicts} blocked fields due to conflicts with gold fields")
+                logger.debug("Skipped %d blocked fields due to conflicts with gold fields", skipped_conflicts)
         except Exception as e:
-            print(f"Error loading blocked fields: {e}")
+            logger.error("Error loading blocked fields: %s", e)
     
     def load_gold_fields(self, filename=None):
         """Load gold field positions from text file."""
@@ -240,7 +267,7 @@ class ChallengeManager:
         self.gold_positions.clear()
         
         if not os.path.exists(filename):
-            print(f"No gold fields file found at {filename}")
+            logger.info("No gold fields file found at %s", filename)
             # Create default gold fields file
             self.create_gold_fields_template()
             return
@@ -264,18 +291,18 @@ class ChallengeManager:
                                 
                                 # Check if this position is already blocked
                                 if self.is_position_blocked(screen_x, screen_y):
-                                    print(f"Warning: Gold field at ({x},{y}) conflicts with blocked field - skipping")
+                                    logger.warning("Gold field at (%d,%d) conflicts with blocked field - skipping", x, y)
                                     skipped_conflicts += 1
                                 else:
                                     self.gold_positions.append(new_pos)
                             except ValueError:
-                                print(f"Invalid position format: {line}")
-            
-            print(f"Loaded {len(self.gold_positions)} gold positions")
+                                logger.warning("Invalid position format: %s", line)
+
+            logger.info("Loaded %d gold positions", len(self.gold_positions))
             if skipped_conflicts > 0:
-                print(f"Skipped {skipped_conflicts} gold fields due to conflicts with blocked fields")
+                logger.debug("Skipped %d gold fields due to conflicts with blocked fields", skipped_conflicts)
         except Exception as e:
-            print(f"Error loading gold fields: {e}")
+            logger.error("Error loading gold fields: %s", e)
     
     def get_available_field_configs(self):
         """Get list of available field configuration files - limited to Default, Maze, and Treasure only."""
@@ -332,7 +359,7 @@ class ChallengeManager:
                 break
         
         if not config:
-            print(f"Field configuration '{config_name}' not found")
+            logger.info("Field configuration '%s' not found", config_name)
             return False
         
         try:
@@ -341,19 +368,19 @@ class ChallengeManager:
             self.gold_positions.clear()
             
             # Load new field configurations
-            print(f"\nLoading field configuration: {config['display_name']}")
+            logger.info("Loading field configuration: %s", config['display_name'])
             
             # Load gold fields first (so blocked fields can override)
             if os.path.exists(config['gold_file']):
                 self.load_gold_fields(config['gold_file'])
             else:
-                print(f"Gold fields file not found: {config['gold_file']}")
+                logger.info("Gold fields file not found: %s", config['gold_file'])
             
             # Load blocked fields second
             if os.path.exists(config['blocked_file']):
                 self.load_blocked_fields(config['blocked_file'])
             else:
-                print(f"Blocked fields file not found: {config['blocked_file']}")
+                logger.info("Blocked fields file not found: %s", config['blocked_file'])
             
             # Validate the configuration
             self.validate_field_configurations()
@@ -361,11 +388,11 @@ class ChallengeManager:
             # Update current configuration
             self.current_field_config = config_name
             
-            print(f"Successfully loaded field configuration: {config['display_name']}")
+            logger.info("Successfully loaded field configuration: %s", config['display_name'])
             return True
             
         except Exception as e:
-            print(f"Error loading field configuration: {e}")
+            logger.error("Error loading field configuration: %s", e)
             # Restore default configuration on error
             self.load_blocked_fields()
             self.load_gold_fields()
@@ -402,9 +429,9 @@ class ChallengeManager:
         try:
             with open(filename, 'w') as f:
                 f.write(template)
-            print(f"Created blocked fields template at {filename}")
+            logger.info("Created blocked fields template at %s", filename)
         except Exception as e:
-            print(f"Error creating template: {e}")
+            logger.error("Error creating template: %s", e)
     
     def create_gold_fields_template(self):
         """Create a template gold fields file."""
@@ -454,9 +481,9 @@ class ChallengeManager:
         try:
             with open(filename, 'w') as f:
                 f.write(template)
-            print(f"Created gold fields template at {filename}")
+            logger.info("Created gold fields template at %s", filename)
         except Exception as e:
-            print(f"Error creating template: {e}")
+            logger.error("Error creating template: %s", e)
     
     def is_position_blocked(self, x, y):
         """Check if a position is blocked."""
@@ -666,13 +693,13 @@ class ChallengeManager:
                     })
         
         if conflicts:
-            print(f"\nWARNING: Found {len(conflicts)} position conflicts!")
-            print("The following positions are defined as both gold and blocked:")
+            logger.warning("Found %d position conflicts!", len(conflicts))
+            logger.warning("The following positions are defined as both gold and blocked:")
             for conflict in conflicts:
-                print(f"  Grid position ({conflict['gold'][0]},{conflict['gold'][1]})")
-            print("Blocked fields take precedence - these positions will be blocked, not gold.")
+                logger.warning("  Grid position (%d,%d)", conflict['gold'][0], conflict['gold'][1])
+            logger.warning("Blocked fields take precedence - these positions will be blocked, not gold.")
         else:
-            print("Field configuration validated - no conflicts found.")
+            logger.debug("Field configuration validated - no conflicts found.")
         
         return len(conflicts) == 0
     
@@ -858,13 +885,13 @@ class ChallengeManager:
                     os.makedirs(os.path.dirname(filename), exist_ok=True)
                     with open(filename, 'w') as f:
                         f.write(content)
-                    print(f"Created example field configuration: {filename}")
+                    logger.info("Created example field configuration: %s", filename)
                     created_count += 1
                 except Exception as e:
-                    print(f"Error creating {filename}: {e}")
-        
+                    logger.error("Error creating %s: %s", filename, e)
+
         if created_count > 0:
-            print(f"Created {created_count} example field configurations")
+            logger.info("Created %d example field configurations", created_count)
         
         return created_count > 0
     

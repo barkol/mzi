@@ -13,6 +13,8 @@ class Sidebar:
             {'type': 'beamsplitter', 'name': 'Beam Splitter', 'desc': '50/50 split'},
             {'type': 'mirror/', 'name': 'Mirror /', 'desc': 'Diagonal reflection'},
             {'type': 'mirror\\', 'name': 'Mirror \\', 'desc': 'Diagonal reflection'},
+            {'type': 'mirror|', 'name': 'Mirror |', 'desc': 'Flat retro-mirror'},
+            {'type': 'mirror-', 'name': 'Mirror \u2014', 'desc': 'Flat retro-mirror'},
             {'type': 'detector', 'name': 'Detector', 'desc': 'Shows interference'}
         ]
         self.selected = None

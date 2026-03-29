@@ -1,21 +1,33 @@
 """Leaderboard management for high scores."""
 import json
+import logging
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import List, Dict, Tuple
+
+logger = logging.getLogger(__name__)
 
 class LeaderboardManager:
     """Manages high scores and leaderboard persistence."""
     
     def __init__(self, max_entries=10):
         self.max_entries = max_entries
-        self.leaderboard_file = "leaderboard.json"
+        self._leaderboard_file = Path(__file__).resolve().parent.parent / "leaderboard.json"
         self.entries = []
         self.load_leaderboard()
+
+    @property
+    def leaderboard_file(self):
+        return self._leaderboard_file
+
+    @leaderboard_file.setter
+    def leaderboard_file(self, value):
+        self._leaderboard_file = Path(value)
     
     def load_leaderboard(self):
         """Load leaderboard from file."""
-        if os.path.exists(self.leaderboard_file):
+        if self.leaderboard_file.exists():
             try:
                 with open(self.leaderboard_file, 'r') as f:
                     data = json.load(f)
@@ -25,7 +37,7 @@ class LeaderboardManager:
                     # Limit to max entries
                     self.entries = self.entries[:self.max_entries]
             except Exception as e:
-                print(f"Error loading leaderboard: {e}")
+                logger.error("Error loading leaderboard: %s", e)
                 self.entries = []
         else:
             # Create default leaderboard with some initial scores
@@ -63,7 +75,7 @@ class LeaderboardManager:
             with open(self.leaderboard_file, 'w') as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
-            print(f"Error saving leaderboard: {e}")
+            logger.error("Error saving leaderboard: %s", e)
     
     def add_score(self, name: str, score: int, challenge: str = None,
                   components: int = 0, field_config: str = None) -> Tuple[bool, int]:

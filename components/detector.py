@@ -1,9 +1,12 @@
 """Detector component with improved interference calculation."""
+import logging
 import pygame
 import math
 import cmath
 from components.base import Component
 from config.settings import CYAN, WHITE
+
+logger = logging.getLogger(__name__)
 
 class Detector(Component):
     """Detector that shows total beam intensity with proper interference."""
@@ -31,7 +34,7 @@ class Detector(Component):
         if self.processed_this_frame:
             # Detector already processed - reject beam
             if self.debug:
-                print(f"  Detector at {self.position}: rejecting beam (already processed)")
+                logger.debug("  Detector at %s: rejecting beam (already processed)", self.position)
             return
         
         # Get beam generation
@@ -43,7 +46,7 @@ class Detector(Component):
         elif beam_generation != self.current_generation:
             # This beam is from a different generation - should not happen with proper tracing
             if self.debug:
-                print(f"  WARNING: Detector received beam from generation {beam_generation} while processing generation {self.current_generation}")
+                logger.warning("  Detector received beam from generation %d while processing generation %d", beam_generation, self.current_generation)
             return
         
         # Store the beam information
@@ -55,10 +58,10 @@ class Detector(Component):
         })
         
         if self.debug:
-            print(f"  Detector at {self.position} received beam {beam.get('beam_id', 'unknown')}:")
-            print(f"    Amplitude: {beam['amplitude']:.3f}")
-            print(f"    Phase: {beam.get('accumulated_phase', beam.get('phase', 0))*180/math.pi:.1f}°")
-            print(f"    Generation: {beam_generation}")
+            logger.debug("  Detector at %s received beam %s:", self.position, beam.get('beam_id', 'unknown'))
+            logger.debug("    Amplitude: %.3f", beam['amplitude'])
+            logger.debug("    Phase: %.1f°", beam.get('accumulated_phase', beam.get('phase', 0))*180/math.pi)
+            logger.debug("    Generation: %d", beam_generation)
     
     def process_beam(self, beam):
         """Process beam - for detectors, we accumulate in add_beam instead."""
@@ -78,7 +81,7 @@ class Detector(Component):
             self.intensity = 0
             self.total_path_length = 0
             if self.debug:
-                print(f"\nDetector at {self.position}: No beams received")
+                logger.debug("Detector at %s: No beams received", self.position)
             return
         
         # Calculate intensity using coherent superposition
@@ -88,8 +91,8 @@ class Detector(Component):
         complex_sum = 0j
         
         if self.debug:
-            print(f"\nDetector at {self.position} - intensity calculation (gen {self.current_generation}):")
-            print(f"  Number of beams: {len(self.incoming_beams)}")
+            logger.debug("Detector at %s - intensity calculation (gen %d):", self.position, self.current_generation)
+            logger.debug("  Number of beams: %d", len(self.incoming_beams))
         
         for i, beam in enumerate(self.incoming_beams):
             # Add complex amplitudes
@@ -98,8 +101,8 @@ class Detector(Component):
             complex_sum += complex_amplitude
             
             if self.debug:
-                print(f"  Beam {i+1} ({beam['beam_id']}): A={beam['amplitude']:.3f}, φ={phase*180/math.pi:.1f}°")
-                print(f"    Complex amplitude: {complex_amplitude:.3f}")
+                logger.debug("  Beam %d (%s): A=%.3f, φ=%.1f°", i+1, beam['beam_id'], beam['amplitude'], phase*180/math.pi)
+                logger.debug("    Complex amplitude: %s", f"{complex_amplitude:.3f}")
         
         # Calculate intensity as magnitude squared
         self.intensity = abs(complex_sum) ** 2
@@ -109,13 +112,14 @@ class Detector(Component):
             self.total_path_length = sum(beam['path_length'] for beam in self.incoming_beams) / len(self.incoming_beams)
         
         if self.debug:
-            print(f"  Total complex amplitude: {complex_sum:.3f}")
-            print(f"  Total intensity: {self.intensity:.3f} = {self.intensity*100:.0f}%")
-            
+            logger.debug("  Total complex amplitude: %s", f"{complex_sum:.3f}")
+            logger.debug("  Total intensity: %.3f = %.0f%%", self.intensity, self.intensity*100)
+
             # Show interference effects
             incoherent_sum = sum(beam['amplitude']**2 for beam in self.incoming_beams)
-            print(f"  Incoherent sum: {incoherent_sum:.3f}")
-            print(f"  Interference factor: {self.intensity/incoherent_sum:.3f}" if incoherent_sum > 0 else "")
+            logger.debug("  Incoherent sum: %.3f", incoherent_sum)
+            if incoherent_sum > 0:
+                logger.debug("  Interference factor: %.3f", self.intensity/incoherent_sum)
     
     def get_energy_info(self):
         """Get detailed energy information for conservation analysis."""
