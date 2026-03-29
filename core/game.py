@@ -24,27 +24,21 @@ from ui.leaderboard_display import LeaderboardDisplay
 from ui.right_panel import RightPanel
 from utils.vector import Vector2
 from utils.assets_loader import AssetsLoader
+import config.settings as _settings
 from config.settings import (
     BLACK, WHITE, PURPLE, CYAN, MAGENTA, RED, GREEN, DARK_PURPLE,
     GRID_COLOR, GRID_MAJOR_COLOR, HOVER_VALID_COLOR, HOVER_INVALID_COLOR,
-    WINDOW_WIDTH, WINDOW_HEIGHT, FPS,
-    GRID_SIZE, CANVAS_WIDTH, CANVAS_HEIGHT, CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
-    COMPONENT_RADIUS, BEAM_WIDTH,
     WAVELENGTH, SPEED_OF_LIGHT,
     MIRROR_LOSS, BEAM_SPLITTER_LOSS, DETECTOR_DECAY_RATE,
     IDEAL_COMPONENTS, REALISTIC_BEAM_SPLITTER,
     PLACEMENT_SCORE, COMPLETION_SCORE,
-    # New imports for scaling
     scale, scale_font, update_scaled_values,
-    BASE_GRID_SIZE, BASE_CANVAS_WIDTH, BASE_CANVAS_HEIGHT,
-    BASE_CANVAS_OFFSET_X, BASE_CANVAS_OFFSET_Y,
-    BASE_COMPONENT_RADIUS, BASE_BEAM_WIDTH,
-    SCALE_FACTOR, FONT_SCALE,
-    # New imports for dynamic canvas
-    CANVAS_GRID_COLS, CANVAS_GRID_ROWS, IS_FULLSCREEN,
     QUANTUM_PACKET_SPEED, QUANTUM_PACKET_EMIT_INTERVAL,
     QUANTUM_COLLAPSE_DURATION, QUANTUM_MAX_FAMILIES,
 )
+# Mutable layout values — access via _settings.X at runtime
+# GRID_SIZE, CANVAS_WIDTH, CANVAS_HEIGHT, CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
+# _settings.WINDOW_WIDTH, _settings.WINDOW_HEIGHT, _settings.CANVAS_GRID_COLS, _settings.CANVAS_GRID_ROWS, _settings.IS_FULLSCREEN
 
 # Define GOLD color if not already defined
 GOLD = (255, 215, 0)
@@ -67,10 +61,10 @@ class Game:
         # Game components - use dynamic positioning
         # Center laser vertically based on actual canvas rows
         laser_grid_x = 1  # Grid column 1
-        laser_grid_row = CANVAS_GRID_ROWS // 2  # Center vertically in dynamic grid
+        laser_grid_row = _settings.CANVAS_GRID_ROWS // 2  # Center vertically in dynamic grid
         # Center the laser in the grid cell
-        laser_x = CANVAS_OFFSET_X + laser_grid_x * GRID_SIZE + GRID_SIZE // 2
-        laser_y = CANVAS_OFFSET_Y + laser_grid_row * GRID_SIZE + GRID_SIZE // 2
+        laser_x = _settings.CANVAS_OFFSET_X + laser_grid_x * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
+        laser_y = _settings.CANVAS_OFFSET_Y + laser_grid_row * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
         self.laser = Laser(laser_x, laser_y)
 
         # Helper modules
@@ -174,8 +168,8 @@ class Game:
         self.controls.set_status("Score = Detector Power × 1000 + Gold Bonus")
         
         # Log initial canvas configuration
-        self.right_panel.add_debug_message(f"Canvas: {CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} cells")
-        self.right_panel.add_debug_message(f"Display: {'Fullscreen' if IS_FULLSCREEN else 'Windowed'}")
+        self.right_panel.add_debug_message(f"Canvas: {_settings.CANVAS_GRID_COLS}×{_settings.CANVAS_GRID_ROWS} cells")
+        self.right_panel.add_debug_message(f"Display: {'Fullscreen' if _settings.IS_FULLSCREEN else 'Windowed'}")
 
     def update_scale(self, new_scale_factor):
         """Update the scale factor and rebuild UI layout."""
@@ -183,19 +177,19 @@ class Game:
 
         # Reposition laser to stay in the grid
         laser_grid_x = 1
-        laser_row = min(CANVAS_GRID_ROWS // 2, CANVAS_GRID_ROWS - 1)
-        laser_x = CANVAS_OFFSET_X + laser_grid_x * GRID_SIZE + GRID_SIZE // 2
-        laser_y = CANVAS_OFFSET_Y + laser_row * GRID_SIZE + GRID_SIZE // 2
+        laser_row = min(_settings.CANVAS_GRID_ROWS // 2, _settings.CANVAS_GRID_ROWS - 1)
+        laser_x = _settings.CANVAS_OFFSET_X + laser_grid_x * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
+        laser_y = _settings.CANVAS_OFFSET_Y + laser_row * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
         self.laser.position = Vector2(laser_x, laser_y)
 
         # Reposition placed components to nearest valid grid cell
         for i, comp in enumerate(self.component_manager.components):
             gp = self.component_manager.component_grid_positions[i]
-            gx = min(gp['grid_x'], CANVAS_GRID_COLS - 1)
-            gy = min(gp['grid_y'], CANVAS_GRID_ROWS - 1)
+            gx = min(gp['grid_x'], _settings.CANVAS_GRID_COLS - 1)
+            gy = min(gp['grid_y'], _settings.CANVAS_GRID_ROWS - 1)
             comp.position = Vector2(
-                CANVAS_OFFSET_X + gx * GRID_SIZE + GRID_SIZE // 2,
-                CANVAS_OFFSET_Y + gy * GRID_SIZE + GRID_SIZE // 2)
+                _settings.CANVAS_OFFSET_X + gx * _settings.GRID_SIZE + _settings.GRID_SIZE // 2,
+                _settings.CANVAS_OFFSET_Y + gy * _settings.GRID_SIZE + _settings.GRID_SIZE // 2)
 
         # Rebuild UI panels
         self.grid = Grid()
@@ -212,11 +206,11 @@ class Game:
         
         # Log the new canvas configuration
         logger.debug("Canvas updated: %dx%d cells, grid %dpx, %s",
-                     CANVAS_GRID_COLS, CANVAS_GRID_ROWS, GRID_SIZE,
-                     "Fullscreen" if IS_FULLSCREEN else "Windowed")
-        self.right_panel.add_debug_message(f"Canvas: {CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} cells")
-        self.right_panel.add_debug_message(f"Grid: {GRID_SIZE}px")
-        self.right_panel.add_debug_message(f"Display: {'Fullscreen' if IS_FULLSCREEN else 'Windowed'}")
+                     _settings.CANVAS_GRID_COLS, _settings.CANVAS_GRID_ROWS, _settings.GRID_SIZE,
+                     "Fullscreen" if _settings.IS_FULLSCREEN else "Windowed")
+        self.right_panel.add_debug_message(f"Canvas: {_settings.CANVAS_GRID_COLS}×{_settings.CANVAS_GRID_ROWS} cells")
+        self.right_panel.add_debug_message(f"Grid: {_settings.GRID_SIZE}px")
+        self.right_panel.add_debug_message(f"Display: {'Fullscreen' if _settings.IS_FULLSCREEN else 'Windowed'}")
 
     def update_screen_references(self, new_screen, actual_screen=None):
         """Update all screen references when display mode changes."""
@@ -239,7 +233,7 @@ class Game:
             elif hasattr(new_screen, 'get_size'):
                 self.debug_display._actual_screen_size = new_screen.get_size()
             else:
-                self.debug_display._actual_screen_size = (WINDOW_WIDTH, WINDOW_HEIGHT)
+                self.debug_display._actual_screen_size = (_settings.WINDOW_WIDTH, _settings.WINDOW_HEIGHT)
         
         # Clear asset cache
         if hasattr(self, 'assets_loader'):
@@ -248,12 +242,12 @@ class Game:
     def get_canvas_info(self):
         """Get current canvas configuration info."""
         return {
-            'grid_cols': CANVAS_GRID_COLS,
-            'grid_rows': CANVAS_GRID_ROWS,
-            'canvas_width': CANVAS_WIDTH,
-            'canvas_height': CANVAS_HEIGHT,
-            'grid_size': GRID_SIZE,
-            'is_fullscreen': IS_FULLSCREEN
+            'grid_cols': _settings.CANVAS_GRID_COLS,
+            'grid_rows': _settings.CANVAS_GRID_ROWS,
+            'canvas_width': _settings.CANVAS_WIDTH,
+            'canvas_height': _settings.CANVAS_HEIGHT,
+            'grid_size': _settings.GRID_SIZE,
+            'is_fullscreen': _settings.IS_FULLSCREEN
         }
     
     def handle_event(self, event):
@@ -292,10 +286,10 @@ class Game:
             if drop_type:
                 if self._is_in_canvas(event.pos):
                     # Place component at grid position CENTER
-                    grid_x = round((event.pos[0] - CANVAS_OFFSET_X) / GRID_SIZE)
-                    grid_y = round((event.pos[1] - CANVAS_OFFSET_Y) / GRID_SIZE)
-                    x = CANVAS_OFFSET_X + grid_x * GRID_SIZE + GRID_SIZE // 2
-                    y = CANVAS_OFFSET_Y + grid_y * GRID_SIZE + GRID_SIZE // 2
+                    grid_x = round((event.pos[0] - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
+                    grid_y = round((event.pos[1] - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
+                    x = _settings.CANVAS_OFFSET_X + grid_x * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
+                    y = _settings.CANVAS_OFFSET_Y + grid_y * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
 
                     # Check placement validity
                     if drop_type != 'laser' and not self._dragging_component and not self._can_add_component():
@@ -410,8 +404,8 @@ class Game:
     
     def _is_in_canvas(self, pos):
         """Check if position is within game canvas."""
-        return (CANVAS_OFFSET_X <= pos[0] <= CANVAS_OFFSET_X + CANVAS_WIDTH and
-                CANVAS_OFFSET_Y <= pos[1] <= CANVAS_OFFSET_Y + CANVAS_HEIGHT)
+        return (_settings.CANVAS_OFFSET_X <= pos[0] <= _settings.CANVAS_OFFSET_X + _settings.CANVAS_WIDTH and
+                _settings.CANVAS_OFFSET_Y <= pos[1] <= _settings.CANVAS_OFFSET_Y + _settings.CANVAS_HEIGHT)
     
     def _can_add_component(self):
         """Check if we can add another component based on challenge limits."""
@@ -751,15 +745,15 @@ class Game:
 
         # Place laser
         lx, ly = setup['laser']
-        laser_x = CANVAS_OFFSET_X + lx * GRID_SIZE + GRID_SIZE // 2
-        laser_y = CANVAS_OFFSET_Y + ly * GRID_SIZE + GRID_SIZE // 2
+        laser_x = _settings.CANVAS_OFFSET_X + lx * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
+        laser_y = _settings.CANVAS_OFFSET_Y + ly * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
         self.laser.position = Vector2(laser_x, laser_y)
         self.laser.enabled = True
 
         # Place components
         for comp_type, gx, gy in setup['components']:
-            sx = CANVAS_OFFSET_X + gx * GRID_SIZE + GRID_SIZE // 2
-            sy = CANVAS_OFFSET_Y + gy * GRID_SIZE + GRID_SIZE // 2
+            sx = _settings.CANVAS_OFFSET_X + gx * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
+            sy = _settings.CANVAS_OFFSET_Y + gy * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
             self.component_manager.add_component(comp_type, sx, sy, self.laser)
 
         # Auto-enable quantum mode if setup requires it
@@ -903,7 +897,7 @@ class Game:
         self.right_panel.draw(self.screen)
         
         # Layer 3: Draw game area outline (no fill to not obscure grid elements)
-        canvas_rect = pygame.Rect(CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT)
+        canvas_rect = pygame.Rect(_settings.CANVAS_OFFSET_X, _settings.CANVAS_OFFSET_Y, _settings.CANVAS_WIDTH, _settings.CANVAS_HEIGHT)
         pygame.draw.rect(self.screen, PURPLE, canvas_rect, scale(2), border_radius=scale(15))
         
         # Layer 4: Draw game info above canvas
@@ -999,13 +993,13 @@ class Game:
         self.keyboard_handler.draw(self.screen)
         
         # Layer 19: Draw canvas info in fullscreen mode
-        if self.debug_display and IS_FULLSCREEN:
+        if self.debug_display and _settings.IS_FULLSCREEN:
             font = pygame.font.Font(None, scale_font(14))
-            info_text = f"Canvas: {CANVAS_GRID_COLS}×{CANVAS_GRID_ROWS} | Grid: {GRID_SIZE}px"
+            info_text = f"Canvas: {_settings.CANVAS_GRID_COLS}×{_settings.CANVAS_GRID_ROWS} | Grid: {_settings.GRID_SIZE}px"
             text_surface = font.render(info_text, True, WHITE)
             text_rect = text_surface.get_rect(
-                centerx=CANVAS_OFFSET_X + CANVAS_WIDTH // 2,
-                bottom=CANVAS_OFFSET_Y - scale(5)
+                centerx=_settings.CANVAS_OFFSET_X + _settings.CANVAS_WIDTH // 2,
+                bottom=_settings.CANVAS_OFFSET_Y - scale(5)
             )
             
             # Solid background for readability
@@ -1036,8 +1030,8 @@ class Game:
             # Prepare main text
             font = pygame.font.Font(None, scale_font(32))
             text = font.render(self.current_challenge_display_name, True, color)
-            text_rect = text.get_rect(centerx=CANVAS_OFFSET_X + CANVAS_WIDTH // 2,
-                                    y=CANVAS_OFFSET_Y - scale(65))
+            text_rect = text.get_rect(centerx=_settings.CANVAS_OFFSET_X + _settings.CANVAS_WIDTH // 2,
+                                    y=_settings.CANVAS_OFFSET_Y - scale(65))
             
             # Background rect
             bg_rect = text_rect.inflate(scale(40), scale(12))
@@ -1103,7 +1097,7 @@ class Game:
                 font = pygame.font.Font(None, 18)
                 text = font.render(text_str, True, GREEN)
             
-            text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - scale(20), y=scale(70))
+            text_rect = text.get_rect(right=_settings.CANVAS_OFFSET_X + _settings.CANVAS_WIDTH - scale(20), y=scale(70))
             
             # Draw solid background - dark gray
             bg_rect = text_rect.inflate(scale(10), scale(4))
@@ -1115,7 +1109,7 @@ class Game:
     
     def _draw_game_info_top(self):
         """Draw detector power above the canvas."""
-        info_y = CANVAS_OFFSET_Y - scale(35)
+        info_y = _settings.CANVAS_OFFSET_Y - scale(35)
         
         # Calculate total detector power
         detectors = [c for c in self.component_manager.components
@@ -1129,7 +1123,7 @@ class Game:
             font = pygame.font.Font(None, scale_font(20))
             text = font.render(f"Detector Power: {total_power:.2f} = {detector_score} pts",
                              True, CYAN)
-            text_rect = text.get_rect(left=CANVAS_OFFSET_X + scale(20), centery=info_y)
+            text_rect = text.get_rect(left=_settings.CANVAS_OFFSET_X + scale(20), centery=info_y)
             
             # Draw solid background
             bg_rect = text_rect.inflate(scale(20), scale(8))
@@ -1211,8 +1205,8 @@ class Game:
                 font = pygame.font.Font(None, 16)
                 text = font.render(text_str, True, GREEN)
             
-            text_rect = text.get_rect(right=CANVAS_OFFSET_X + CANVAS_WIDTH - scale(20),
-                                     y=CANVAS_OFFSET_Y + CANVAS_HEIGHT - scale(15))
+            text_rect = text.get_rect(right=_settings.CANVAS_OFFSET_X + _settings.CANVAS_WIDTH - scale(20),
+                                     y=_settings.CANVAS_OFFSET_Y + _settings.CANVAS_HEIGHT - scale(15))
             
             # Draw solid background - dark gray
             bg_rect = text_rect.inflate(scale(10), scale(4))
@@ -1228,8 +1222,8 @@ class Game:
         n_ph = self.packet_engine.photons_per_pulse
         label = "QUANTUM" if n_ph == 1 else f"QUANTUM  {n_ph}-photon"
         text = font.render(label, True, (180, 100, 255))
-        text_rect = text.get_rect(left=CANVAS_OFFSET_X + scale(10),
-                                  y=CANVAS_OFFSET_Y + scale(10))
+        text_rect = text.get_rect(left=_settings.CANVAS_OFFSET_X + scale(10),
+                                  y=_settings.CANVAS_OFFSET_Y + scale(10))
         bg_rect = text_rect.inflate(scale(14), scale(8))
         pygame.draw.rect(self.screen, (20, 5, 40), bg_rect, border_radius=scale(6))
         pygame.draw.rect(self.screen, (180, 100, 255), bg_rect, scale(2), border_radius=scale(6))
