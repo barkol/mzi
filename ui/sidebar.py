@@ -12,7 +12,8 @@ class Sidebar:
     def __init__(self, sound_manager=None):
         self.sound_manager = sound_manager
         self.components = [
-            {'type': 'laser', 'name': 'Laser Source', 'desc': 'Move the laser'},
+            {'type': 'laser', 'name': 'Laser \u2192', 'desc': 'Move the laser'},
+            {'type': 'laser_down', 'name': 'Laser \u2193', 'desc': 'Laser emitting down'},
             {'type': 'beamsplitter', 'name': 'Beam Splitter', 'desc': '50/50 split'},
             {'type': 'mirror/', 'name': 'Mirror /', 'desc': 'Diagonal reflection'},
             {'type': 'mirror\\', 'name': 'Mirror \\', 'desc': 'Diagonal reflection'},
@@ -169,8 +170,9 @@ class Sidebar:
             # Card rectangle
             card_rect = self._get_component_rect(i)
             
-            # Check if component can be added (laser always allowed)
-            can_add = comp['type'] == 'laser' or self._can_add_component()
+            # Check if component can be added (primary laser always allowed)
+            is_primary_laser = comp['type'] == 'laser'
+            can_add = is_primary_laser or self._can_add_component()
             
             # Draw card background
             card_color = PURPLE if can_add else (50, 50, 50)
@@ -201,12 +203,12 @@ class Sidebar:
             # Component icon - larger in fullscreen
             icon_offset = scale(40) if IS_FULLSCREEN else scale(35)
             icon_center = (card_rect.x + icon_offset, card_rect.centery)
-            icon_color = (100, 100, 100) if not can_add and comp['type'] != 'laser' else None
+            icon_color = (100, 100, 100) if not can_add and not is_primary_laser else None
             self._draw_component_icon(screen, comp['type'], icon_center, icon_color)
             
             # Text
-            text_color = (150, 150, 150) if not can_add and comp['type'] != 'laser' else WHITE
-            desc_color = (100, 100, 100) if not can_add and comp['type'] != 'laser' else (200, 200, 200)
+            text_color = (150, 150, 150) if not can_add and not is_primary_laser else WHITE
+            desc_color = (100, 100, 100) if not can_add and not is_primary_laser else (200, 200, 200)
             
             name = font_name.render(comp['name'], True, text_color)
             desc = font_desc.render(comp['desc'], True, desc_color)
@@ -219,7 +221,7 @@ class Sidebar:
             screen.blit(desc, (name_x, card_rect.y + scale(45)))
             
             # Show "LIMIT" for disabled components
-            if not can_add and comp['type'] != 'laser':
+            if not can_add and not is_primary_laser:
                 limit_font = pygame.font.Font(None, scale_font(12))
                 limit_text = limit_font.render("LIMIT", True, (255, 100, 100))
                 limit_rect = limit_text.get_rect(right=card_rect.right - scale(5), 
@@ -233,21 +235,23 @@ class Sidebar:
         # Scale icons up in fullscreen
         icon_scale = 1.2 if IS_FULLSCREEN else 1.0
         
-        if comp_type == 'laser':
-            # Laser icon - circle with rays
+        if comp_type == 'laser' or comp_type.startswith('laser_'):
+            # Laser icon - circle with direction arrow
             radius = scale(int(15 * icon_scale))
-            pygame.draw.circle(screen, CYAN, center, radius)
-            pygame.draw.circle(screen, CYAN, center, radius, scale(2))
-            # Inner bright spot
+            pygame.draw.circle(screen, color, center, radius)
+            pygame.draw.circle(screen, color, center, radius, scale(2))
             pygame.draw.circle(screen, WHITE, center, scale(int(5 * icon_scale)))
-            # Rays
-            for angle in range(0, 360, 45):
-                rad = math.radians(angle)
-                start_x = center[0] + radius * math.cos(rad)
-                start_y = center[1] + radius * math.sin(rad)
-                end_x = center[0] + scale(int(22 * icon_scale)) * math.cos(rad)
-                end_y = center[1] + scale(int(22 * icon_scale)) * math.sin(rad)
-                pygame.draw.line(screen, CYAN, (start_x, start_y), (end_x, end_y), scale(2))
+            # Direction arrow
+            d = comp_type.split('_')[1] if '_' in comp_type else 'right'
+            arr_start = radius + scale(3)
+            arr_end = radius + scale(12)
+            asz = scale(4)
+            if d == 'right':
+                pygame.draw.line(screen, color, (center[0]+arr_start, center[1]),
+                                 (center[0]+arr_end, center[1]), scale(2))
+            elif d == 'down':
+                pygame.draw.line(screen, color, (center[0], center[1]+arr_start),
+                                 (center[0], center[1]+arr_end), scale(2))
         elif comp_type == 'beamsplitter':
             size = scale(int(35 * icon_scale))
             half_size = size // 2
