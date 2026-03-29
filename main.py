@@ -10,10 +10,10 @@ import pygame
 import sys
 import platform
 from core.game import Game
+import config.settings as _settings
 from config.settings import (
-    DESIGN_WIDTH, DESIGN_HEIGHT, update_scaled_values, FPS,
-    WINDOW_WIDTH, WINDOW_HEIGHT, CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
-    CANVAS_WIDTH, CANVAS_HEIGHT, get_sidebar_width, get_right_panel_width,
+    DESIGN_WIDTH, DESIGN_HEIGHT, update_scaled_values,
+    get_sidebar_width, get_right_panel_width,
     get_control_panel_height, scale,
 )
 
@@ -97,7 +97,7 @@ def main():
     # Game loop
     running = True
     while running:
-        dt = clock.tick(FPS) / 1000.0
+        dt = clock.tick(_settings.FPS) / 1000.0
         
         # Handle events
         events = pygame.event.get()
@@ -111,8 +111,11 @@ def main():
                     info = pygame.display.Info()
                     scale_factor = min(1.0, min(info.current_w / DESIGN_WIDTH,
                                               info.current_h / DESIGN_HEIGHT) * 0.9)
-                    update_scaled_values(scale_factor, fullscreen=False)
-                    screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.RESIZABLE)
+                    win_w = int(DESIGN_WIDTH * scale_factor)
+                    win_h = int(DESIGN_HEIGHT * scale_factor)
+                    update_scaled_values(scale_factor, window_width=win_w,
+                                         window_height=win_h, fullscreen=False)
+                    screen = pygame.display.set_mode((win_w, win_h), pygame.RESIZABLE)
                     game.update_scale(scale_factor)
                     game.update_screen_references(screen, screen)
                     logger.info("Switched to windowed mode")
@@ -137,19 +140,12 @@ def main():
                     game.update_scale(scale_factor)
                     game.update_screen_references(screen, actual_screen)
                     
-                    # Force UI layout update for fullscreen
-                    from config.settings import (
-                        WINDOW_WIDTH, WINDOW_HEIGHT, CANVAS_OFFSET_X, CANVAS_OFFSET_Y,
-                        CANVAS_WIDTH, CANVAS_HEIGHT, get_sidebar_width, get_right_panel_width,
-                        get_control_panel_height, scale
-                    )
-                    
                     # Manual UI component updates if needed
                     if hasattr(game, 'update_layout'):
                         game.update_layout()
                     
                     logger.info("Switched to fullscreen, scale: %.2f, canvas: %dx%d at (%d,%d)",
-                               scale_factor, CANVAS_WIDTH, CANVAS_HEIGHT, CANVAS_OFFSET_X, CANVAS_OFFSET_Y)
+                               scale_factor, _settings.CANVAS_WIDTH, _settings.CANVAS_HEIGHT, _settings.CANVAS_OFFSET_X, _settings.CANVAS_OFFSET_Y)
                     continue
             elif event.type == pygame.VIDEORESIZE and not is_fullscreen:
                 # Handle window resize — pass actual window size
