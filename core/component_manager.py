@@ -6,7 +6,7 @@ from components.mirror import Mirror
 from components.flat_mirror import FlatMirror
 from components.detector import Detector
 from utils.vector import Vector2
-from config.settings import GRID_SIZE, CANVAS_OFFSET_X, CANVAS_OFFSET_Y
+import config.settings as _settings
 
 logger = logging.getLogger(__name__)
 
@@ -25,12 +25,12 @@ class ComponentManager:
         logger.debug("Adding component: %s at (%d, %d)", comp_type, x, y)
         
         # Calculate grid position from screen coordinates
-        grid_x = round((x - CANVAS_OFFSET_X) / GRID_SIZE)
-        grid_y = round((y - CANVAS_OFFSET_Y) / GRID_SIZE)
+        grid_x = round((x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
+        grid_y = round((y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
         
         # Ensure the component is centered in the grid cell
-        centered_x = CANVAS_OFFSET_X + grid_x * GRID_SIZE + GRID_SIZE // 2
-        centered_y = CANVAS_OFFSET_Y + grid_y * GRID_SIZE + GRID_SIZE // 2
+        centered_x = _settings.CANVAS_OFFSET_X + grid_x * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
+        centered_y = _settings.CANVAS_OFFSET_Y + grid_y * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
         
         logger.debug("Grid position: (%d, %d) -> centered: (%d, %d)", grid_x, grid_y, centered_x, centered_y)
         
@@ -131,12 +131,12 @@ class ComponentManager:
         if dragging_laser and laser:
             # Skip laser position check when moving laser
             pass
-        elif laser and laser.position.distance_to(Vector2(x, y)) < GRID_SIZE:
+        elif laser and laser.position.distance_to(Vector2(x, y)) < _settings.GRID_SIZE:
             return True
         
         # Check components
         for comp in self.components:
-            if comp.position.distance_to(Vector2(x, y)) < GRID_SIZE:
+            if comp.position.distance_to(Vector2(x, y)) < _settings.GRID_SIZE:
                 return True
         
         return False
@@ -155,8 +155,8 @@ class ComponentManager:
             # Calculate centered position for default laser location
             default_grid_x = 1
             default_grid_y = 7
-            centered_x = CANVAS_OFFSET_X + default_grid_x * GRID_SIZE + GRID_SIZE // 2
-            centered_y = CANVAS_OFFSET_Y + default_grid_y * GRID_SIZE + GRID_SIZE // 2
+            centered_x = _settings.CANVAS_OFFSET_X + default_grid_x * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
+            centered_y = _settings.CANVAS_OFFSET_Y + default_grid_y * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
             laser.position = Vector2(centered_x, centered_y)
         
         # Play clear sound
@@ -189,12 +189,12 @@ class ComponentManager:
     def update_component_positions(self):
         """Update all component positions based on their grid positions and current scale."""
         logger.debug("Updating %d component positions (offset: %d,%d, grid: %d)",
-                     len(self.components), CANVAS_OFFSET_X, CANVAS_OFFSET_Y, GRID_SIZE)
+                     len(self.components), _settings.CANVAS_OFFSET_X, _settings.CANVAS_OFFSET_Y, _settings.GRID_SIZE)
         
         for i, (comp, grid_pos) in enumerate(zip(self.components, self.component_grid_positions)):
             # Calculate new screen position from grid position (centered in cell)
-            new_x = CANVAS_OFFSET_X + grid_pos['grid_x'] * GRID_SIZE + GRID_SIZE // 2
-            new_y = CANVAS_OFFSET_Y + grid_pos['grid_y'] * GRID_SIZE + GRID_SIZE // 2
+            new_x = _settings.CANVAS_OFFSET_X + grid_pos['grid_x'] * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
+            new_y = _settings.CANVAS_OFFSET_Y + grid_pos['grid_y'] * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
             
             old_pos = comp.position.tuple()
             comp.position = Vector2(new_x, new_y)

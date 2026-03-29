@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from utils.vector import Vector2
-from config.settings import CANVAS_OFFSET_X, CANVAS_OFFSET_Y, GRID_SIZE
+import config.settings as _settings
 
 logger = logging.getLogger(__name__)
 
@@ -240,8 +240,8 @@ class ChallengeManager:
                                 x = int(parts[0])
                                 y = int(parts[1])
                                 # Convert grid coordinates to screen coordinates - CENTER in grid cell
-                                screen_x = CANVAS_OFFSET_X + x * GRID_SIZE + GRID_SIZE // 2
-                                screen_y = CANVAS_OFFSET_Y + y * GRID_SIZE + GRID_SIZE // 2
+                                screen_x = _settings.CANVAS_OFFSET_X + x * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
+                                screen_y = _settings.CANVAS_OFFSET_Y + y * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
                                 new_pos = Vector2(screen_x, screen_y)
                                 
                                 # Check if this position is already a gold field
@@ -285,8 +285,8 @@ class ChallengeManager:
                                 x = int(parts[0])
                                 y = int(parts[1])
                                 # Convert grid coordinates to screen coordinates - CENTER in grid cell
-                                screen_x = CANVAS_OFFSET_X + x * GRID_SIZE + GRID_SIZE // 2
-                                screen_y = CANVAS_OFFSET_Y + y * GRID_SIZE + GRID_SIZE // 2
+                                screen_x = _settings.CANVAS_OFFSET_X + x * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
+                                screen_y = _settings.CANVAS_OFFSET_Y + y * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
                                 new_pos = Vector2(screen_x, screen_y)
                                 
                                 # Check if this position is already blocked
@@ -489,7 +489,7 @@ class ChallengeManager:
         """Check if a position is blocked."""
         test_pos = Vector2(x, y)
         for blocked_pos in self.blocked_positions:
-            if blocked_pos.distance_to(test_pos) < GRID_SIZE / 2:
+            if blocked_pos.distance_to(test_pos) < _settings.GRID_SIZE / 2:
                 return True
         return False
     
@@ -497,7 +497,7 @@ class ChallengeManager:
         """Check if a position is a gold field."""
         test_pos = Vector2(x, y)
         for gold_pos in self.gold_positions:
-            if gold_pos.distance_to(test_pos) < GRID_SIZE / 2:
+            if gold_pos.distance_to(test_pos) < _settings.GRID_SIZE / 2:
                 return True
         return False
     
@@ -696,12 +696,12 @@ class ChallengeManager:
         
         for gold_pos in self.gold_positions:
             for blocked_pos in self.blocked_positions:
-                if gold_pos.distance_to(blocked_pos) < GRID_SIZE / 2:
+                if gold_pos.distance_to(blocked_pos) < _settings.GRID_SIZE / 2:
                     # Convert back to grid coordinates for reporting
-                    gold_grid_x = round((gold_pos.x - CANVAS_OFFSET_X - GRID_SIZE // 2) / GRID_SIZE)
-                    gold_grid_y = round((gold_pos.y - CANVAS_OFFSET_Y - GRID_SIZE // 2) / GRID_SIZE)
-                    blocked_grid_x = round((blocked_pos.x - CANVAS_OFFSET_X - GRID_SIZE // 2) / GRID_SIZE)
-                    blocked_grid_y = round((blocked_pos.y - CANVAS_OFFSET_Y - GRID_SIZE // 2) / GRID_SIZE)
+                    gold_grid_x = round((gold_pos.x - _settings.CANVAS_OFFSET_X - _settings.GRID_SIZE // 2) / _settings.GRID_SIZE)
+                    gold_grid_y = round((gold_pos.y - _settings.CANVAS_OFFSET_Y - _settings.GRID_SIZE // 2) / _settings.GRID_SIZE)
+                    blocked_grid_x = round((blocked_pos.x - _settings.CANVAS_OFFSET_X - _settings.GRID_SIZE // 2) / _settings.GRID_SIZE)
+                    blocked_grid_y = round((blocked_pos.y - _settings.CANVAS_OFFSET_Y - _settings.GRID_SIZE // 2) / _settings.GRID_SIZE)
                     
                     conflicts.append({
                         'gold': (gold_grid_x, gold_grid_y),

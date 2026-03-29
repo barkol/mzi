@@ -10,7 +10,8 @@ from typing import List, Dict, Tuple, Optional
 import math
 import cmath
 from utils.vector import Vector2
-from config.settings import WAVELENGTH, GRID_SIZE, CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_WIDTH, CANVAS_HEIGHT
+import config.settings as _settings
+from config.settings import WAVELENGTH
 
 logger = logging.getLogger(__name__)
 
@@ -228,7 +229,7 @@ class WaveOpticsEngine:
             # Laser has 4 grid-aligned ports (same layout as BS / mirror)
             # so that retroinjected beams can pass through to a detector
             # placed behind the laser.  Emission happens from port C (right).
-            offset_dist = GRID_SIZE // 2
+            offset_dist = _settings.GRID_SIZE // 2
 
             center_x = component.position.x
             center_y = component.position.y
@@ -251,7 +252,7 @@ class WaveOpticsEngine:
         elif component.component_type in ["beamsplitter", "mirror", "tunable_beamsplitter", "partial_mirror", "flat_mirror"]:
             # These components have 4 ports at grid edges
             # Component is centered on grid, ports should be at half-grid distance
-            offset_dist = GRID_SIZE // 2  # Half grid size to reach edge of grid cell
+            offset_dist = _settings.GRID_SIZE // 2  # Half grid size to reach edge of grid cell
             
             # Use the component's actual position (should already be grid-aligned)
             center_x = component.position.x
@@ -275,7 +276,7 @@ class WaveOpticsEngine:
                 
         elif component.component_type == "detector":
             # Detector has 4 input ports at edges
-            offset_dist = GRID_SIZE // 2  # Half grid size for consistency
+            offset_dist = _settings.GRID_SIZE // 2  # Half grid size for consistency
             
             # Use the component's actual position
             center_x = component.position.x
@@ -403,9 +404,9 @@ class WaveOpticsEngine:
         dy = abs(port1.component.position.y - port2.component.position.y)
         
         # Check if components are grid-aligned (same row or column)
-        if dx < GRID_SIZE / 2:  # Same column
+        if dx < _settings.GRID_SIZE / 2:  # Same column
             priority -= 100
-        elif dy < GRID_SIZE / 2:  # Same row
+        elif dy < _settings.GRID_SIZE / 2:  # Same row
             priority -= 100
         
         # Deprioritize same-type connections (except laser->laser or detector->detector)
@@ -415,7 +416,7 @@ class WaveOpticsEngine:
         
         # Prioritize shorter connections
         distance = port1.component.position.distance_to(port2.component.position)
-        priority += int(distance / GRID_SIZE)  # Add penalty based on grid distance
+        priority += int(distance / _settings.GRID_SIZE)  # Add penalty based on grid distance
         
         return priority
     
@@ -453,20 +454,20 @@ class WaveOpticsEngine:
             distance += step_size
             
             # Get the grid cell this position is in
-            grid_x = round((next_pos.x - CANVAS_OFFSET_X) / GRID_SIZE)
-            grid_y = round((next_pos.y - CANVAS_OFFSET_Y) / GRID_SIZE)
+            grid_x = round((next_pos.x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
+            grid_y = round((next_pos.y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
             grid_cell = (grid_x, grid_y)
             
             # Check if this grid cell is blocked
             for blocked_pos in self.blocked_positions:
-                blocked_grid_x = round((blocked_pos.x - CANVAS_OFFSET_X) / GRID_SIZE)
-                blocked_grid_y = round((blocked_pos.y - CANVAS_OFFSET_Y) / GRID_SIZE)
+                blocked_grid_x = round((blocked_pos.x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
+                blocked_grid_y = round((blocked_pos.y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
                 
                 if (grid_x, grid_y) == (blocked_grid_x, blocked_grid_y):
                     # Beam hit a blocked field - end path here
                     # Use the center of the blocked grid cell
-                    blocked_center_x = CANVAS_OFFSET_X + blocked_grid_x * GRID_SIZE + GRID_SIZE // 2
-                    blocked_center_y = CANVAS_OFFSET_Y + blocked_grid_y * GRID_SIZE + GRID_SIZE // 2
+                    blocked_center_x = _settings.CANVAS_OFFSET_X + blocked_grid_x * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
+                    blocked_center_y = _settings.CANVAS_OFFSET_Y + blocked_grid_y * _settings.GRID_SIZE + _settings.GRID_SIZE // 2
                     blocked_center = Vector2(blocked_center_x, blocked_center_y)
                     path.append(blocked_center)
                     if self.debug:
@@ -474,10 +475,10 @@ class WaveOpticsEngine:
                     return None, path, distance, True
             
             # Check bounds
-            if (next_pos.x < CANVAS_OFFSET_X - GRID_SIZE or
-                next_pos.x > CANVAS_OFFSET_X + CANVAS_WIDTH + GRID_SIZE or
-                next_pos.y < CANVAS_OFFSET_Y - GRID_SIZE or
-                next_pos.y > CANVAS_OFFSET_Y + CANVAS_HEIGHT + GRID_SIZE):
+            if (next_pos.x < _settings.CANVAS_OFFSET_X - _settings.GRID_SIZE or
+                next_pos.x > _settings.CANVAS_OFFSET_X + _settings.CANVAS_WIDTH + _settings.GRID_SIZE or
+                next_pos.y < _settings.CANVAS_OFFSET_Y - _settings.GRID_SIZE or
+                next_pos.y > _settings.CANVAS_OFFSET_Y + _settings.CANVAS_HEIGHT + _settings.GRID_SIZE):
                 edge_pos = self._calculate_edge_intersection(current_pos, next_pos)
                 if edge_pos:
                     path.append(edge_pos)
@@ -496,10 +497,10 @@ class WaveOpticsEngine:
                 grid_distance = dx + dy
                 
                 # Check if we're in the same grid cell as the component
-                comp_grid_x = round((comp.position.x - CANVAS_OFFSET_X) / GRID_SIZE)
-                comp_grid_y = round((comp.position.y - CANVAS_OFFSET_Y) / GRID_SIZE)
-                beam_grid_x = round((next_pos.x - CANVAS_OFFSET_X) / GRID_SIZE)
-                beam_grid_y = round((next_pos.y - CANVAS_OFFSET_Y) / GRID_SIZE)
+                comp_grid_x = round((comp.position.x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
+                comp_grid_y = round((comp.position.y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
+                beam_grid_x = round((next_pos.x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
+                beam_grid_y = round((next_pos.y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
                 
                 # Component is hit if beam is in same grid cell
                 if comp_grid_x == beam_grid_x and comp_grid_y == beam_grid_y:
@@ -537,10 +538,10 @@ class WaveOpticsEngine:
     
     def _calculate_edge_intersection(self, start, end):
         """Calculate intersection with canvas edge - GRID ALIGNED."""
-        x_min = CANVAS_OFFSET_X
-        x_max = CANVAS_OFFSET_X + CANVAS_WIDTH
-        y_min = CANVAS_OFFSET_Y
-        y_max = CANVAS_OFFSET_Y + CANVAS_HEIGHT
+        x_min = _settings.CANVAS_OFFSET_X
+        x_max = _settings.CANVAS_OFFSET_X + _settings.CANVAS_WIDTH
+        y_min = _settings.CANVAS_OFFSET_Y
+        y_max = _settings.CANVAS_OFFSET_Y + _settings.CANVAS_HEIGHT
         
         # Get direction
         direction = end - start
@@ -806,9 +807,9 @@ class WaveOpticsEngine:
                     
                     # Check each gold position
                     for gold_pos in self.gold_positions:
-                        if gold_pos.distance_to(point) < GRID_SIZE / 2:
-                            grid_x = round((gold_pos.x - CANVAS_OFFSET_X) / GRID_SIZE)
-                            grid_y = round((gold_pos.y - CANVAS_OFFSET_Y) / GRID_SIZE)
+                        if gold_pos.distance_to(point) < _settings.GRID_SIZE / 2:
+                            grid_x = round((gold_pos.x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
+                            grid_y = round((gold_pos.y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
                             gold_key = (grid_x, grid_y)
                             
                             # Track for this frame (for sound effects)
@@ -1045,22 +1046,22 @@ class WaveOpticsEngine:
             path_length += step_size
             
             # Check if we're in a blocked grid cell
-            grid_x = round((next_pos.x - CANVAS_OFFSET_X) / GRID_SIZE)
-            grid_y = round((next_pos.y - CANVAS_OFFSET_Y) / GRID_SIZE)
+            grid_x = round((next_pos.x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
+            grid_y = round((next_pos.y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
             
             for blocked_pos in self.blocked_positions:
-                blocked_grid_x = round((blocked_pos.x - CANVAS_OFFSET_X) / GRID_SIZE)
-                blocked_grid_y = round((blocked_pos.y - CANVAS_OFFSET_Y) / GRID_SIZE)
+                blocked_grid_x = round((blocked_pos.x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
+                blocked_grid_y = round((blocked_pos.y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
                 
                 if (grid_x, grid_y) == (blocked_grid_x, blocked_grid_y):
                     # Beam hit a blocked field
                     return None, blocked_pos, path_length, True
             
             # Check bounds
-            if (next_pos.x < CANVAS_OFFSET_X - GRID_SIZE or
-                next_pos.x > CANVAS_OFFSET_X + CANVAS_WIDTH + GRID_SIZE or
-                next_pos.y < CANVAS_OFFSET_Y - GRID_SIZE or
-                next_pos.y > CANVAS_OFFSET_Y + CANVAS_HEIGHT + GRID_SIZE):
+            if (next_pos.x < _settings.CANVAS_OFFSET_X - _settings.GRID_SIZE or
+                next_pos.x > _settings.CANVAS_OFFSET_X + _settings.CANVAS_WIDTH + _settings.GRID_SIZE or
+                next_pos.y < _settings.CANVAS_OFFSET_Y - _settings.GRID_SIZE or
+                next_pos.y > _settings.CANVAS_OFFSET_Y + _settings.CANVAS_HEIGHT + _settings.GRID_SIZE):
                 return None, next_pos, path_length, False
             
             # Check components
@@ -1070,10 +1071,10 @@ class WaveOpticsEngine:
                 
                 # Use appropriate collision radius based on component type
                 if comp.component_type == "detector":
-                    comp_radius = getattr(comp, 'radius', GRID_SIZE // 2)
+                    comp_radius = getattr(comp, 'radius', _settings.GRID_SIZE // 2)
                 else:
                     # For optical components, use radius that accounts for port positions
-                    comp_radius = GRID_SIZE // 2 + 5  # Ports are at GRID_SIZE//2 from center
+                    comp_radius = _settings.GRID_SIZE // 2 + 5  # Ports are at _settings.GRID_SIZE//2 from center
                 
                 if comp.position.distance_to(next_pos) < comp_radius:
                     return comp, comp.position, path_length, False
@@ -1090,10 +1091,10 @@ class WaveOpticsEngine:
         while True:
             next_pos = current_pos + direction * step_size
             
-            if (next_pos.x < CANVAS_OFFSET_X or
-                next_pos.x > CANVAS_OFFSET_X + CANVAS_WIDTH or
-                next_pos.y < CANVAS_OFFSET_Y or
-                next_pos.y > CANVAS_OFFSET_Y + CANVAS_HEIGHT):
+            if (next_pos.x < _settings.CANVAS_OFFSET_X or
+                next_pos.x > _settings.CANVAS_OFFSET_X + _settings.CANVAS_WIDTH or
+                next_pos.y < _settings.CANVAS_OFFSET_Y or
+                next_pos.y > _settings.CANVAS_OFFSET_Y + _settings.CANVAS_HEIGHT):
                 return current_pos
             
             current_pos = next_pos

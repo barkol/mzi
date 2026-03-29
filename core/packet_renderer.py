@@ -5,7 +5,8 @@ import cmath
 import time
 import pygame
 from typing import List, Dict, Optional, Tuple
-from config.settings import BEAM_WIDTH, CYAN, WHITE, GOLD, scale, scale_font, GRID_SIZE
+import config.settings as _settings
+from config.settings import CYAN, WHITE, GOLD, scale, scale_font
 from core.quantum_packet import (
     QuantumPacketEngine, PacketFamily, QuantumPacket,
     PacketState,
@@ -100,7 +101,7 @@ class PacketRenderer:
                 p1 = path[i].tuple() if hasattr(path[i], 'tuple') else path[i]
                 p2 = path[i+1].tuple() if hasattr(path[i+1], 'tuple') else path[i+1]
                 # Use a surface with alpha
-                self._draw_alpha_line(p1, p2, color, max(1, BEAM_WIDTH // 2))
+                self._draw_alpha_line(p1, p2, color, max(1, _settings.BEAM_WIDTH // 2))
 
     def _draw_alpha_line(self, p1, p2, color, width):
         """Draw a line with per-pixel alpha."""
@@ -196,7 +197,7 @@ class PacketRenderer:
         wave_osc = 0.75 + 0.25 * math.sin(t * 8.0 + pkt.id * 0.7)
         color = self._phase_to_color(phase, brightness=wave_osc)
 
-        width = max(2, int(BEAM_WIDTH * amp * 1.2))
+        width = max(2, int(_settings.BEAM_WIDTH * amp * 1.2))
 
         hx, hy = int(head.x), int(head.y)
         tx, ty = int(tail.x), int(tail.y)
@@ -262,7 +263,7 @@ class PacketRenderer:
             base_alpha = min(220, base_alpha + 60)
 
         n = len(all_points)
-        width = max(1, BEAM_WIDTH // 2)
+        width = max(1, _settings.BEAM_WIDTH // 2)
 
         # Draw segments with fading alpha from tail to head
         for i in range(n - 1):
@@ -344,7 +345,7 @@ class PacketRenderer:
             return
 
         n = len(all_points)
-        width = max(1, BEAM_WIDTH // 2)
+        width = max(1, _settings.BEAM_WIDTH // 2)
 
         flash_end = 0.08  # first 80ms is white flash
 

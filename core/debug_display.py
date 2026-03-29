@@ -2,7 +2,8 @@
 import logging
 import pygame
 import math
-from config.settings import CYAN, WHITE, GREEN, CANVAS_OFFSET_X, CANVAS_OFFSET_Y, CANVAS_HEIGHT, CANVAS_WIDTH, WAVELENGTH, GRID_SIZE, IDEAL_COMPONENTS, scale, scale_font
+import config.settings as _settings
+from config.settings import CYAN, WHITE, GREEN, WAVELENGTH, IDEAL_COMPONENTS, scale, scale_font
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +52,10 @@ class DebugDisplay:
         
         # Draw info box
         font = pygame.font.Font(None, scale_font(18))
-        info_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT - scale(120)
+        info_y = _settings.CANVAS_OFFSET_Y + _settings.CANVAS_HEIGHT - scale(120)
         
         # Background
-        bg_rect = pygame.Rect(CANVAS_OFFSET_X + scale(10), info_y, scale(360), scale(110))
+        bg_rect = pygame.Rect(_settings.CANVAS_OFFSET_X + scale(10), info_y, scale(360), scale(110))
         s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
         s.fill((20, 20, 20, 220))  # Darker background
         pygame.draw.rect(s, CYAN, s.get_rect(), scale(2))  # Thicker border
@@ -95,10 +96,10 @@ class DebugDisplay:
             
             # Draw info box
             font = pygame.font.Font(None, scale_font(18))
-            info_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT - scale(60)
+            info_y = _settings.CANVAS_OFFSET_Y + _settings.CANVAS_HEIGHT - scale(60)
             
             # Background
-            bg_rect = pygame.Rect(CANVAS_OFFSET_X + scale(10), info_y, scale(280), scale(50))
+            bg_rect = pygame.Rect(_settings.CANVAS_OFFSET_X + scale(10), info_y, scale(280), scale(50))
             s = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
             s.fill((20, 20, 20, 220))  # Darker background
             pygame.draw.rect(s, CYAN, s.get_rect(), scale(2))  # Thicker border
@@ -113,10 +114,10 @@ class DebugDisplay:
         else:
             # Show hint if no interference yet
             font = pygame.font.Font(None, scale_font(16))
-            hint_text = f"Tip: Create asymmetric paths for non-zero OPD (λ={WAVELENGTH}px ≠ grid={GRID_SIZE}px)"
+            hint_text = f"Tip: Create asymmetric paths for non-zero OPD (λ={WAVELENGTH}px ≠ grid={_settings.GRID_SIZE}px)"
             hint = font.render(hint_text, True, WHITE)
-            hint_rect = hint.get_rect(center=(CANVAS_OFFSET_X + CANVAS_WIDTH // 2,
-                                             CANVAS_OFFSET_Y + CANVAS_HEIGHT - scale(20)))
+            hint_rect = hint.get_rect(center=(_settings.CANVAS_OFFSET_X + _settings.CANVAS_WIDTH // 2,
+                                             _settings.CANVAS_OFFSET_Y + _settings.CANVAS_HEIGHT - scale(20)))
             
             # Background for hint
             bg_rect = hint_rect.inflate(scale(20), scale(10))
@@ -141,8 +142,7 @@ class DebugDisplay:
                     screen_size = self.screen.get_size()
                 else:
                     # Fallback to window settings if screen is invalid
-                    from config.settings import WINDOW_WIDTH, WINDOW_HEIGHT
-                    screen_size = (WINDOW_WIDTH, WINDOW_HEIGHT)
+                    screen_size = (_settings.WINDOW_WIDTH, _settings.WINDOW_HEIGHT)
                 
                 banner = self.assets_loader.get_banner(screen_size)
                 # Draw at (0, 0) to fill entire window
@@ -155,8 +155,8 @@ class DebugDisplay:
     def draw_info_text(self):
         """Draw small info text in bottom right with scaling."""
         # Show if using ideal components
-        info_y = CANVAS_OFFSET_Y + CANVAS_HEIGHT - scale(45)
-        info_x = CANVAS_OFFSET_X + CANVAS_WIDTH - scale(20)
+        info_y = _settings.CANVAS_OFFSET_Y + _settings.CANVAS_HEIGHT - scale(45)
+        info_x = _settings.CANVAS_OFFSET_X + _settings.CANVAS_WIDTH - scale(20)
         
         if IDEAL_COMPONENTS:
             ideal_font = pygame.font.Font(None, scale_font(14))
