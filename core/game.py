@@ -366,6 +366,9 @@ class Game:
                 if hasattr(self.controls, 'set_gold_bonus'):
                     self.controls.set_gold_bonus(0)
                 self.last_gold_hits.clear()
+                # Clear quantum packets
+                if self.quantum_mode:
+                    self.packet_engine.reset()
                 
                 # Reset completed challenges with Shift
                 if pygame.key.get_mods() & pygame.KMOD_SHIFT:
@@ -531,8 +534,10 @@ class Game:
                     
                     logger.debug("Switching fields from '%s' to '%s'", current_config, next_config['name'])
                     
-                    # Clear components before loading new field configuration
+                    # Clear components and quantum packets before loading new field configuration
                     self.component_manager.clear_all(self.laser)
+                    if self.quantum_mode:
+                        self.packet_engine.reset()
                     
                     # Load the new field configuration
                     success = self.challenge_manager.load_field_config(next_config['name'])
@@ -647,6 +652,8 @@ class Game:
 
         # Clear everything
         self.component_manager.clear_all(self.laser)
+        if self.quantum_mode:
+            self.packet_engine.reset()
         self.score = 0
         self.controls.score = 0
         self.beam_tracer.reset_gold_collection()
