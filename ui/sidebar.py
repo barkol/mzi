@@ -13,14 +13,14 @@ class Sidebar:
     def __init__(self, sound_manager=None):
         self.sound_manager = sound_manager
         self.components = [
-            {'type': 'laser', 'name': 'Laser \u2192', 'desc': 'Move the laser'},
-            {'type': 'laser_down', 'name': 'Laser \u2193', 'desc': 'Laser emitting down'},
-            {'type': 'beamsplitter', 'name': 'BS \u2572', 'desc': '50/50 beam splitter'},
-            {'type': 'beamsplitter/', 'name': 'BS \u2571', 'desc': '50/50 beam splitter'},
-            {'type': 'mirror/', 'name': 'Mirror \u2571', 'desc': 'Diagonal reflection'},
-            {'type': 'mirror\\', 'name': 'Mirror \u2572', 'desc': 'Diagonal reflection'},
-            {'type': 'mirror|', 'name': 'Mirror \u2502', 'desc': 'Flat retro-mirror'},
-            {'type': 'mirror-', 'name': 'Mirror \u2500', 'desc': 'Flat retro-mirror'},
+            {'type': 'laser', 'name': 'Laser  >', 'desc': 'Move the laser'},
+            {'type': 'laser_down', 'name': 'Laser  v', 'desc': 'Laser emitting down'},
+            {'type': 'beamsplitter', 'name': 'BS  \\', 'desc': '50/50 beam splitter'},
+            {'type': 'beamsplitter/', 'name': 'BS  /', 'desc': '50/50 beam splitter'},
+            {'type': 'mirror/', 'name': 'Mirror  /', 'desc': 'Diagonal reflection'},
+            {'type': 'mirror\\', 'name': 'Mirror  \\', 'desc': 'Diagonal reflection'},
+            {'type': 'mirror|', 'name': 'Mirror  |', 'desc': 'Flat retro-mirror'},
+            {'type': 'mirror-', 'name': 'Mirror  --', 'desc': 'Flat retro-mirror'},
             {'type': 'detector', 'name': 'Detector', 'desc': 'Shows interference'}
         ]
         self.selected = None
