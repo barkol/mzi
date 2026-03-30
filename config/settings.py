@@ -139,40 +139,36 @@ def update_scaled_values(scale_factor, window_width=None, window_height=None, fu
         # Update window dimensions
         WINDOW_WIDTH = window_width
         WINDOW_HEIGHT = window_height
-        
-        # FIXED: Calculate UI panel sizes as percentages of screen size
-        sidebar_width = int(window_width * FULLSCREEN_SIDEBAR_PERCENT)
-        right_panel_width = int(window_width * FULLSCREEN_RIGHT_PANEL_PERCENT)
+
+        # Calculate grid size, capped for large screens
+        max_grid_scale = 2.0 if is_external_monitor else ui_scale
+        GRID_SIZE = min(int(BASE_GRID_SIZE * ui_scale),
+                        int(BASE_GRID_SIZE * max_grid_scale))
+
+        # Cap SCALE_FACTOR to stay proportional to GRID_SIZE so that
+        # scale() values (panel sizes, margins) don't outgrow the grid
+        effective_scale = GRID_SIZE / BASE_GRID_SIZE
+        SCALE_FACTOR = effective_scale
+        FONT_SCALE = min(3.5, max(0.8, effective_scale * 1.2))
+
+        # Now compute UI panel sizes with the capped scale
+        sidebar_width = max(int(window_width * FULLSCREEN_SIDEBAR_PERCENT),
+                            scale(200))
+        right_panel_width = max(int(window_width * FULLSCREEN_RIGHT_PANEL_PERCENT),
+                                scale(180))
         top_margin = int(window_height * FULLSCREEN_TOP_MARGIN_PERCENT)
-        control_height = int(window_height * FULLSCREEN_CONTROL_HEIGHT_PERCENT)
-        
-        # Apply minimum sizes scaled by UI scale
-        min_sidebar = scale(280)
-        min_right_panel = scale(250)
-        min_control_height = scale(100)
-        
-        sidebar_width = max(sidebar_width, min_sidebar)
-        right_panel_width = max(right_panel_width, min_right_panel)
-        control_height = max(control_height, min_control_height)
-        
-        # Calculate margins
-        canvas_margin = scale(30)  # Space between panels and canvas
-        bottom_margin = scale(20)  # Space at bottom
-        
-        # FIXED: Calculate available space for canvas
+        control_height = max(int(window_height * FULLSCREEN_CONTROL_HEIGHT_PERCENT),
+                             scale(80))
+
+        canvas_margin = scale(20)
+        bottom_margin = scale(15)
+
         available_width = window_width - sidebar_width - right_panel_width - (canvas_margin * 2)
         available_height = window_height - top_margin - control_height - canvas_margin - bottom_margin
         
-        # Calculate grid size based on UI scale
-        GRID_SIZE = int(BASE_GRID_SIZE * ui_scale)
-        
-        # Ensure grid isn't too large for very big screens
-        if is_external_monitor:
-            GRID_SIZE = min(GRID_SIZE, int(BASE_GRID_SIZE * 2.0))
-        
         # FIXED: Calculate how many grid cells can fit in available space
-        CANVAS_GRID_COLS = max(15, available_width // GRID_SIZE)
-        CANVAS_GRID_ROWS = max(12, available_height // GRID_SIZE)
+        CANVAS_GRID_COLS = max(10, available_width // GRID_SIZE)
+        CANVAS_GRID_ROWS = max(8, available_height // GRID_SIZE)
         
         # Cap grid dimensions for reasonable gameplay
         CANVAS_GRID_COLS = min(CANVAS_GRID_COLS, 40 if is_external_monitor else 30)
@@ -182,22 +178,23 @@ def update_scaled_values(scale_factor, window_width=None, window_height=None, fu
         CANVAS_WIDTH = CANVAS_GRID_COLS * GRID_SIZE
         CANVAS_HEIGHT = CANVAS_GRID_ROWS * GRID_SIZE
         
-        # FIXED: Center canvas in available space
-        CANVAS_OFFSET_X = sidebar_width + (available_width - CANVAS_WIDTH) // 2
-        CANVAS_OFFSET_Y = top_margin + (available_height - CANVAS_HEIGHT) // 2
-        
-        # Component sizes - maintain proper ratio to grid
-        component_scale = ui_scale * 0.7  # Components are 70% of UI scale
-        COMPONENT_RADIUS = int(BASE_COMPONENT_RADIUS * component_scale)
+        # Center canvas in available space, clamp to non-negative
+        CANVAS_OFFSET_X = max(sidebar_width + canvas_margin,
+                              sidebar_width + (available_width - CANVAS_WIDTH) // 2)
+        CANVAS_OFFSET_Y = max(canvas_margin,
+                              top_margin + (available_height - CANVAS_HEIGHT) // 2)
+
+        # Component sizes - proportional to grid
+        COMPONENT_RADIUS = max(12, min(int(GRID_SIZE * 0.3),
+                                        int(BASE_COMPONENT_RADIUS * effective_scale)))
         
         # Ensure component fits in grid cell with spacing
         max_radius = int(GRID_SIZE * 0.3)  # 60% diameter leaves 40% spacing
         COMPONENT_RADIUS = min(COMPONENT_RADIUS, max_radius)
         COMPONENT_RADIUS = max(COMPONENT_RADIUS, 12)  # Minimum size
         
-        # Beam width scales with UI
-        BEAM_WIDTH = int(BASE_BEAM_WIDTH * ui_scale)
-        BEAM_WIDTH = max(BEAM_WIDTH, 3)  # Minimum width
+        # Beam width scales with grid
+        BEAM_WIDTH = max(3, int(BASE_BEAM_WIDTH * effective_scale))
         
         logger.debug(
             "Fullscreen layout: %dx%d | External: %s | UI scale: %.2f (base: %.2f) | "
