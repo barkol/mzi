@@ -3,9 +3,9 @@
 Resize & drag diagnostic tool.
 
 Runs the game in a window, progressively resizes it, and at each size
-simulates a slow mouse drag of the laser to a new grid position.
-Screenshots are taken at key moments and saved into a timestamped
-ZIP archive for diagnostics.
+moves the laser through several random grid positions via direct
+position setting (bypassing drag events for reliability). Takes a
+screenshot after each move to verify beam alignment.
 
 Usage:
     python test_resize_screenshots.py [--sizes 800x600,1200x675,1600x900]
@@ -13,32 +13,37 @@ Usage:
 
 import os
 import sys
-import time
+import random
 import zipfile
 import argparse
 import platform
 from io import BytesIO
 from datetime import datetime
 
-# DPI awareness (Windows)
+# DPI awareness (Windows) — must be before pygame.init()
 if platform.system() == "Windows":
     try:
         import ctypes
-        ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except Exception:
+            try:
+                ctypes.windll.shcore.SetProcessDpiAwareness(1)
+            except Exception:
+                ctypes.windll.user32.SetProcessDPIAware()
     except Exception:
         pass
-
-os.environ.setdefault("SDL_VIDEODRIVER", "x11")  # use real display
+    os.environ.setdefault('SDL_WINDOWS_DPI_AWARENESS', 'permonitorv2')
 
 import pygame
 import config.settings as _settings
-from config.settings import update_scaled_values, scale, DESIGN_WIDTH, DESIGN_HEIGHT
+from config.settings import update_scaled_values, DESIGN_WIDTH, DESIGN_HEIGHT
 from core.game import Game
+from utils.vector import Vector2
 
 # ---------------------------------------------------------------------------
 
 def parse_sizes(s):
-    """Parse '800x600,1200x675' into list of (w,h) tuples."""
     sizes = []
     for tok in s.split(","):
         w, h = tok.strip().split("x")
@@ -54,77 +59,72 @@ DEFAULT_SIZES = [
     (1600, 900),
 ]
 
+N_MOVES = 6  # number of random laser moves per window size
+
 
 def screenshot(screen, label, shots):
-    """Capture a screenshot and store in the shots list."""
     buf = BytesIO()
     pygame.image.save(screen, buf, "screenshot.bmp")
     buf.seek(0)
-    # Convert BMP bytes → we'll save as-is (zip handles compression)
     shots.append((label, buf.getvalue()))
 
 
-def simulate_drag(game, screen, clock, shots, label_prefix,
-                  from_grid, to_grid, steps=15):
-    """Simulate a slow mouse drag from one grid cell to another."""
+def pump_frames(game, screen, clock, n=5):
+    """Advance the game n frames so beams are solved and drawn."""
+    for _ in range(n):
+        game.update(1 / 60)
+        game.draw()
+        pygame.display.flip()
+        clock.tick(60)
+        pygame.event.pump()
+
+
+def move_laser_directly(game, col, row):
+    """Move laser to grid cell (col, row) by setting position directly."""
     G  = _settings.GRID_SIZE
     OX = _settings.CANVAS_OFFSET_X
     OY = _settings.CANVAS_OFFSET_Y
+    x = OX + col * G + G // 2
+    y = OY + row * G + G // 2
+    game.laser.position = Vector2(x, y)
+    if hasattr(game.laser, '_ports'):
+        game.laser._ports = None
+    game.beam_tracer._network_valid = False
+    game.beam_tracer._last_component_set = None
+    game.beam_tracer._last_component_positions = None
 
-    # Pixel centers
-    sx = OX + from_grid[0] * G + G // 2
-    sy = OY + from_grid[1] * G + G // 2
-    ex = OX + to_grid[0] * G + G // 2
-    ey = OY + to_grid[1] * G + G // 2
 
-    # --- mouse down on source ---
-    evt = pygame.event.Event(pygame.MOUSEBUTTONDOWN,
-                             button=1, pos=(sx, sy))
-    game.handle_event(evt)
-    # pump a few frames so the pick-up registers
-    for _ in range(3):
-        game.update(1 / 60)
-        game.draw()
-        pygame.display.flip()
-        clock.tick(60)
-
-    screenshot(screen, f"{label_prefix}_1_pickup", shots)
-
-    # --- slow mouse motion ---
-    for i in range(1, steps + 1):
-        t = i / steps
-        mx = int(sx + (ex - sx) * t)
-        my = int(sy + (ey - sy) * t)
-        evt = pygame.event.Event(pygame.MOUSEMOTION,
-                                 pos=(mx, my), rel=(1, 0), buttons=(1, 0, 0))
-        game.handle_event(evt)
-        game.update(1 / 60)
-        game.draw()
-        pygame.display.flip()
-        clock.tick(60)
-        if i == steps // 2:
-            screenshot(screen, f"{label_prefix}_2_midway", shots)
-
-    screenshot(screen, f"{label_prefix}_3_predrop", shots)
-
-    # --- mouse up (drop) ---
-    evt = pygame.event.Event(pygame.MOUSEBUTTONUP,
-                             button=1, pos=(ex, ey))
-    game.handle_event(evt)
-    # pump frames for the drop to take effect + beam to render
-    for _ in range(5):
-        game.update(1 / 60)
-        game.draw()
-        pygame.display.flip()
-        clock.tick(60)
-
-    screenshot(screen, f"{label_prefix}_4_dropped", shots)
+def check_beam_alignment(game, tag, log_lines):
+    """Check all beam connections for diagonal beams. Returns True if OK."""
+    ok = True
+    for i, c in enumerate(game.beam_tracer.connections):
+        amp = game.beam_tracer.beam_amplitudes.get(f'beam_{i}', 0j)
+        if abs(amp) < 0.001:
+            continue
+        p1 = c.port1.position
+        p2 = c.port2.position
+        dx = abs(p1.x - p2.x)
+        dy = abs(p1.y - p2.y)
+        if dx > 1 and dy > 1:
+            msg = (f"DIAGONAL {tag}: beam {i} "
+                   f"({p1.x},{p1.y})->({p2.x},{p2.y}) "
+                   f"dx={dx:.0f} dy={dy:.0f} "
+                   f"GRID={_settings.GRID_SIZE} "
+                   f"laser=({game.laser.position.x},{game.laser.position.y}) "
+                   f"types=({type(game.laser.position.x).__name__},"
+                   f"{type(game.laser.position.y).__name__})")
+            print(f"  *** {msg}")
+            log_lines.append(msg)
+            ok = False
+    return ok
 
 
 def run(sizes):
     pygame.init()
     clock = pygame.time.Clock()
-    shots = []  # list of (filename, bmp_bytes)
+    shots = []
+    log_lines = []
+    rng = random.Random(42)  # deterministic
 
     # Start at first size
     w0, h0 = sizes[0]
@@ -133,74 +133,70 @@ def run(sizes):
     screen = pygame.display.set_mode((w0, h0), pygame.RESIZABLE)
     pygame.display.set_caption("Resize Diagnostic")
     game = Game(screen, sf)
+    pump_frames(game, screen, clock, 10)
 
-    # Let the game render a few frames to stabilize
-    for _ in range(10):
-        game.update(1 / 60)
-        game.draw()
-        pygame.display.flip()
-        clock.tick(60)
-
-    screenshot(screen, f"00_initial_{w0}x{h0}", shots)
+    total_ok = 0
+    total_tests = 0
 
     for idx, (w, h) in enumerate(sizes):
-        tag = f"{idx + 1:02d}_{w}x{h}"
+        tag_base = f"{idx + 1:02d}_{w}x{h}"
         print(f"Testing {w}x{h} ...")
 
-        # --- resize ---
+        # Resize
         sf = min(w / DESIGN_WIDTH, h / DESIGN_HEIGHT)
         update_scaled_values(sf, window_width=w, window_height=h, fullscreen=False)
         screen = pygame.display.set_mode((w, h), pygame.RESIZABLE)
         game.update_scale(sf)
         game.update_screen_references(screen, screen)
+        pump_frames(game, screen, clock, 8)
 
-        # Render a few frames at new size
-        for _ in range(8):
-            game.update(1 / 60)
-            game.draw()
-            pygame.display.flip()
-            clock.tick(60)
+        screenshot(screen, f"{tag_base}_00_resized", shots)
 
-        screenshot(screen, f"{tag}_a_after_resize", shots)
+        max_col = _settings.CANVAS_GRID_COLS - 2
+        max_row = _settings.CANVAS_GRID_ROWS - 2
 
-        # --- drag laser from its current position to (3, 3) ---
-        laser_gx = (_settings.CANVAS_OFFSET_X
-                     and int((game.laser.position.x - _settings.CANVAS_OFFSET_X)
-                             // _settings.GRID_SIZE))
-        laser_gy = int((game.laser.position.y - _settings.CANVAS_OFFSET_Y)
-                       // _settings.GRID_SIZE)
+        # Generate random positions
+        positions = []
+        for _ in range(N_MOVES):
+            c = rng.randint(1, max(1, max_col))
+            r = rng.randint(1, max(1, max_row))
+            positions.append((c, r))
 
-        target = (3, 3)
-        if (laser_gx, laser_gy) == target:
-            target = (5, 5)  # pick a different cell if already there
+        for mi, (col, row) in enumerate(positions):
+            tag = f"{tag_base}_m{mi + 1}_g{col}x{row}"
+            move_laser_directly(game, col, row)
+            pump_frames(game, screen, clock, 5)
+            screenshot(screen, tag, shots)
 
-        simulate_drag(game, screen, clock, shots,
-                      f"{tag}_drag",
-                      from_grid=(laser_gx, laser_gy),
-                      to_grid=target)
+            total_tests += 1
+            if check_beam_alignment(game, tag, log_lines):
+                total_ok += 1
 
-        # --- now drag laser to another row to check beam alignment ---
-        target2 = (target[0], target[1] + 3)
-        if target2[1] >= _settings.CANVAS_GRID_ROWS:
-            target2 = (target[0], target[1] - 3)
-        simulate_drag(game, screen, clock, shots,
-                      f"{tag}_drag2",
-                      from_grid=target,
-                      to_grid=target2)
-
-        # Flush pygame events
         pygame.event.pump()
 
     pygame.quit()
 
-    # --- save ZIP ---
+    # Summary
+    print(f"\n{'='*60}")
+    print(f"Results: {total_ok}/{total_tests} tests OK")
+    if log_lines:
+        print(f"DIAGONAL BEAMS FOUND ({len(log_lines)}):")
+        for line in log_lines:
+            print(f"  {line}")
+    else:
+        print("All beams perfectly aligned!")
+    print(f"Platform: {platform.system()} {platform.release()}")
+    print(f"{'='*60}")
+
+    # Save ZIP
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     zip_name = f"resize_diag_{ts}.zip"
     with zipfile.ZipFile(zip_name, "w", zipfile.ZIP_DEFLATED) as zf:
         for name, data in shots:
-            # Save as BMP inside zip (smaller than uncompressed, fast)
             zf.writestr(f"{name}.bmp", data)
-    print(f"\nSaved {len(shots)} screenshots to {zip_name}")
+        if log_lines:
+            zf.writestr("diagonal_beams.txt", "\n".join(log_lines))
+    print(f"Saved {len(shots)} screenshots to {zip_name}")
     return zip_name
 
 
@@ -209,7 +205,6 @@ def main():
     parser.add_argument("--sizes", type=str, default=None,
                         help="Comma-separated WxH sizes, e.g. 800x600,1200x675")
     args = parser.parse_args()
-
     sizes = parse_sizes(args.sizes) if args.sizes else DEFAULT_SIZES
     run(sizes)
 
