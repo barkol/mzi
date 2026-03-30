@@ -736,8 +736,10 @@ class WaveOpticsEngine:
                             out_name = port_names[output_port_idx] if output_port_idx < 4 else str(output_port_idx)
                             logger.debug("    %s scatters port %s -> %s with coeff %.3f", port2_component.component_type, in_name, out_name, s_coeff)
     
+    _diag_written = False  # class-level flag to write diagnostics once
+
     def _verify_beam_alignment(self):
-        """Log any non-axis-aligned beams (diagnostic for beam rendering issues)."""
+        """Log any non-axis-aligned beams and dump diagnostics to file."""
         for i, conn in enumerate(self.connections):
             amp = self.beam_amplitudes.get(f'beam_{i}', 0j)
             if abs(amp) < 0.001:
@@ -747,24 +749,49 @@ class WaveOpticsEngine:
             dx = abs(p1.x - p2.x)
             dy = abs(p1.y - p2.y)
             if dx > 1 and dy > 1:
-                logger.warning(
-                    "DIAGONAL BEAM %d: %s[%d](%d,%d) -> %s[%d](%d,%d) "
-                    "dx=%d dy=%d GRID=%d",
-                    i, conn.port1.component.component_type, conn.port1.port_index,
-                    int(p1.x), int(p1.y),
-                    conn.port2.component.component_type, conn.port2.port_index,
-                    int(p2.x), int(p2.y),
-                    dx, dy, _settings.GRID_SIZE)
-                # Log component positions and port offsets
+                msg = (f"DIAGONAL BEAM {i}: "
+                       f"{conn.port1.component.component_type}[{conn.port1.port_index}]"
+                       f"({p1.x},{p1.y}) -> "
+                       f"{conn.port2.component.component_type}[{conn.port2.port_index}]"
+                       f"({p2.x},{p2.y}) "
+                       f"dx={dx} dy={dy} GRID={_settings.GRID_SIZE} "
+                       f"SF={_settings.SCALE_FACTOR} "
+                       f"OFFSET=({_settings.CANVAS_OFFSET_X},{_settings.CANVAS_OFFSET_Y})")
+                logger.warning(msg)
                 for label, port in [('src', conn.port1), ('dst', conn.port2)]:
                     comp = port.component
                     ox = port.position.x - comp.position.x
                     oy = port.position.y - comp.position.y
-                    logger.warning(
-                        "  %s %s pos=(%d,%d) port%d offset=(%d,%d)",
-                        label, comp.component_type,
-                        int(comp.position.x), int(comp.position.y),
-                        port.port_index, int(ox), int(oy))
+                    detail = (f"  {label} {comp.component_type} "
+                              f"pos=({comp.position.x},{comp.position.y}) "
+                              f"port{port.port_index} offset=({ox},{oy}) "
+                              f"pos_types=({type(comp.position.x).__name__},"
+                              f"{type(comp.position.y).__name__})")
+                    logger.warning(detail)
+                # Write to file once for user to share
+                if not WaveOpticsEngine._diag_written:
+                    WaveOpticsEngine._diag_written = True
+                    try:
+                        with open("beam_diagnostic.txt", "w") as f:
+                            f.write(msg + "\n")
+                            for label, port in [('src', conn.port1), ('dst', conn.port2)]:
+                                comp = port.component
+                                f.write(f"  {label} {comp.component_type} "
+                                        f"pos=({comp.position.x},{comp.position.y}) "
+                                        f"port{port.port_index} "
+                                        f"offset=({port.position.x-comp.position.x},"
+                                        f"{port.position.y-comp.position.y}) "
+                                        f"types=({type(comp.position.x).__name__},"
+                                        f"{type(comp.position.y).__name__})\n")
+                            f.write(f"WINDOW={_settings.WINDOW_WIDTH}x{_settings.WINDOW_HEIGHT}\n")
+                            f.write(f"GRID={_settings.GRID_SIZE} SF={_settings.SCALE_FACTOR}\n")
+                            f.write(f"OFFSET=({_settings.CANVAS_OFFSET_X},{_settings.CANVAS_OFFSET_Y})\n")
+                            f.write(f"CANVAS={_settings.CANVAS_WIDTH}x{_settings.CANVAS_HEIGHT}\n")
+                            import platform
+                            f.write(f"PLATFORM={platform.system()} {platform.release()}\n")
+                        logger.warning("Diagnostics written to beam_diagnostic.txt")
+                    except Exception:
+                        pass
 
     def _generate_beam_paths(self, amplitudes):
         """Generate beam paths for visualization - ensuring proper start positions."""

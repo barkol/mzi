@@ -104,7 +104,7 @@ class TestVector2Geometry:
 class TestVector2Conversion:
     def test_tuple_returns_ints(self):
         t = Vector2(3.7, 4.2).tuple()
-        assert t == (3, 4)
+        assert t == (4, 4)  # round(), not truncate
         assert all(isinstance(c, int) for c in t)
 
     def test_str(self):

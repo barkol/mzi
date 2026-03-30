@@ -38,4 +38,4 @@ class Vector2:
         return (self - other).magnitude()
     
     def tuple(self):
-        return (int(self.x), int(self.y))
+        return (round(self.x), round(self.y))

@@ -21,16 +21,23 @@ logger = logging.getLogger(__name__)
 
 def get_display_mode():
     """Get the best display mode for the game."""
-    # Set DPI awareness on Windows so pygame coordinates match pixels
+    # Set DPI awareness on Windows BEFORE pygame.init() so that
+    # pygame coordinates match physical pixels at all scale factors.
     if platform.system() == 'Windows':
         try:
             import ctypes
-            ctypes.windll.shcore.SetProcessDpiAwareness(1)  # per-monitor DPI aware
-        except Exception:
+            # Try per-monitor v2 first (best), then v1, then legacy
             try:
-                ctypes.windll.user32.SetProcessDPIAware()
+                ctypes.windll.shcore.SetProcessDpiAwareness(2)
             except Exception:
-                pass
+                try:
+                    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+                except Exception:
+                    ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+        # Also tell SDL to handle DPI
+        os.environ.setdefault('SDL_WINDOWS_DPI_AWARENESS', 'permonitorv2')
 
     pygame.init()
 
