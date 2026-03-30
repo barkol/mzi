@@ -457,14 +457,14 @@ class WaveOpticsEngine:
             distance += step_size
             
             # Get the grid cell this position is in
-            grid_x = round((next_pos.x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
-            grid_y = round((next_pos.y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
+            grid_x = (next_pos.x - _settings.CANVAS_OFFSET_X) // _settings.GRID_SIZE
+            grid_y = (next_pos.y - _settings.CANVAS_OFFSET_Y) // _settings.GRID_SIZE
             grid_cell = (grid_x, grid_y)
             
             # Check if this grid cell is blocked
             for blocked_pos in self.blocked_positions:
-                blocked_grid_x = round((blocked_pos.x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
-                blocked_grid_y = round((blocked_pos.y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
+                blocked_grid_x = (blocked_pos.x - _settings.CANVAS_OFFSET_X) // _settings.GRID_SIZE
+                blocked_grid_y = (blocked_pos.y - _settings.CANVAS_OFFSET_Y) // _settings.GRID_SIZE
                 
                 if (grid_x, grid_y) == (blocked_grid_x, blocked_grid_y):
                     # Beam hit a blocked field - end path here
@@ -500,10 +500,10 @@ class WaveOpticsEngine:
                 grid_distance = dx + dy
                 
                 # Check if we're in the same grid cell as the component
-                comp_grid_x = round((comp.position.x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
-                comp_grid_y = round((comp.position.y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
-                beam_grid_x = round((next_pos.x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
-                beam_grid_y = round((next_pos.y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
+                comp_grid_x = (comp.position.x - _settings.CANVAS_OFFSET_X) // _settings.GRID_SIZE
+                comp_grid_y = (comp.position.y - _settings.CANVAS_OFFSET_Y) // _settings.GRID_SIZE
+                beam_grid_x = (next_pos.x - _settings.CANVAS_OFFSET_X) // _settings.GRID_SIZE
+                beam_grid_y = (next_pos.y - _settings.CANVAS_OFFSET_Y) // _settings.GRID_SIZE
                 
                 # Component is hit if beam is in same grid cell
                 if comp_grid_x == beam_grid_x and comp_grid_y == beam_grid_y:
@@ -868,8 +868,8 @@ class WaveOpticsEngine:
                     # Check each gold position
                     for gold_pos in self.gold_positions:
                         if gold_pos.distance_to(point) < _settings.GRID_SIZE / 2:
-                            grid_x = round((gold_pos.x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
-                            grid_y = round((gold_pos.y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
+                            grid_x = (gold_pos.x - _settings.CANVAS_OFFSET_X) // _settings.GRID_SIZE
+                            grid_y = (gold_pos.y - _settings.CANVAS_OFFSET_Y) // _settings.GRID_SIZE
                             gold_key = (grid_x, grid_y)
                             
                             # Track for this frame (for sound effects)
@@ -1106,12 +1106,12 @@ class WaveOpticsEngine:
             path_length += step_size
             
             # Check if we're in a blocked grid cell
-            grid_x = round((next_pos.x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
-            grid_y = round((next_pos.y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
+            grid_x = (next_pos.x - _settings.CANVAS_OFFSET_X) // _settings.GRID_SIZE
+            grid_y = (next_pos.y - _settings.CANVAS_OFFSET_Y) // _settings.GRID_SIZE
             
             for blocked_pos in self.blocked_positions:
-                blocked_grid_x = round((blocked_pos.x - _settings.CANVAS_OFFSET_X) / _settings.GRID_SIZE)
-                blocked_grid_y = round((blocked_pos.y - _settings.CANVAS_OFFSET_Y) / _settings.GRID_SIZE)
+                blocked_grid_x = (blocked_pos.x - _settings.CANVAS_OFFSET_X) // _settings.GRID_SIZE
+                blocked_grid_y = (blocked_pos.y - _settings.CANVAS_OFFSET_Y) // _settings.GRID_SIZE
                 
                 if (grid_x, grid_y) == (blocked_grid_x, blocked_grid_y):
                     # Beam hit a blocked field
