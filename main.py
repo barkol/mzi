@@ -6,6 +6,7 @@ Main entry point with responsive fullscreen support
 __version__ = "1.0.0"
 
 import logging
+import os
 import pygame
 import sys
 import platform
