@@ -90,7 +90,7 @@ class QuantumPacketEngine:
         self.families: List[PacketFamily] = []
         self.emit_timer: float = 0.0
         self.emit_interval: float = 1.5   # seconds between emissions
-        self.packet_speed: float = 200.0   # pixels per second
+        self.packet_speed: float = 400.0   # pixels per second
         self.max_families: int = 12
         self.collapse_duration: float = 0.3  # seconds
         self.photons_per_pulse: int = 1    # number of photons per emission

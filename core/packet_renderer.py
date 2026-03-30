@@ -77,6 +77,8 @@ class PacketRenderer:
             self._draw_ghost_beams(ghost_beams, t)
 
         # 2. For each family draw trails, packets, collapse effects
+        self._engine = engine
+        self._theory_cache = None  # recompute once per frame if needed
         for family in engine.families:
             self._draw_family(family, now, t)
 
@@ -144,11 +146,21 @@ class PacketRenderer:
 
         for pkt in family.packets:
             if pkt.state == PacketState.TRAVELING:
+                n = photons_per_conn.get(pkt.connection_index, 1)
+                # In multi-photon mode, skip pulses that carry 0 photons
+                if family.n_photons > 1 and n <= 0:
+                    continue
+                # Suppress pulses heading to zero-probability detectors.
+                # After interference, a detector may receive 0 photons
+                # even though individual superposition packets still
+                # travel toward it.  Scale the visual by the detection
+                # probability so that zero-probability paths are invisible.
+                if self._packet_visibility(pkt) < 0.01:
+                    continue
                 self._draw_trail(pkt, t)
                 self._draw_packet(pkt, t)
                 # Draw photon-number label once per connection
-                n = photons_per_conn.get(pkt.connection_index, 1)
-                if family.n_photons > 1 and pkt.connection_index not in labeled_conns:
+                if family.n_photons > 1 and n > 0 and pkt.connection_index not in labeled_conns:
                     labeled_conns.add(pkt.connection_index)
                     self._draw_photon_number(pkt, n)
             elif pkt.state == PacketState.ARRIVED:
@@ -156,13 +168,43 @@ class PacketRenderer:
                 self._draw_arrived_glow(pkt, t)
             elif pkt.state == PacketState.DETECTED:
                 self._draw_trail(pkt, t, detected=True)
-                # Flash only when >1 photon detected at the same detector
-                n_at_det = photons_per_det.get(id(pkt.detector), 1)
-                if n_at_det > 1:
-                    self._draw_detection_flash(pkt, now)
             elif pkt.state == PacketState.COLLAPSED:
                 elapsed = now - pkt.detection_time
                 self._draw_collapse_trail(pkt, elapsed, family)
+
+    # ------------------------------------------------------------------
+    # Photon-number-aware visibility
+    # ------------------------------------------------------------------
+
+    def _packet_visibility(self, pkt: QuantumPacket) -> float:
+        """Return 0..1 visibility for a traveling packet.
+
+        Uses the wave-optics theoretical probabilities to determine
+        whether this packet's destination detector will actually receive
+        a photon after interference.  Packets heading to non-detector
+        components (mirrors, BSes) are always visible.
+        """
+        engine = getattr(self, '_engine', None)
+        if engine is None:
+            return 1.0
+        graph = engine._network_graph
+        if graph is None:
+            return 1.0
+        conns = graph['connections']
+        if pkt.connection_index >= len(conns):
+            return 1.0
+        dest = conns[pkt.connection_index]['dest_component']
+        if dest.component_type != 'detector':
+            return 1.0
+        # Look up the theoretical probability for this detector
+        theory = getattr(self, '_theory_cache', None)
+        if theory is None:
+            theory = engine.get_theoretical_probs()
+            self._theory_cache = theory
+        prob = theory.get(dest, None)
+        if prob is None:
+            return 1.0
+        return prob
 
     # ------------------------------------------------------------------
     # Traveling packet
@@ -221,6 +263,8 @@ class PacketRenderer:
 
     def _draw_photon_number(self, pkt: QuantumPacket, n: int):
         """Draw a small circled number near the packet head showing photon count."""
+        if n <= 0:
+            return
         path = pkt.path
         if not path or len(path) < 2:
             return
