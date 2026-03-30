@@ -927,7 +927,9 @@ class Game:
         self._draw_challenge_name()
         
         # Layer 6: Draw grid (includes gold fields, blocked fields, and grid lines)
-        laser_pos = self.laser.position.tuple() if self.laser else None
+        laser_pos = (self.laser.position.tuple()
+                     if self.laser and self._dragging_component is not self.laser
+                     else None)
         gold_hits = getattr(self.beam_tracer, 'gold_field_hits', None)
         self.grid.draw(self.screen, self.component_manager.components, laser_pos,
                       self.challenge_manager.get_blocked_positions(),

@@ -386,11 +386,10 @@ class Grid:
         """Draw hover highlight for component placement."""
         x, y = self.hover_pos
         
-        # Calculate the grid cell bounds
-        grid_x = (x - _settings.CANVAS_OFFSET_X + _settings.GRID_SIZE // 2) // _settings.GRID_SIZE
-        grid_y = (y - _settings.CANVAS_OFFSET_Y + _settings.GRID_SIZE // 2) // _settings.GRID_SIZE
-        cell_x = _settings.CANVAS_OFFSET_X + grid_x * _settings.GRID_SIZE
-        cell_y = _settings.CANVAS_OFFSET_Y + grid_y * _settings.GRID_SIZE
+        # hover_pos is already snapped to cell centre by set_hover(),
+        # so the top-left corner of the cell is simply half a cell back.
+        cell_x = x - _settings.GRID_SIZE // 2
+        cell_y = y - _settings.GRID_SIZE // 2
         
         # Check if position is occupied or blocked
         occupied = self._is_position_occupied(x, y, components, laser_pos)
