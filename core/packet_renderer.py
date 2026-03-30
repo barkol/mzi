@@ -164,13 +164,14 @@ class PacketRenderer:
                     labeled_conns.add(pkt.connection_index)
                     self._draw_photon_number(pkt, n)
             elif pkt.state == PacketState.ARRIVED:
-                self._draw_trail(pkt, t)
-                self._draw_arrived_glow(pkt, t)
+                if pkt.detector and self._detector_visible(pkt.detector):
+                    self._draw_trail(pkt, t)
+                    self._draw_arrived_glow(pkt, t)
             elif pkt.state == PacketState.DETECTED:
-                self._draw_trail(pkt, t, detected=True)
+                if pkt.detector and self._detector_visible(pkt.detector):
+                    self._draw_trail(pkt, t, detected=True)
             elif pkt.state == PacketState.COLLAPSED:
-                elapsed = now - pkt.detection_time
-                self._draw_collapse_trail(pkt, elapsed, family)
+                pass  # no animation for paths not taken
 
     # ------------------------------------------------------------------
     # Photon-number-aware visibility
@@ -205,6 +206,20 @@ class PacketRenderer:
         if prob is None:
             return 1.0
         return prob
+
+    def _detector_visible(self, detector) -> bool:
+        """Return True if this detector has non-negligible theoretical probability."""
+        engine = getattr(self, '_engine', None)
+        if engine is None:
+            return True
+        theory = getattr(self, '_theory_cache', None)
+        if theory is None:
+            theory = engine.get_theoretical_probs()
+            self._theory_cache = theory
+        prob = theory.get(detector, None)
+        if prob is None:
+            return True
+        return prob >= 0.01
 
     # ------------------------------------------------------------------
     # Traveling packet

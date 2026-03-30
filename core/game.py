@@ -576,31 +576,42 @@ class Game:
                             if name == self.challenge_manager.current_challenge:
                                 current_idx = i
                                 break
-                    
+
                     # Go to next challenge
                     next_idx = (current_idx + 1) % len(challenges)
                     challenge_name, challenge_title = challenges[next_idx]
                     self.challenge_manager.set_current_challenge(challenge_name)
                     self.current_challenge_display_name = challenge_title
                     self.controls.set_challenge(challenge_title)
-                    
+
                     # Update completion status
                     is_completed = challenge_name in self.completed_challenges
                     if hasattr(self.controls, 'set_challenge_completed'):
                         self.controls.set_challenge_completed(is_completed)
-                    
-                    # Reset gold collection when loading new challenge
+
+                    # Clear board from previous mode (classic or other challenge)
+                    self.component_manager.clear_all(self.laser)
+                    if self.quantum_mode:
+                        self.packet_engine.reset()
+                    self.score = 0
+                    self.controls.score = 0
+
+                    # Reset gold collection
                     self.beam_tracer.reset_gold_collection()
                     if hasattr(self.controls, 'set_gold_bonus'):
                         self.controls.set_gold_bonus(0)
                     self.last_gold_hits.clear()
-                    
-                    # Reset all components
+
+                    # Reset beam tracer
                     self.beam_tracer.reset()
-                    for comp in self.component_manager.components:
-                        if hasattr(comp, 'reset_frame'):
-                            comp.reset_frame()
-                    
+
+                    # Reset laser to default position
+                    lx, ly = 1, 5
+                    self.laser.position = Vector2(
+                        _settings.CANVAS_OFFSET_X + lx * _settings.GRID_SIZE + _settings.GRID_SIZE // 2,
+                        _settings.CANVAS_OFFSET_Y + ly * _settings.GRID_SIZE + _settings.GRID_SIZE // 2)
+                    self.laser.enabled = True
+
                     self.sound_manager.play('panel_open')
                     logger.debug("Loaded challenge: %s", challenge_title)
                     self.right_panel.add_debug_message(f"Loaded challenge: {challenge_title}")

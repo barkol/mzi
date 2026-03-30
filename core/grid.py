@@ -265,7 +265,10 @@ class Grid:
 
         for pos_key, intensity in gold_hits.items():
             if isinstance(pos_key, tuple) and len(pos_key) == 2:
-                x, y = int(pos_key[0]), int(pos_key[1])
+                gx, gy = pos_key
+                # Keys are grid-cell indices — convert to pixel centre
+                x = int(_settings.CANVAS_OFFSET_X + gx * _settings.GRID_SIZE + _settings.GRID_SIZE // 2)
+                y = int(_settings.CANVAS_OFFSET_Y + gy * _settings.GRID_SIZE + _settings.GRID_SIZE // 2)
             elif hasattr(pos_key, 'x'):
                 x, y = int(pos_key.x), int(pos_key.y)
             else:
