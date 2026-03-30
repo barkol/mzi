@@ -934,16 +934,16 @@ class Game:
                       self.challenge_manager.get_gold_positions(),
                       gold_hits=gold_hits)
         
-        # Layer 7: Draw laser
-        if self.laser:
+        # Layer 7: Draw laser (skip if being dragged — preview shows instead)
+        if self.laser and self._dragging_component is not self.laser:
             self.laser.draw(self.screen)
         
         # Layer 8: Draw components
         for comp in self.component_manager.components:
             comp.draw(self.screen)
         
-        # Layer 9: Trace and draw beams
-        if self.laser and self.laser.enabled:
+        # Layer 9: Trace and draw beams (skip while dragging a component)
+        if self.laser and self.laser.enabled and not self._dragging_component:
             # Reset beam tracer and components for clean solving
             self.beam_tracer.reset()
             for comp in self.component_manager.components:
