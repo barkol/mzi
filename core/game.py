@@ -745,7 +745,7 @@ class Game:
         # Enter classic mode — no challenge restrictions, hide challenge UI
         self.classic_mode = True
         self.challenge_manager.current_challenge = None
-        self.controls.hidden_buttons = {'Check Setup', 'Challenge >', 'Map >'}
+        self.controls.hidden_buttons = {'Check Setup', 'Map >'}
 
         # Clear everything
         self.component_manager.clear_all(self.laser)
